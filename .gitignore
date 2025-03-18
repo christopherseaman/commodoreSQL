@@ -2,3 +2,4 @@
 /parquet
 /error.log
 /description.csv
+.venv/
