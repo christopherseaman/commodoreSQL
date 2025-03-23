@@ -3,3 +3,6 @@
 /error.log
 /description.csv
 .venv/
+commodore.db
+output/*
+good/*

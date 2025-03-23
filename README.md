@@ -1,5 +1,13 @@
 # CommodoreSQL
 
+> **IMPORTANT NOTE:** During development and testing:
+> - Database backup functionality is disabled to improve performance
+> - The database is deleted at the start of each run for a clean slate
+> 
+> Before using in production:
+> - Re-enable the backup code in `scripts/run_all.sh` by uncommenting the backup and restore sections
+> - Consider disabling the database deletion code if you want to preserve data between runs
+
 ## Setup and Usage
 
 ### Initial Setup

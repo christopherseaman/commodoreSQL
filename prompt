@@ -1,0 +1,14 @@
+Please assess the current status of this implementation vs the @/execution_plan.md@/README.md@/plan.md
+
+--
+
+1. Verify the implementation of mailing list SQL files
+2. Complete implementation of merged records SQL files
+3. Complete implementation of export CSV SQL files
+4. Add comprehensive testing for each step
+5. Document the completed implementation
+6. Recommend the GUI implementation as a separate phase (MDS-in-a-box? Superset? DuckDB -ui? DBeaver?)
+
+--
+
+Ummm... I think the database is quite big. Probably shouldn't back it up. Let's see if we can save space without losing too much performance by using (non-materialized) views for the joins. 

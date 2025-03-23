@@ -1,0 +1,19 @@
+version: '3.8'
+
+services:
+  duckdb:
+    image: python:3.13-slim
+    volumes:
+      - .:/app
+    working_dir: /app
+    command: >
+      bash -c "apt-get update;
+             apt-get install -y curl gettext-base;
+             curl https://install.duckdb.org | sh;
+             ln -sf /root/.duckdb/cli/latest/duckdb /usr/local/bin/duckdb;
+             chmod +x scripts/*.sh;
+             bash scripts/run_all.sh"
+    env_file:
+      - dot.env
+    environment:
+      - DUCKDB_DATABASE=/app/commodore.db 
