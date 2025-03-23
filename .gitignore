@@ -4,5 +4,5 @@
 /description.csv
 .venv/
 commodore.db
-output/*
-good/*
+good/
+output/
