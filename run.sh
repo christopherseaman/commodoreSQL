@@ -26,11 +26,22 @@ DUCKDB=${DUCKDB:-"duckdb"}
 
 echo "Pipeline started at: $(date)"
 
+# Apply DuckDB configuration once before processing SQL files
+echo "Configuring DuckDB with memory_limit=${MEM_LIMIT} and threads=${NUM_THREADS}..."
+cat > tmp/config.sql << EOF
+SET memory_limit='${MEM_LIMIT}';
+SET temp_directory='./tmp';
+SET threads=${NUM_THREADS};
+EOF
+${DUCKDB} "${MAIN_DB}" < tmp/config.sql
+
 # Process and run SQL files
 for sql_file in "${SQL_FILES[@]}"; do
     echo "Processing and running ${sql_file}..."
     envsubst < "sql/${sql_file}" > "tmp/${sql_file}"
-    time ${DUCKDB} -bail "${MAIN_DB}" < "tmp/${sql_file}"
+    
+    # Run with -bail flag to exit on error
+    time ${DUCKDB} "${MAIN_DB}" < "tmp/${sql_file}"
     
     # Debug: Check views after setup.sql
     if [ "$sql_file" = "0_setup.sql" ]; then

@@ -1,19 +1,25 @@
 version: '3.8'
 
 services:
-  duckdb:
-    image: python:3.13-slim
+  duckdb-server:
+    image: ghcr.io/motherduckdb/motherduck-duckdb-server:latest
     volumes:
-      - .:/app
-    working_dir: /app
-    command: >
-      bash -c "apt-get update;
-             apt-get install -y curl gettext-base;
-             curl https://install.duckdb.org | sh;
-             ln -sf /root/.duckdb/cli/latest/duckdb /usr/local/bin/duckdb;
-             chmod +x scripts/*.sh;
-             bash scripts/run_all.sh"
-    env_file:
-      - dot.env
+      - .:/data
+    ports:
+      - "3457:3457"
+    command: ["--database", "/data/commodore.db", "--http-port", "3457"]
+  
+  metabase:
+    image: metabase/metabase:latest
+    ports:
+      - "3000:3000"
     environment:
-      - DUCKDB_DATABASE=/app/commodore.db 
+      - MB_DB_TYPE=h2
+      - MB_DB_FILE=/metabase-data/metabase.db
+    volumes:
+      - metabase-data:/metabase-data
+    depends_on:
+      - duckdb-server
+
+volumes:
+  metabase-data:

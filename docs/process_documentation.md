@@ -16,17 +16,38 @@ graph LR
         O[optout_data]
     end
     
-    subgraph "Generated Views"
+    subgraph "Mailing Lists"
         CD[comprehensive_data]
-        RD[recent_data]
         MM[master_mailing]
+        RM[recent_mailing]
+        CA[california_mailing]
+        TX[texas_mailing]
+        FL[florida_mailing]
+        NY[newyork_mailing]
+        TXF[texas_fall_series]
+    end
+    
+    subgraph "Merged Records"
+        FR[faculty_records]
+        CSR[course_section_records]
+        CR[course_records]
     end
     
     S --> CD
     I --> CD
     O --> CD
-    CD --> RD
+    
     CD --> MM
+    MM --> RM
+    RM --> CA
+    RM --> TX
+    RM --> FL
+    RM --> NY
+    
+    CD --> TXF
+    CD --> FR
+    CD --> CSR
+    CD --> CR
 ```
 
 ### Join Relationships
@@ -194,37 +215,57 @@ graph TD
     end
     
     subgraph "Faculty Records"
-        CD --> F1[Group by Email]
-        F1 --> F2[Latest Info]
-        F2 --> F3[Calculate Stats]
+        CD --> F1[Group by Email/Name]
+        F1 --> F2[Count Records by Period]
+        F2 --> F3[Count Sections by Period]
+        F3 --> F4[faculty_records View]
+    end
+    
+    subgraph "Course Section Records"
+        CD --> S1[Group by Course+Section]
+        S1 --> S2[Count Records]
+        S2 --> S3[List Publishers]
+        S3 --> S4[course_section_records View]
     end
     
     subgraph "Course Records"
         CD --> C1[Group by Course]
-        C1 --> C2[Aggregate Data]
-        C2 --> C3[Calculate Metrics]
-    end
-    
-    subgraph "Section Records"
-        CD --> S1[Unique Sections]
-        S1 --> S2[Section Stats]
+        C1 --> C2[Count Sections]
+        C2 --> C3[Sum Enrollments]
+        C3 --> C4[List Publishers]
+        C4 --> C5[course_records View]
     end
 ```
 
 ### Key Operations
 1. **Faculty Records**
-   - Group records by email
-   - Select latest information
-   - Calculate faculty-level statistics
+   - Create unique identifier for each faculty member:
+     - Use email address when available
+     - Fall back to instructor name + school when email is unavailable
+   - Group records by faculty identifier, school, and period
+   - Calculate statistics for each faculty member:
+     - Total records by period
+     - Unique course sections by period
+   - Store results in `faculty_records` view
 
-2. **Course Records**
-   - Group by course identifier
-   - Aggregate enrollment data
-   - Calculate course-level metrics
+2. **Course Section Records**
+   - Create unique identifier for each course section:
+     - Combination of course number, section, title, school, and period
+   - Group records by section identifier
+   - Calculate statistics for each section:
+     - Number of records in period
+     - List of publishers used (all distinct publishers)
+   - Store results in `course_section_records` view
 
-3. **Section Records**
-   - Create unique section records
-   - Calculate section-level statistics
+3. **Course Records**
+   - Create unique identifier for each course:
+     - Combination of course number, title, school, and period
+   - Group records by course identifier
+   - Calculate statistics for each course:
+     - Number of sections in period
+     - Total enrollment across all sections
+     - List of publishers used (all distinct publishers)
+   - Store results in `course_records` view
 
 ## Step 3: Export CSVs
 
@@ -282,13 +323,16 @@ graph TD
 ### Command Line Usage
 ```bash
 # Run entire pipeline
-./scripts/run_all.sh [CSV_DATE]
+./run.sh [CSV_DATE]
 
-# Run individual steps
-./scripts/0_setup.sh [CSV_DATE]
-./scripts/1_mailing_lists.sh
-./scripts/2_merged_records.sh
-./scripts/3_export_csv.sh
+# Run individual steps by editing dot.env
+# Uncomment only the steps you want to run in the SQL_FILES array:
+# SQL_FILES=(
+#        "0_setup.sql"
+#        "1_mailing_lists.sql"
+#        "2_merged_records.sql"
+#        "3_export.sql"
+# )
 ```
 
 ### Configuration
@@ -303,9 +347,21 @@ For detailed configuration options, see the [README](../README.md).
 
 ### Output Files
 All output files are stored in the `output` directory:
-- Mailing lists
-- Merged records
-- Export files
-- Log files
 
-For a complete list of output files and their formats, see the [Data Dictionary](data_dictionary.md). 
+#### Sample and Mailing Lists
+- `sample_records.csv`: 10,000 random records for inspection
+- `master_mailing.csv`: Complete deduplicated mailing list
+- `master_mailing_essential.csv`: Reduced columns version of master mailing list
+- `recent_mailing.csv`: Records from the most recent 8 periods
+- `california_mailing.csv`: California records from recent periods
+- `texas_mailing.csv`: Texas records from recent periods
+- `florida_mailing.csv`: Florida records from recent periods
+- `newyork_mailing.csv`: New York records from recent periods
+- `texas_fall_series.csv`: All Texas Fall term records
+
+#### Merged Records
+- `faculty_records.csv`: Consolidated faculty records
+- `course_section_records.csv`: Unique course section records
+- `course_records.csv`: Consolidated course records
+
+For detailed information about the structure and content of these files, see the [Data Dictionary](data_dictionary.md).

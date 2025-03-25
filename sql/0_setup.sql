@@ -1,14 +1,8 @@
 -- Step 0: Setup and Import
 -- This script:
--- 1. Configures DuckDB settings
--- 2. Imports CSV files
--- 3. Creates comprehensive database with merged data
--- 4. Creates standardized date field (YYYY-N format)
-
--- Configure DuckDB settings
-SET memory_limit='8GB';
-SET temp_directory='./tmp';
-SET threads=4;
+-- 1. Imports CSV files
+-- 2. Creates comprehensive database with merged data
+-- 3. Creates standardized date field (YYYY-N format)
 
 -- Import CSV files
 BEGIN TRANSACTION;

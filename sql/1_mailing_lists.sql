@@ -5,9 +5,9 @@
 -- 3. State-specific mailing lists
 -- 4. Texas time series
 
--- Create master mailing list
-DROP TABLE IF EXISTS master_mailing;
-CREATE TABLE master_mailing AS
+-- Create master mailing list view
+DROP VIEW IF EXISTS master_mailing;
+CREATE VIEW master_mailing AS
 SELECT DISTINCT ON ("E-Mail") *
 FROM comprehensive_data
 WHERE 
@@ -21,42 +21,42 @@ ORDER BY
     RANDOM();             -- Random selection for ties
 
 -- Get the 8 most recent periods
-DROP TABLE IF EXISTS recent_periods;
-CREATE TABLE recent_periods AS
+DROP VIEW IF EXISTS recent_periods;
+CREATE VIEW recent_periods AS
 SELECT DISTINCT period_sortable
 FROM master_mailing
 ORDER BY period_sortable DESC
 LIMIT 8;
 
 -- Create recent mailing list (last 2 years / 8 periods)
-DROP TABLE IF EXISTS recent_mailing;
-CREATE TABLE recent_mailing AS
+DROP VIEW IF EXISTS recent_mailing;
+CREATE VIEW recent_mailing AS
 SELECT m.*
 FROM master_mailing m
 JOIN recent_periods p ON m.period_sortable = p.period_sortable;
 
 -- Create state-specific mailing lists
-DROP TABLE IF EXISTS california_mailing;
-CREATE TABLE california_mailing AS
+DROP VIEW IF EXISTS california_mailing;
+CREATE VIEW california_mailing AS
 SELECT * FROM recent_mailing WHERE State = 'CA';
 
-DROP TABLE IF EXISTS texas_mailing;
-CREATE TABLE texas_mailing AS
+DROP VIEW IF EXISTS texas_mailing;
+CREATE VIEW texas_mailing AS
 SELECT * FROM recent_mailing WHERE State = 'TX';
 
-DROP TABLE IF EXISTS florida_mailing;
-CREATE TABLE florida_mailing AS
+DROP VIEW IF EXISTS florida_mailing;
+CREATE VIEW florida_mailing AS
 SELECT * FROM recent_mailing WHERE State = 'FL';
 
-DROP TABLE IF EXISTS newyork_mailing;
-CREATE TABLE newyork_mailing AS
+DROP VIEW IF EXISTS newyork_mailing;
+CREATE VIEW newyork_mailing AS
 SELECT * FROM recent_mailing WHERE State = 'NY';
 
 -- Create Texas time series (all Fall terms)
-DROP TABLE IF EXISTS texas_fall_series;
-CREATE TABLE texas_fall_series AS
+DROP VIEW IF EXISTS texas_fall_series;
+CREATE VIEW texas_fall_series AS
 SELECT *
 FROM comprehensive_data
 WHERE 
     State = 'TX' AND
-    Period LIKE 'Fall %'; 
+    Period LIKE 'Fall %';
