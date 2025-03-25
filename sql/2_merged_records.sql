@@ -4,6 +4,8 @@
 -- 2. Course section records
 -- 3. Course records
 
+${CONFIG}
+
 -- Create faculty records
 DROP VIEW IF EXISTS faculty_records;
 CREATE VIEW faculty_records AS

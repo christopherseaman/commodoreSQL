@@ -331,8 +331,9 @@ graph TD
 #        "0_setup.sql"
 #        "1_mailing_lists.sql"
 #        "2_merged_records.sql"
-#        "3_export.sql"
 # )
+# 
+# # Exports are handled separately by export_all.sh
 ```
 
 ### Configuration

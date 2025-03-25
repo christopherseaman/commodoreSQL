@@ -1,6 +1,6 @@
 #!/bin/bash
 
-# Exit on any error
+# Exit on any error in the setup phase
 set -e
 
 # Load environment variables
@@ -14,7 +14,6 @@ if [ -z "${SQL_FILES+x}" ]; then
         "0_setup.sql"
         "1_mailing_lists.sql"
         "2_merged_records.sql"
-        "3_export.sql"
     )
 fi
 
@@ -26,14 +25,13 @@ DUCKDB=${DUCKDB:-"duckdb"}
 
 echo "Pipeline started at: $(date)"
 
-# Apply DuckDB configuration once before processing SQL files
+# Set DuckDB configuration as an environment variable
 echo "Configuring DuckDB with memory_limit=${MEM_LIMIT} and threads=${NUM_THREADS}..."
-cat > tmp/config.sql << EOF
+export CONFIG="
 SET memory_limit='${MEM_LIMIT}';
 SET temp_directory='./tmp';
 SET threads=${NUM_THREADS};
-EOF
-${DUCKDB} "${MAIN_DB}" < tmp/config.sql
+"
 
 # Process and run SQL files
 for sql_file in "${SQL_FILES[@]}"; do
@@ -54,5 +52,8 @@ done
 echo "Cleaning up temporary files..."
 rm -f tmp/*.sql
 
-echo "Output files are in the ${OUTPUT_DIR} directory" 
+# Run the export process
+echo "Running exports using temp tables..."
+./export_all.sh
+
 echo "Pipeline completed at: $(date)"

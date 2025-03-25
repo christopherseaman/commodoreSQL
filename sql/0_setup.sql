@@ -4,6 +4,8 @@
 -- 2. Creates comprehensive database with merged data
 -- 3. Creates standardized date field (YYYY-N format)
 
+${CONFIG}
+
 -- Import CSV files
 BEGIN TRANSACTION;
 

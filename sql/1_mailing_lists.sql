@@ -3,6 +3,8 @@
 -- 1. Master mailing list (deduplicated)
 -- 2. Recent mailing list (last 8 periods)
 -- 3. State-specific mailing lists
+
+${CONFIG}
 -- 4. Texas time series
 
 -- Create master mailing list view
