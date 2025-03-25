@@ -1,5 +1,5 @@
--- Export tables to CSV files
--- This file uses variables that will be substituted by the shell script
+-- Step 3: Export to CSV
+-- This script exports all tables to CSV files
 
 -- Export sample records for inspection (10,000 random records)
 COPY (
@@ -9,59 +9,44 @@ COPY (
     LIMIT 10000
 ) TO '${OUTPUT_DIR}/sample_records.csv' (HEADER, DELIMITER ',');
 
--- Export master mailing list
+-- Export mailing lists
 COPY (
-    SELECT *
-    FROM master_mailing
+    SELECT * FROM master_mailing
 ) TO '${OUTPUT_DIR}/master_mailing.csv' (HEADER, DELIMITER ',');
 
--- Export recent mailing list (last 2 years)
 COPY (
-    SELECT *
-    FROM recent_mailing
+    SELECT * FROM recent_mailing
 ) TO '${OUTPUT_DIR}/recent_mailing.csv' (HEADER, DELIMITER ',');
 
--- Export state-specific mailing lists
 COPY (
-    SELECT *
-    FROM california_mailing
+    SELECT * FROM california_mailing
 ) TO '${OUTPUT_DIR}/california_mailing.csv' (HEADER, DELIMITER ',');
 
 COPY (
-    SELECT *
-    FROM texas_mailing
+    SELECT * FROM texas_mailing
 ) TO '${OUTPUT_DIR}/texas_mailing.csv' (HEADER, DELIMITER ',');
 
 COPY (
-    SELECT *
-    FROM florida_mailing
+    SELECT * FROM florida_mailing
 ) TO '${OUTPUT_DIR}/florida_mailing.csv' (HEADER, DELIMITER ',');
 
 COPY (
-    SELECT *
-    FROM newyork_mailing
+    SELECT * FROM newyork_mailing
 ) TO '${OUTPUT_DIR}/newyork_mailing.csv' (HEADER, DELIMITER ',');
 
--- Export Texas time series
 COPY (
-    SELECT *
-    FROM texas_fall_series
+    SELECT * FROM texas_fall_series
 ) TO '${OUTPUT_DIR}/texas_fall_series.csv' (HEADER, DELIMITER ',');
 
--- Export faculty records
+-- Export merged records
 COPY (
-    SELECT *
-    FROM faculty_records
+    SELECT * FROM faculty_records
 ) TO '${OUTPUT_DIR}/faculty_records.csv' (HEADER, DELIMITER ',');
 
--- Export course section records
 COPY (
-    SELECT *
-    FROM course_section_records
+    SELECT * FROM course_section_records
 ) TO '${OUTPUT_DIR}/course_section_records.csv' (HEADER, DELIMITER ',');
 
--- Export course records
 COPY (
-    SELECT *
-    FROM course_records
-) TO '${OUTPUT_DIR}/course_records.csv' (HEADER, DELIMITER ',');
+    SELECT * FROM course_records
+) TO '${OUTPUT_DIR}/course_records.csv' (HEADER, DELIMITER ','); 
