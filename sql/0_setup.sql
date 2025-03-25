@@ -16,9 +16,7 @@ BEGIN TRANSACTION;
 -- Drop existing objects if they exist
 DROP VIEW IF EXISTS comprehensive_data;
 DROP VIEW IF EXISTS survey_data;
-DROP VIEW IF EXISTS ipeds_data;
 DROP VIEW IF EXISTS ipeds_view;
-DROP VIEW IF EXISTS optout_data;
 DROP VIEW IF EXISTS optout_view;
 DROP TABLE IF EXISTS ${SURVEY_TABLE};
 DROP TABLE IF EXISTS ${IPEDS_TABLE};
