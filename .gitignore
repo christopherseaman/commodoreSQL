@@ -8,3 +8,4 @@ good/
 output/
 tmp/
 .DS_Store
+commodore.db.tmp/
