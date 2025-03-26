@@ -21,7 +21,7 @@ SELECT
     
     -- Time information (contains the most recent period for each email)
     -- "Period",
-    -- "period_sortable",
+    period_sortable,
     
     -- IPEDS information
     -- "instnm",
