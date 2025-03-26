@@ -14,21 +14,21 @@ SELECT
     "State",
     
     -- Course information
-    "Course Number",
-    "Section",
-    "Course Title",
-    "Enrollments",
+    -- "Course Number",
+    -- "Section",
+    -- "Course Title",
+    -- "Enrollments",
     
     -- Time information (contains the most recent period for each email)
-    "Period",
-    "period_sortable",
+    -- "Period",
+    -- "period_sortable",
     
     -- IPEDS information
-    "instnm",
-    "sector",
-    "iclevel",
-    "control",
-    "instsize",
+    -- "instnm",
+    -- "sector",
+    -- "iclevel",
+    -- "control",
+    -- "instsize",
     
     -- Less commonly used fields (commented out to reduce export size)
     -- Book information

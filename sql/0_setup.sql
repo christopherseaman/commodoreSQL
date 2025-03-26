@@ -10,10 +10,10 @@ ${CONFIG}
 BEGIN TRANSACTION;
 
 -- Drop existing objects if they exist
-DROP VIEW IF EXISTS comprehensive_data;
-DROP VIEW IF EXISTS survey_data;
-DROP VIEW IF EXISTS ipeds_view;
-DROP VIEW IF EXISTS optout_view;
+DROP TABLE IF EXISTS comprehensive_data;
+DROP TABLE IF EXISTS survey_data;
+DROP TABLE IF EXISTS ipeds_view;
+DROP TABLE IF EXISTS optout_view;
 DROP TABLE IF EXISTS ${SURVEY_TABLE};
 DROP TABLE IF EXISTS ${IPEDS_TABLE};
 DROP TABLE IF EXISTS ${OPTOUT_TABLE};
@@ -55,13 +55,13 @@ SELECT * FROM read_csv('${OPTOUT_CSV}',
     delim=',', 
     nullstr=['N/A', '', 'Not applicable']);
 
--- Create base views first
-CREATE VIEW survey_data AS SELECT * FROM ${SURVEY_TABLE};
-CREATE VIEW ipeds_view AS SELECT * FROM ${IPEDS_TABLE};
-CREATE VIEW optout_view AS SELECT * FROM ${OPTOUT_TABLE};
+-- Create base tables first
+CREATE TABLE survey_data AS SELECT * FROM ${SURVEY_TABLE};
+CREATE TABLE ipeds_view AS SELECT * FROM ${IPEDS_TABLE};
+CREATE TABLE optout_view AS SELECT * FROM ${OPTOUT_TABLE};
 
--- Then create the dependent view
-CREATE VIEW comprehensive_data AS
+-- Then create the comprehensive table
+CREATE TABLE comprehensive_data AS
 WITH survey_with_period AS (
     -- Convert "Fall 2023" to "2023-4" format
     SELECT *,
@@ -104,3 +104,4 @@ COMMIT;
 ANALYZE ${SURVEY_TABLE};
 ANALYZE ${IPEDS_TABLE};
 ANALYZE ${OPTOUT_TABLE};
+ANALYZE comprehensive_data;

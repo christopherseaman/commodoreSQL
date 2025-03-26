@@ -3,13 +3,13 @@
 -- 1. Master mailing list (deduplicated)
 -- 2. Recent mailing list (last 8 periods)
 -- 3. State-specific mailing lists
-
-${CONFIG}
 -- 4. Texas time series
 
--- Create master mailing list view
-DROP VIEW IF EXISTS master_mailing;
-CREATE VIEW master_mailing AS
+${CONFIG}
+
+-- Create master mailing list table
+DROP TABLE IF EXISTS master_mailing;
+CREATE TABLE master_mailing AS
 SELECT DISTINCT ON ("E-Mail") *
 FROM comprehensive_data
 WHERE 

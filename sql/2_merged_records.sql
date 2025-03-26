@@ -7,8 +7,8 @@
 ${CONFIG}
 
 -- Create faculty records
-DROP VIEW IF EXISTS faculty_records;
-CREATE VIEW faculty_records AS
+DROP TABLE IF EXISTS faculty_records;
+CREATE TABLE faculty_records AS
 WITH faculty_counts AS (
     SELECT 
         -- Use email as primary key, fallback to name+school
@@ -65,8 +65,8 @@ GROUP BY
     "State";
 
 -- Create course section records
-DROP VIEW IF EXISTS course_section_records;
-CREATE VIEW course_section_records AS
+DROP TABLE IF EXISTS course_section_records;
+CREATE TABLE course_section_records AS
 SELECT 
     "Course Number",
     "Section",
@@ -89,8 +89,8 @@ GROUP BY
     period_sortable;
 
 -- Create course records
-DROP VIEW IF EXISTS course_records;
-CREATE VIEW course_records AS
+DROP TABLE IF EXISTS course_records;
+CREATE TABLE course_records AS
 SELECT 
     "Course Number",
     "Course Title",
