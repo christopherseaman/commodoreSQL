@@ -8,4 +8,4 @@ SELECT
     "State",
     record_counts_by_period,
     section_counts_by_period
-FROM faculty_records;
+FROM faculty_records

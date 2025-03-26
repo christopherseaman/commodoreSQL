@@ -18,4 +18,4 @@ SELECT
     "iclevel",
     "control",
     "instsize"
-FROM texas_mailing;
+FROM texas_mailing

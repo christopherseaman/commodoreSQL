@@ -44,4 +44,4 @@ SELECT
     "opt_out_source"
 FROM comprehensive_data
 ORDER BY RANDOM()
-LIMIT 10000;
+LIMIT 10000

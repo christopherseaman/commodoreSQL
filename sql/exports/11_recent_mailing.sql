@@ -65,4 +65,4 @@ SELECT
     -- "is_opted_out",
     -- "opt_out_source"
     
-FROM recent_mailing;
+FROM recent_mailing

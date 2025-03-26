@@ -22,4 +22,4 @@ SELECT
     "iclevel",
     "control",
     "instsize"
-FROM texas_fall_series;
+FROM texas_fall_series

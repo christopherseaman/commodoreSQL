@@ -15,4 +15,4 @@ SELECT
     records_in_period,
     publishers
     
-FROM course_section_records;
+FROM course_section_records

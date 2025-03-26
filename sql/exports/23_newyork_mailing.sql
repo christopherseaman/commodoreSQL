@@ -65,4 +65,4 @@ SELECT
     -- "is_opted_out",
     -- "opt_out_source"
     
-FROM newyork_mailing;
+FROM newyork_mailing
