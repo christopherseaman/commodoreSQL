@@ -1,15 +1,16 @@
 #!/bin/bash
 
-# Load environment variables
+# Load environment configuration
 set -o allexport
 source dot.env
 set +o allexport
 
+# Prepare output directories
 mkdir -p tmp output
 
 echo "Export process started at: $(date)"
 
-# Get list of export SQL files
+# Discover and process SQL export files
 export_files=($(find sql/exports -name "*.sql" | sort))
 total_exports=${#export_files[@]}
 current_export=0
@@ -26,14 +27,14 @@ for export_file in "${export_files[@]}"; do
     ((current_export++))
     echo "===== Exporting ${export_name} (${current_export}/${total_exports}) ====="
     
-    # Process the export file
+    # Prepare export file with environment variables
     envsubst < "$export_file" > "tmp/${filename}.sql"
     
-    # Create parquet export SQL with row groups
+    # Generate Parquet export SQL with optimized settings
     cat > "tmp/${filename}_export.sql" << EOF
 ${CONFIG}
 
--- Export to parquet with row groups
+-- Export data to compressed Parquet format
 COPY (
     SELECT * FROM ($(cat "tmp/${filename}.sql"))
 ) TO '${output_file}' (
@@ -43,6 +44,7 @@ COPY (
 );
 EOF
 
+    # Execute export and track results
     if ${DUCKDB} "${MAIN_DB}" < "tmp/${filename}_export.sql"; then
         echo "✓ Successfully exported ${export_name} to parquet"
         ((successful_exports++))
@@ -54,7 +56,8 @@ EOF
     echo ""
 done
 
+# Report export process summary
 echo "===== Export Summary ====="
 echo "Total exports: ${total_exports}"
 echo "Successful: ${successful_exports}"
-echo "Failed: ${failed_exports}" 
+echo "Failed: ${failed_exports}"

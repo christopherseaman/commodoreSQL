@@ -1,14 +1,14 @@
 #!/bin/bash
 
-# Exit on any error in the setup phase
+# Fail fast on setup errors
 set -e
 
-# Load environment variables
+# Load environment configuration
 set -o allexport
 source dot.env
 set +o allexport
 
-# Define default SQL files if not set in dot.env
+# Define default SQL processing sequence
 if [ -z "${SQL_FILES+x}" ]; then
     SQL_FILES=(
         "0_setup.sql"
@@ -17,43 +17,42 @@ if [ -z "${SQL_FILES+x}" ]; then
     )
 fi
 
-# Create required directories
+# Prepare output directories
 mkdir -p tmp output
 
-# Set default for DUCKDB if not defined
+# Set default DuckDB executable
 DUCKDB=${DUCKDB:-"duckdb"}
 
 echo "Pipeline started at: $(date)"
 
-# Set DuckDB configuration as an environment variable
-echo "Configuring DuckDB with memory_limit=${MEM_LIMIT} and threads=${NUM_THREADS}..."
+# Configure DuckDB runtime settings
 export CONFIG="
 SET memory_limit='${MEM_LIMIT}';
 SET temp_directory='./tmp';
 SET threads=${NUM_THREADS};
 "
 
-# Process and run SQL files
+# Execute SQL files in sequence
 for sql_file in "${SQL_FILES[@]}"; do
-    echo "Processing and running ${sql_file}..."
+    echo "Processing ${sql_file}..."
     envsubst < "sql/${sql_file}" > "tmp/${sql_file}"
     
-    # Run with -bail flag to exit on error
+    # Execute with error handling
     time ${DUCKDB} "${MAIN_DB}" < "tmp/${sql_file}"
     
-    # Debug: Check views after setup.sql
+    # Verify views after setup
     if [ "$sql_file" = "0_setup.sql" ]; then
-        echo "Checking views after setup..."
+        echo "Verifying views..."
         ${DUCKDB} "${MAIN_DB}" -c "SELECT name FROM sqlite_master WHERE type='view';"
     fi
 done
 
-# Clean up temporary files
-echo "Cleaning up temporary files..."
+# Remove temporary files
+echo "Cleaning temporary files..."
 rm -f tmp/*.sql
 
-# Run the export process
-echo "Running exports using temp tables..."
+# Run export process
+echo "Generating exports..."
 ./export_all.sh
 
 echo "Pipeline completed at: $(date)"
