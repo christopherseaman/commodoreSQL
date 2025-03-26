@@ -15,3 +15,4 @@ SELECT
     section_counts_by_period
     
 FROM faculty_records;
+-- @PARTITION_BY: School, Department 

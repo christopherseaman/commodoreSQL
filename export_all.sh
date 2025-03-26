@@ -57,23 +57,21 @@ for export_file in "${export_files[@]}"; do
     # Process the export file with envsubst
     envsubst < "$export_file" > "tmp/${filename}.sql"
     
+    # Extract partition columns if specified
+    partition_by=$(grep "^-- @PARTITION_BY:" "tmp/${filename}.sql" | sed 's/^-- @PARTITION_BY: *//')
+    
+    # Build export options
+    export_options="FORMAT PARQUET, FILENAME_PATTERN '${export_name}_{uuid}', COMPRESSION 'ZSTD'"
+    if [ ! -z "$partition_by" ]; then
+        export_options="${export_options}, PARTITION_BY (${partition_by})"
+    fi
+
     # Create the export SQL
     cat > "tmp/${filename}_export.sql" << EOF
 ${CONFIG}
-
--- Create temp table
-DROP TABLE IF EXISTS temp_export_table;
-CREATE TEMPORARY TABLE temp_export_table AS 
-$(cat "tmp/${filename}.sql");
-
--- Get row count
-SELECT COUNT(*) AS row_count FROM temp_export_table;
-
--- Export to CSV
-COPY temp_export_table TO '${output_file}' (HEADER, DELIMITER ',');
-
--- Clean up
-DROP TABLE IF EXISTS temp_export_table;
+SET partitioned_write_max_open_files = 50;
+COPY ($(cat "tmp/${filename}.sql"))
+TO '${OUTPUT_DIR}/${export_name}' (${export_options});
 EOF
     
     # Run the export with error handling
