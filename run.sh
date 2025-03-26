@@ -8,6 +8,10 @@ set -o allexport
 source dot.env
 set +o allexport
 
+
+# Configure DuckDB runtime settings
+export CONFIG=$(envsubst < sql/config.sql)
+
 # Define default SQL processing sequence
 if [ -z "${SQL_FILES+x}" ]; then
     SQL_FILES=(
@@ -17,6 +21,14 @@ if [ -z "${SQL_FILES+x}" ]; then
     )
 fi
 
+# Validate SQL files exist
+for sql_file in "${SQL_FILES[@]}"; do
+    if [ ! -f "sql/${sql_file}" ]; then
+        echo "Error: SQL file sql/${sql_file} not found"
+        exit 1
+    fi
+done
+
 # Prepare output directories
 mkdir -p tmp output
 
@@ -25,13 +37,6 @@ DUCKDB=${DUCKDB:-"duckdb"}
 
 echo "Pipeline started at: $(date)"
 
-# Configure DuckDB runtime settings
-export CONFIG="
-SET memory_limit='${MEM_LIMIT}';
-SET temp_directory='./tmp';
-SET threads=${NUM_THREADS};
-"
-
 # Execute SQL files in sequence
 for sql_file in "${SQL_FILES[@]}"; do
     echo "Processing ${sql_file}..."
@@ -39,20 +44,18 @@ for sql_file in "${SQL_FILES[@]}"; do
     
     # Execute with error handling
     time ${DUCKDB} "${MAIN_DB}" < "tmp/${sql_file}"
-    
-    # Verify views after setup
-    if [ "$sql_file" = "0_setup.sql" ]; then
-        echo "Verifying views..."
-        ${DUCKDB} "${MAIN_DB}" -c "SELECT name FROM sqlite_master WHERE type='view';"
-    fi
 done
 
 # Remove temporary files
 echo "Cleaning temporary files..."
 rm -f tmp/*.sql
 
-# Run export process
-echo "Generating exports..."
-./export_all.sh
+# Run export process unless NO_EXPORT is set
+if [ -z "${NO_EXPORT+x}" ]; then
+    echo "Generating exports..."
+    ./export_all.sh
+else
+    echo "Skipping exports (NO_EXPORT set)"
+fi
 
 echo "Pipeline completed at: $(date)"
