@@ -7,9 +7,9 @@
 
 ${CONFIG}
 
--- Create master mailing list table
-DROP TABLE IF EXISTS master_mailing;
-CREATE TABLE master_mailing AS
+-- Create master mailing list view (was table)
+DROP VIEW IF EXISTS master_mailing;
+CREATE VIEW master_mailing AS
 SELECT DISTINCT ON ("E-Mail") *
 FROM comprehensive_data
 WHERE 
