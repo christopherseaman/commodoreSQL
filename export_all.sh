@@ -75,7 +75,7 @@ done
 
 # Check if any exports failed and exit with appropriate status
 if [ $failed_exports -gt 0 ]; then
-    echo "ERROR: ${failed_exports} export(s) failed. Check log files in tmp/ directory."
+    echo "ERROR: ${failed_exports} export\(s\) failed. Check log files in tmp/ directory."
     exit 1
 fi
 
