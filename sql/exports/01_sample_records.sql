@@ -45,3 +45,4 @@ SELECT
 FROM comprehensive_data
 ORDER BY RANDOM()
 LIMIT 10000
+-- @PARTITION_BY: period_sortable

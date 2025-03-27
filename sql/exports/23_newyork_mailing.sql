@@ -66,3 +66,4 @@ SELECT
     -- "opt_out_source"
     
 FROM newyork_mailing
+-- @PARTITION_BY: period_sortable

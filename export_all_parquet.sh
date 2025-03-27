@@ -30,8 +30,26 @@ for export_file in "${export_files[@]}"; do
     # Prepare export file with environment variables
     envsubst < "$export_file" > "tmp/${filename}.sql"
     
+    # Extract partition columns if specified
+    partition_by=$(grep "^-- @PARTITION_BY:" "tmp/${filename}.sql" | sed 's/^-- @PARTITION_BY: *//')
+    
     # Generate Parquet export SQL with optimized settings
-    cat > "tmp/${filename}_export.sql" << EOF
+    if [ ! -z "$partition_by" ]; then
+        cat > "tmp/${filename}_export.sql" << EOF
+${CONFIG}
+
+-- Export data to compressed Parquet format
+COPY (
+    SELECT * FROM ($(cat "tmp/${filename}.sql"))
+) TO '${output_file}' (
+    FORMAT PARQUET,
+    ROW_GROUP_SIZE 100000,
+    COMPRESSION 'ZSTD',
+    PARTITION_BY (${partition_by})
+);
+EOF
+    else
+        cat > "tmp/${filename}_export.sql" << EOF
 ${CONFIG}
 
 -- Export data to compressed Parquet format
@@ -43,6 +61,7 @@ COPY (
     COMPRESSION 'ZSTD'
 );
 EOF
+    fi
 
     # Execute export and track results
     if ${DUCKDB} "${MAIN_DB}" < "tmp/${filename}_export.sql"; then

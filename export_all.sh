@@ -34,17 +34,33 @@ for export_file in "${export_files[@]}"; do
     ((current_export++))
     echo "===== Exporting ${export_name} (${current_export}/${total_exports}) ====="
     
+    # Extract partition columns if specified
+    partition_by=$(grep "^-- @PARTITION_BY:" "$export_file" | sed 's/^-- @PARTITION_BY: *//')
+    
     # Generate export SQL with partitioning
-    cat > "tmp/${filename}_export.sql" << EOF
+    if [ ! -z "$partition_by" ]; then
+        cat > "tmp/${filename}_export.sql" << EOF
 ${CONFIG}
 SET partitioned_write_max_open_files = 50;
 COPY ($(grep -v '^--' "$export_file" | grep -v '^$'))
-TO '${output_file}' (HEADER, DELIMITER ',', PARTITION_BY (period_sortable));
+TO '${output_file}' (HEADER, DELIMITER ',', PARTITION_BY (${partition_by}));
 EOF
+    else
+        cat > "tmp/${filename}_export.sql" << EOF
+${CONFIG}
+SET partitioned_write_max_open_files = 50;
+COPY ($(grep -v '^--' "$export_file" | grep -v '^$'))
+TO '${output_file}' (HEADER, DELIMITER ',');
+EOF
+    fi
 
     # Execute export and track results
     export_log="tmp/${filename}_export.log"
+    start_time=$(date +%s)
     if ${DUCKDB} "${MAIN_DB}" < "tmp/${filename}_export.sql" 2>&1 | tee "$export_log"; then
+        end_time=$(date +%s)
+        duration=$((end_time - start_time))
+        echo "Time taken for this export: $duration seconds"
         echo "✓ Successfully exported ${export_name} in chunks"
         ((successful_exports++))
     else

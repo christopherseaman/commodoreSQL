@@ -16,3 +16,4 @@ SELECT
     publishers
     
 FROM course_section_records
+-- @PARTITION_BY: period_sortable

@@ -19,3 +19,4 @@ SELECT
     "control",
     "instsize"
 FROM texas_mailing
+-- @PARTITION_BY: period_sortable

@@ -23,3 +23,4 @@ SELECT
     "control",
     "instsize"
 FROM texas_fall_series
+-- @PARTITION_BY: period_sortable
