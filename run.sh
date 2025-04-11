@@ -23,15 +23,14 @@ mkdir -p tmp output
 # Set default for DUCKDB if not defined
 DUCKDB=${DUCKDB:-"duckdb"}
 
+# Ensure export script is executable
+chmod +x export_all.sh
+
 echo "Pipeline started at: $(date)"
 
 # Set DuckDB configuration as an environment variable
 echo "Configuring DuckDB with memory_limit=${MEM_LIMIT} and threads=${NUM_THREADS}..."
-export CONFIG="
-SET memory_limit='${MEM_LIMIT}';
-SET temp_directory='./tmp';
-SET threads=${NUM_THREADS};
-"
+export CONFIG=$(envsubst < sql/config.sql)
 
 # Process and run SQL files
 for sql_file in "${SQL_FILES[@]}"; do
@@ -43,10 +42,18 @@ for sql_file in "${SQL_FILES[@]}"; do
     
     # Debug: Check views after setup.sql
     if [ "$sql_file" = "0_setup.sql" ]; then
-        echo "Checking views after setup..."
-        ${DUCKDB} "${MAIN_DB}" -c "SELECT name FROM sqlite_master WHERE type='view';"
+        echo "Checking tables after setup..."
+        ${DUCKDB} "${MAIN_DB}" -c "SELECT name FROM sqlite_master WHERE type='table';"
     fi
 done
+
+# Verify critical tables exist before proceeding
+echo "Verifying critical tables exist..."
+${DUCKDB} "${MAIN_DB}" -c "
+    SELECT name FROM sqlite_master 
+    WHERE type='table' 
+    AND name IN ('comprehensive_data', 'master_mailing', 'faculty_records', 'course_section_records', 'course_records');
+"
 
 # Clean up temporary files
 echo "Cleaning up temporary files..."
