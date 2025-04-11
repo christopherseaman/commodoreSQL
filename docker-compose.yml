@@ -1,13 +1,20 @@
 version: '3.8'
 
 services:
-  duckdb-server:
-    image: ghcr.io/motherduckdb/motherduck-duckdb-server:latest
+  duckdb:
+    image: python:3.13-slim
     volumes:
       - .:/data
+      - ./import:/data/import
+    working_dir: /data
+    command: >
+      bash -c "
+      pip install duckdb 'duckdb-server>=1.2.0' &&
+      duckdb-server --database /data/commodore.db --http --port 3457 --listen 0.0.0.0"
     ports:
       - "3457:3457"
-    command: ["--database", "/data/commodore.db", "--http-port", "3457"]
+    networks:
+      - bi-network
   
   metabase:
     image: metabase/metabase:latest
@@ -16,10 +23,17 @@ services:
     environment:
       - MB_DB_TYPE=h2
       - MB_DB_FILE=/metabase-data/metabase.db
+      - MB_DUCKDB_SERVER_URL=http://duckdb:3457
     volumes:
       - metabase-data:/metabase-data
     depends_on:
-      - duckdb-server
+      - duckdb
+    networks:
+      - bi-network
 
 volumes:
   metabase-data:
+
+networks:
+  bi-network:
+    driver: bridge
