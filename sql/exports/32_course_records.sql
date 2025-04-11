@@ -15,4 +15,4 @@ SELECT
     total_enrollment,
     publishers
     
-FROM course_records;
+FROM course_records

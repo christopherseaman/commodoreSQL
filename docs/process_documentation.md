@@ -105,6 +105,15 @@ graph TD
 ### Overview
 This step initializes the database and imports all source data. It performs data validation and creates the foundation for all subsequent processing.
 
+### Database Configuration
+The database is configured with the following key settings:
+- **Memory Limit**: Dynamically set via environment variable
+- **Temporary Directory**: `./tmp`
+- **Thread Count**: Configurable via environment variable
+- **Maximum Temporary Directory Size**: 100GB
+- **Insertion Order**: Preservation disabled
+- **Streaming Buffer Size**: 1GB
+
 ### Data Flow and Joins
 ```mermaid
 graph TD
@@ -139,7 +148,7 @@ graph TD
 
 ### Key Operations
 1. **Configuration**
-   - Set up DuckDB with appropriate memory limits
+   - Set up DuckDB with configurable memory limits
    - Configure thread count for parallel processing
 
 2. **Data Import**
@@ -342,7 +351,6 @@ The pipeline is configured through the `dot.env` file. Key settings include:
 - CSV file paths
 - Memory limits
 - Thread count
-- Debug settings
 
 For detailed configuration options, see the [README](../README.md).
 

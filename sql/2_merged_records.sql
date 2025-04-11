@@ -1,17 +1,13 @@
--- Step 2: Create Merged Records
--- This script creates:
--- 1. Faculty records (grouped by email or name)
--- 2. Course section records
--- 3. Course records
+-- Aggregate and transform records by faculty, course sections, and courses
 
 ${CONFIG}
 
--- Create faculty records
-DROP TABLE IF EXISTS faculty_records;
-CREATE TABLE faculty_records AS
+-- Generate faculty records with aggregated metrics
+DROP VIEW IF EXISTS faculty_records;
+CREATE VIEW faculty_records AS
 WITH faculty_counts AS (
+    -- Uniquely identify faculty by email or name+school
     SELECT 
-        -- Use email as primary key, fallback to name+school
         CASE 
             WHEN "E-Mail" IS NOT NULL AND "E-Mail" != '' 
             THEN "E-Mail" 
@@ -51,9 +47,8 @@ SELECT
     "E-Mail",
     "Department",
     "State",
-    -- Record counts by period
+    -- Aggregate record and section counts by period
     LIST(CONCAT(period_sortable, ':', record_count)) AS record_counts_by_period,
-    -- Unique section counts by period
     LIST(CONCAT(period_sortable, ':', section_count)) AS section_counts_by_period
 FROM faculty_counts
 GROUP BY 
@@ -64,9 +59,9 @@ GROUP BY
     "Department",
     "State";
 
--- Create course section records
-DROP TABLE IF EXISTS course_section_records;
-CREATE TABLE course_section_records AS
+-- Create course section records with period-based metrics
+DROP VIEW IF EXISTS course_section_records;
+CREATE VIEW course_section_records AS
 SELECT 
     "Course Number",
     "Section",
@@ -88,9 +83,9 @@ GROUP BY
     "School",
     period_sortable;
 
--- Create course records
-DROP TABLE IF EXISTS course_records;
-CREATE TABLE course_records AS
+-- Generate course records with aggregated enrollment and section data
+DROP VIEW IF EXISTS course_records;
+CREATE VIEW course_records AS
 SELECT 
     "Course Number",
     "Course Title",

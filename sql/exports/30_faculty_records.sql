@@ -1,17 +1,11 @@
--- Faculty records with explicit column selection
+-- Select faculty records for export
 SELECT
-    -- Primary faculty identification
     faculty_id,
     "Instructor",
     "E-Mail",
-    
-    -- Institution information
     "School",
     "Department",
     "State",
-    
-    -- Aggregated statistics
     record_counts_by_period,
     section_counts_by_period
-    
-FROM faculty_records;
+FROM faculty_records

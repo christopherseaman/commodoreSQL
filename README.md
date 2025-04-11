@@ -1,12 +1,13 @@
 # CommodoreSQL
 
 > **IMPORTANT NOTE:** During development and testing:
-> - Database backup functionality is disabled to improve performance
-> - The database is deleted at the start of each run for a clean slate
+> - Database is configured with dynamic memory limits and thread count
+> - Temporary directory set to `./tmp`
+> - Insertion order preservation is disabled
 > 
 > Before using in production:
-> - Re-enable the backup code in `scripts/run_all.sh` by uncommenting the backup and restore sections
-> - Consider disabling the database deletion code if you want to preserve data between runs
+> - Review and adjust configuration settings in `dot.env`
+> - Ensure appropriate memory and thread settings for your system
 
 ## Setup and Usage
 
@@ -120,16 +121,30 @@ OPTOUT_CSV="csv/Master_optOut.csv"
 OUTPUT_DIR="output"
 
 # Performance settings
-MEM_LIMIT="16GB"
-NUM_THREADS=8
+MEM_LIMIT="16GB"      # Memory limit for DuckDB
+NUM_THREADS=8         # Number of threads for parallel processing
+TEMP_DIRECTORY="./tmp" # Temporary directory for DuckDB operations
+MAX_TEMP_DIR_SIZE="100GB" # Maximum size of temporary directory
 
 # DuckDB executable path
 DUCKDB="./duckdb"  # Path to DuckDB executable
 
-# Debug settings
-DEBUG=false        # Set to true to describe at the end
-DEBUG_VERBOSE=false # Set to true to describe at each step
+# DuckDB Configuration Options
+PRESERVE_INSERTION_ORDER=false  # Disable insertion order preservation
+ENABLE_PROGRESS_BAR=true        # Enable progress bar for long operations
+STREAMING_BUFFER_SIZE="1GB"     # Streaming buffer size
 ```
+
+### DuckDB Configuration Details
+
+Key configuration settings in `sql/0_setup/config.sql`:
+- Dynamic memory limit based on `MEM_LIMIT`
+- Temporary directory set to `./tmp`
+- Thread count configurable via `NUM_THREADS`
+- Maximum temporary directory size: 100GB
+- Insertion order preservation disabled
+- Progress bar enabled
+- Streaming buffer size set to 1GB
 
 ### Table and View Structure
 

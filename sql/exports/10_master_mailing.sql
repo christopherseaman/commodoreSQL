@@ -64,4 +64,5 @@ SELECT
     -- "is_opted_out",
     -- "opt_out_source"
     
-FROM master_mailing;
+FROM master_mailing
+-- @PARTITION_BY: period_sortable

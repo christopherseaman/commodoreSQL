@@ -1,14 +1,18 @@
 #!/bin/bash
 
-# Exit on any error in the setup phase
+# Fail fast on setup errors
 set -e
 
-# Load environment variables
+# Load environment configuration
 set -o allexport
 source dot.env
 set +o allexport
 
-# Define default SQL files if not set in dot.env
+
+# Configure DuckDB runtime settings
+export CONFIG=$(envsubst < sql/config.sql)
+
+# Define default SQL processing sequence
 if [ -z "${SQL_FILES+x}" ]; then
     SQL_FILES=(
         "0_setup.sql"
@@ -17,10 +21,18 @@ if [ -z "${SQL_FILES+x}" ]; then
     )
 fi
 
-# Create required directories
+# Validate SQL files exist
+for sql_file in "${SQL_FILES[@]}"; do
+    if [ ! -f "sql/${sql_file}" ]; then
+        echo "Error: SQL file sql/${sql_file} not found"
+        exit 1
+    fi
+done
+
+# Prepare output directories
 mkdir -p tmp output
 
-# Set default for DUCKDB if not defined
+# Set default DuckDB executable
 DUCKDB=${DUCKDB:-"duckdb"}
 
 # Ensure export script is executable
@@ -34,10 +46,10 @@ export CONFIG=$(envsubst < sql/config.sql)
 
 # Process and run SQL files
 for sql_file in "${SQL_FILES[@]}"; do
-    echo "Processing and running ${sql_file}..."
+    echo "Processing ${sql_file}..."
     envsubst < "sql/${sql_file}" > "tmp/${sql_file}"
     
-    # Run with -bail flag to exit on error
+    # Execute with error handling
     time ${DUCKDB} "${MAIN_DB}" < "tmp/${sql_file}"
     
     # Debug: Check views after setup.sql
@@ -59,8 +71,12 @@ ${DUCKDB} "${MAIN_DB}" -c "
 echo "Cleaning up temporary files..."
 rm -f tmp/*.sql
 
-# Run the export process
-echo "Running exports using temp tables..."
-./export_all.sh
+# Run export process unless NO_EXPORT is set
+if [ -z "${NO_EXPORT+x}" ]; then
+    echo "Generating exports..."
+    ./export_all.sh
+else
+    echo "Skipping exports (NO_EXPORT set)"
+fi
 
 echo "Pipeline completed at: $(date)"
