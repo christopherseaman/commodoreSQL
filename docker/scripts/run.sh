@@ -8,6 +8,11 @@ set -o allexport
 source dot.env
 set +o allexport
 
+# Early exit if NO_IMPORT is set
+if [ ! -z "${NO_IMPORT+x}" ]; then
+    echo "Skipping import process (NO_IMPORT set)"
+    exit 0
+fi
 
 # Configure DuckDB runtime settings
 export CONFIG=$(envsubst < sql/config.sql)

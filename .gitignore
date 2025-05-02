@@ -8,3 +8,10 @@ good/
 output/
 tmp/
 .DS_Store
+docker/pgadmin/
+*.gz
+*.csv
+*.duckdb
+*.zip
+superset/
+.cache/

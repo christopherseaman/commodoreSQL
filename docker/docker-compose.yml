@@ -1,0 +1,42 @@
+services:
+  superset:
+    image: apache/superset:latest
+    user: root
+    ports:
+      - "8088:8088"
+    env_file:
+      - ./scripts/dot.env
+    environment:
+      - SUPERSET_SECRET_KEY=b61d18d46eefd4a074c222f246163742
+      - SUPERSET_BIND_ADDRESS=0.0.0.0
+      - TMPDIR=/app/superset_home/tmp
+    volumes:
+      - ./data:/app/data
+      - ./superset:/app/superset_home
+      - ./scripts:/scripts
+      - ./sql:/sql
+      - ./import:/import
+      - ./tmp:/tmp
+      - ./output:/output
+      - ./scripts/dot.env:/scripts/dot.env
+    command: >
+      bash -c "mkdir -p /tmp && chmod 1777 /tmp &&
+              apt-get update && apt-get install -y gettext-base &&
+              echo 'HOST_UID: $HOST_UID' &&
+              echo 'HOST_GID: $HOST_GID' &&
+              chown -R $HOST_UID:$HOST_GID /app/data /app/superset_home /scripts /sql /tmp /output &&
+              curl https://install.duckdb.org | sh &&
+              export PATH=/root/.duckdb/cli/latest/:$PATH &&
+              cd /scripts &&
+              NO_EXPORT=1 ./run.sh &&
+              cd /app &&
+              superset db upgrade &&
+              superset fab create-admin --username admin --firstname Superset --lastname Admin --email admin@superset.com --password admin &&
+              superset init &&
+              gunicorn --bind 0.0.0.0:8088 'superset.app:create_app()' --workers 4 --timeout 120"
+
+volumes:
+  redis:
+
+
+
