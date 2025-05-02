@@ -46,7 +46,7 @@ chmod +x export_all.sh
 echo "Pipeline started at: $(date)"
 
 # Set DuckDB configuration as an environment variable
-echo "Configuring DuckDB with memory_limit=${MEM_LIMIT} and threads=${NUM_THREADS}..."
+#echo "Configuring DuckDB with memory_limit=${MEM_LIMIT} and threads=${NUM_THREADS}..."
 export CONFIG=$(envsubst < sql/config.sql)
 
 # Process and run SQL files
