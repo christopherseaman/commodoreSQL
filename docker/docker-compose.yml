@@ -21,12 +21,18 @@ services:
       - ./scripts/dot.env:/scripts/dot.env
     command: >
       bash -c "mkdir -p /tmp && chmod 1777 /tmp &&
-              apt-get update && apt-get install -y gettext-base &&
+              # wget and unzip only needed for duckdb workaround on M4 Mac
+              apt-get update && apt-get install -y gettext-base wget unzip &&
               echo 'HOST_UID: $HOST_UID' &&
               echo 'HOST_GID: $HOST_GID' &&
               chown -R $HOST_UID:$HOST_GID /app/data /app/superset_home /scripts /sql /tmp /output &&
-              curl https://install.duckdb.org | sh &&
-              export PATH=/root/.duckdb/cli/latest/:$PATH &&
+              # Not working in orbstack on M4
+              # curl https://install.duckdb.org | sh &&
+              # export PATH=/root/.duckdb/cli/latest/:$PATH &&
+              # But this did work:
+              wget https://github.com/duckdb/duckdb/releases/download/v1.2.2/duckdb_cli-linux-aarch64.zip &&
+              unzip duckdb_cli-linux-aarch64 -d /usr/local/bin &&
+              # End of workaround
               cd /scripts &&
               NO_EXPORT=1 ./run.sh &&
               cd /app &&
