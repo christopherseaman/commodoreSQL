@@ -9,6 +9,7 @@ services:
     environment:
       - SUPERSET_BIND_ADDRESS=0.0.0.0
       - TMPDIR=/app/superset_home/tmp
+      - PYTHONWARNINGS=ignore
     volumes:
       - ./data:/app/data
       - ./superset:/app/superset_home

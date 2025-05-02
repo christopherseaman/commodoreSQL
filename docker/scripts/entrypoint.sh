@@ -20,7 +20,7 @@ if [ ! -f /app/superset_home/.initialized ]; then
   superset db upgrade
   superset fab create-admin --username christopher --firstname christopher --email chris@badmath.org --password admin || true
   superset init
-  superset set_database_uri -d DuckDB-commodore -u duckdb:///app/data/commodore.duckdb
+  superset set_database_uri -d DuckDB-commodore -u duckdb:///data/commodore.duckdb
   touch /app/superset_home/.initialized
 fi
 
