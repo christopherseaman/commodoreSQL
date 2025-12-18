@@ -7,5 +7,7 @@
 good/
 output/
 tmp/
+raw/
 .DS_Store
 commodore.db.tmp/
+
