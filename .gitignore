@@ -16,3 +16,4 @@ docker/pgadmin/
 *.duckdb
 *.zip
 .cache/
+superset/
