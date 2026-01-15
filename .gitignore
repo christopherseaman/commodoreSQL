@@ -15,5 +15,4 @@ docker/pgadmin/
 *.csv
 *.duckdb
 *.zip
-superset/
 .cache/
