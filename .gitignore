@@ -11,3 +11,10 @@ raw/
 .DS_Store
 commodore.db.tmp/
 
+
+# Data and database files
+data/
+duckdb/
+
+# Superset submodule (pulled via script)
+superset/
