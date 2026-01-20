@@ -5,55 +5,92 @@ ${CONFIG}
 -- Create deduplicated master mailing list
 DROP VIEW IF EXISTS master_mailing;
 CREATE VIEW master_mailing AS
-SELECT DISTINCT ON ("E-Mail") *
+SELECT DISTINCT ON (email)
+    unit_id,
+    school,
+    department,
+    course_level,
+    course_subject,
+    period,
+    period_sortable,
+    instructor,
+    first_name,
+    last_name,
+    email
 FROM comprehensive_data
-WHERE 
-    "E-Mail" IS NOT NULL AND 
-    "E-Mail" != '' AND
+WHERE
+    email IS NOT NULL AND
+    email != '' AND
     is_opted_out = 0
-ORDER BY 
-    "E-Mail",
-    period_sortable DESC,  -- Prioritize most recent data
-    "Enrollments" DESC,    -- Then largest enrollment
-    RANDOM();             -- Randomize remaining ties
+ORDER BY
+    email,
+    period_sortable DESC,
+    enrollments DESC,
+    RANDOM();
 
--- Identify most recent periods for recent mailing list
+-- Identify most recent periods for current mailing list
 DROP VIEW IF EXISTS recent_periods;
 CREATE VIEW recent_periods AS
 SELECT DISTINCT period_sortable
-FROM master_mailing
-ORDER BY period_sortable DESC
-LIMIT 8;
-
--- Create recent mailing list (last 2 years)
-DROP VIEW IF EXISTS recent_mailing;
-CREATE VIEW recent_mailing AS
-SELECT m.*
-FROM master_mailing m
-JOIN recent_periods p ON m.period_sortable = p.period_sortable;
-
--- Generate state-specific mailing lists
-DROP VIEW IF EXISTS california_mailing;
-CREATE VIEW california_mailing AS
-SELECT * FROM recent_mailing WHERE State = 'CA';
-
-DROP VIEW IF EXISTS texas_mailing;
-CREATE VIEW texas_mailing AS
-SELECT * FROM recent_mailing WHERE State = 'TX';
-
-DROP VIEW IF EXISTS florida_mailing;
-CREATE VIEW florida_mailing AS
-SELECT * FROM recent_mailing WHERE State = 'FL';
-
-DROP VIEW IF EXISTS newyork_mailing;
-CREATE VIEW newyork_mailing AS
-SELECT * FROM recent_mailing WHERE State = 'NY';
-
--- Create Texas Fall term time series
-DROP VIEW IF EXISTS texas_fall_series;
-CREATE VIEW texas_fall_series AS
-SELECT *
 FROM comprehensive_data
-WHERE 
-    State = 'TX' AND
-    Period LIKE 'Fall %';
+WHERE period_sortable IS NOT NULL
+ORDER BY period_sortable DESC
+LIMIT 12;
+
+-- Create current mailing list (last 3 years / 12 periods)
+DROP VIEW IF EXISTS current_mailing;
+CREATE VIEW current_mailing AS
+SELECT
+    m.*,
+    p.panel_response_year
+FROM master_mailing m
+LEFT JOIN (
+    SELECT email, MAX(panel_response_year) AS panel_response_year
+    FROM comprehensive_data
+    WHERE panel_response_year IS NOT NULL
+    GROUP BY email
+) p ON m.email = p.email
+WHERE m.period_sortable IN (SELECT period_sortable FROM recent_periods);
+
+-- Generate state-specific mailing lists using IPEDS state information
+DROP VIEW IF EXISTS current_mailing_ca;
+CREATE VIEW current_mailing_ca AS
+SELECT c.*
+FROM current_mailing c
+JOIN comprehensive_data cd ON c.email = cd.email AND c.period_sortable = cd.period_sortable
+WHERE cd.instnm LIKE '%California%' OR cd.instnm LIKE '%CA%';
+
+DROP VIEW IF EXISTS current_mailing_tx;
+CREATE VIEW current_mailing_tx AS
+SELECT c.*
+FROM current_mailing c
+JOIN comprehensive_data cd ON c.email = cd.email AND c.period_sortable = cd.period_sortable
+WHERE cd.instnm LIKE '%Texas%' OR cd.instnm LIKE '%TX%';
+
+DROP VIEW IF EXISTS current_mailing_fl;
+CREATE VIEW current_mailing_fl AS
+SELECT c.*
+FROM current_mailing c
+JOIN comprehensive_data cd ON c.email = cd.email AND c.period_sortable = cd.period_sortable
+WHERE cd.instnm LIKE '%Florida%' OR cd.instnm LIKE '%FL%';
+
+DROP VIEW IF EXISTS current_mailing_ny;
+CREATE VIEW current_mailing_ny AS
+SELECT c.*
+FROM current_mailing c
+JOIN comprehensive_data cd ON c.email = cd.email AND c.period_sortable = cd.period_sortable
+WHERE cd.instnm LIKE '%New York%' OR cd.instnm LIKE '%NY%';
+
+DROP VIEW IF EXISTS current_mailing_other;
+CREATE VIEW current_mailing_other AS
+SELECT c.*
+FROM current_mailing c
+WHERE c.email NOT IN (
+    SELECT email FROM current_mailing_ca
+    UNION
+    SELECT email FROM current_mailing_tx
+    UNION
+    SELECT email FROM current_mailing_fl
+    UNION
+    SELECT email FROM current_mailing_ny
+);

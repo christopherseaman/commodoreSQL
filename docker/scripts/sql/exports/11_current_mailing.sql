@@ -1,4 +1,4 @@
--- Master mailing list with explicit column selection
+-- Current mailing list (last 3 years / 12 periods) with panel response data
 SELECT
     email,
     instructor,
@@ -10,5 +10,6 @@ SELECT
     course_subject,
     period,
     period_sortable,
-    unit_id
-FROM master_mailing;
+    unit_id,
+    panel_response_year
+FROM current_mailing;
