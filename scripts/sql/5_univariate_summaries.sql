@@ -61,6 +61,7 @@ CREATE VIEW summary_period AS
 SELECT
     period,
     period_sortable,
+    period_date,
     COUNT(*) AS record_count,
     ROUND(100.0 * COUNT(*) / SUM(COUNT(*)) OVER (), 2) AS percent_of_total,
     COUNT(DISTINCT section_id) AS sections,
@@ -72,7 +73,7 @@ SELECT
     SUM(CASE WHEN is_ia THEN 1 ELSE 0 END) AS ia_count
 FROM comprehensive_data
 WHERE period IS NOT NULL
-GROUP BY period, period_sortable
+GROUP BY period, period_sortable, period_date
 ORDER BY period_sortable DESC;
 
 -- OER classification summary

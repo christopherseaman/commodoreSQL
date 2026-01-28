@@ -17,6 +17,7 @@ WITH faculty_counts AS (
         email,
         department,
         period_sortable,
+        period_date,
         COUNT(*) AS record_count,
         COUNT(DISTINCT section_id) AS section_count
     FROM comprehensive_data
@@ -31,7 +32,8 @@ WITH faculty_counts AS (
         school,
         email,
         department,
-        period_sortable
+        period_sortable,
+        period_date
 )
 SELECT
     faculty_id,
@@ -57,6 +59,7 @@ SELECT
     course_id,
     period,
     period_sortable,
+    period_date,
     school,
     department,
     course_number,
@@ -82,6 +85,7 @@ GROUP BY
     course_id,
     period,
     period_sortable,
+    period_date,
     school,
     department,
     course_number,
@@ -97,6 +101,7 @@ SELECT
     course_id,
     period,
     period_sortable,
+    period_date,
     school,
     department,
     course_number,
@@ -116,6 +121,7 @@ GROUP BY
     course_id,
     period,
     period_sortable,
+    period_date,
     school,
     department,
     course_number,
@@ -130,6 +136,7 @@ SELECT
     course_id,
     period,
     period_sortable,
+    period_date,
     school,
     department,
     course_number,
@@ -148,6 +155,7 @@ GROUP BY
     course_id,
     period,
     period_sortable,
+    period_date,
     school,
     department,
     course_number,
@@ -166,6 +174,7 @@ SELECT
     course_title,
     school,
     period_sortable,
+    period_date,
     material_count AS records_in_period,
     publishers
 FROM master_section;
@@ -179,6 +188,7 @@ SELECT
     course_title,
     school,
     period_sortable,
+    period_date,
     section_count AS sections_in_period,
     enrollment_total AS total_enrollment,
     all_publishers AS publishers

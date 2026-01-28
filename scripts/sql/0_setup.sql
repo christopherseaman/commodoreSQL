@@ -77,7 +77,14 @@ SELECT
         WHEN "Period" LIKE 'Summer %' THEN substr("Period", -4) || '-3'
         WHEN "Period" LIKE 'Fall %' THEN substr("Period", -4) || '-4'
         ELSE NULL
-    END AS period_sortable
+    END AS period_sortable,
+    CASE
+        WHEN "Period" LIKE 'Winter %' THEN CAST(substr("Period", -4) || '-01-01' AS DATE)
+        WHEN "Period" LIKE 'Spring %' THEN CAST(substr("Period", -4) || '-04-01' AS DATE)
+        WHEN "Period" LIKE 'Summer %' THEN CAST(substr("Period", -4) || '-07-01' AS DATE)
+        WHEN "Period" LIKE 'Fall %' THEN CAST(substr("Period", -4) || '-10-01' AS DATE)
+        ELSE NULL
+    END AS period_date,
 FROM read_csv('${SURVEY_CSV}',
     compression='auto',
     header=true,

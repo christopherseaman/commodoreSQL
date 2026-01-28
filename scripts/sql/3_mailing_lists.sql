@@ -14,6 +14,7 @@ SELECT DISTINCT ON (email)
     course_subject,
     period,
     period_sortable,
+    period_date,
     instructor,
     first_name,
     last_name,
