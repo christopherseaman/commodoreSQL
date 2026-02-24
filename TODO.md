@@ -796,24 +796,30 @@ docs/DATA_DICTIONARY.md            # Human-readable markdown (generated from TSV
 
 ## Generating Example Values
 
-**Extract examples from database**:
+**IMPORTANT**: Example values should come from frequency distributions (top values), NOT random sampling.
+
+**Extract key example values from frequency distributions**:
 
 ```bash
-# Get example values for each column
+# Get top email domains as examples (not random emails)
 duckdb commodore.duckdb -c "
-WITH examples AS (
+SELECT
+    SPLIT_PART(email, '@', 2) as domain,
+    COUNT(*) as count,
+    STRING_AGG(email, ', ') FILTER (WHERE rn <= 3) as example_emails
+FROM (
     SELECT
         email,
-        ROW_NUMBER() OVER (ORDER BY RANDOM()) as rn
+        ROW_NUMBER() OVER (PARTITION BY SPLIT_PART(email, '@', 2) ORDER BY email) as rn
     FROM comprehensive_data
     WHERE email IS NOT NULL
       AND email != ''
       AND email LIKE '%@%'
 )
-SELECT email
-FROM examples
-WHERE rn <= 5;
-" > docs/examples_email.txt
+GROUP BY SPLIT_PART(email, '@', 2)
+ORDER BY count DESC
+LIMIT 10;
+" > docs/examples_email_domains.txt
 ```
 
 **Get value distributions for categorical fields**:

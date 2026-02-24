@@ -64,10 +64,10 @@ SELECT
     )) AS email,
     -- Derived fields: Use :: as delimiter (pipe | appears in source data)
     -- NULLIF treats empty strings as NULL, then COALESCE provides default
-    COALESCE(NULLIF(TRIM("School"), ''), 'UNKNOWN') || '::' ||
+    COALESCE(CAST("IPED ID" AS VARCHAR), 'UNKNOWN') || '::' ||
     COALESCE(NULLIF(TRIM("Department"), ''), 'UNKNOWN') || '::' ||
     COALESCE(NULLIF(TRIM("Course Number"), ''), 'UNKNOWN') AS course_id,
-    COALESCE(NULLIF(TRIM("School"), ''), 'UNKNOWN') || '::' ||
+    COALESCE(CAST("IPED ID" AS VARCHAR), 'UNKNOWN') || '::' ||
     COALESCE(NULLIF(TRIM("Department"), ''), 'UNKNOWN') || '::' ||
     COALESCE(NULLIF(TRIM("Course Number"), ''), 'UNKNOWN') || '::' ||
     COALESCE(NULLIF(TRIM("Section"), ''), 'UNKNOWN') AS section_id,

@@ -24,18 +24,41 @@ FROM read_csv('${LOOKUP_DIR}/format_type_lookup.tsv',
     }
 );
 
+-- Validate FormatType coverage before processing
+-- Check for non-empty FormatTypes that aren't in the lookup table
+DROP TABLE IF EXISTS data_quality_unmatched_formats;
+CREATE TABLE data_quality_unmatched_formats AS
+SELECT DISTINCT c.FormatType, COUNT(*) as record_count
+FROM course_catalog_20251215 c
+LEFT JOIN format_type_classification f ON c.FormatType = f.FormatType
+WHERE c.FormatType IS NOT NULL
+  AND c.FormatType != ''
+  AND f.FormatType IS NULL
+GROUP BY c.FormatType;
+
+-- Display unmatched formats (if any exist, this will show them in pipeline output)
+SELECT
+    'WARNING: Unmatched FormatTypes found' AS validation_status,
+    COUNT(*) as unmatched_format_count,
+    SUM(record_count) as affected_records
+FROM data_quality_unmatched_formats;
+
+SELECT FormatType, record_count
+FROM data_quality_unmatched_formats
+ORDER BY record_count DESC;
+
 -- Add OER and IA fields to comprehensive_data table
 -- Note: comprehensive_data was created as a table in 0_setup.sql, so we need to recreate it
 DROP TABLE IF EXISTS comprehensive_data;
 CREATE TABLE comprehensive_data AS
 SELECT
     c.*,
-    -- Add OER classification from lookup table
-    COALESCE(f.is_oer, false) AS is_oer,
-    COALESCE(f.oer_category, 'non_oer') AS oer_category,
-    -- Add IA (Inclusive Access) classification from lookup table
-    COALESCE(f.is_ia, false) AS is_ia,
-    COALESCE(f.ia_category, 'non_ia') AS ia_category,
+    -- Add OER classification from lookup table (NULL if no match)
+    f.is_oer AS is_oer,
+    COALESCE(f.oer_category, 'unknown') AS oer_category,
+    -- Add IA (Inclusive Access) classification from lookup table (NULL if no match)
+    f.is_ia AS is_ia,
+    COALESCE(f.ia_category, 'unknown') AS ia_category,
     -- IPEDS data
     i.instnm AS institution_name,
     i.sector AS sector,
@@ -55,5 +78,16 @@ LEFT JOIN format_type_classification f ON c.FormatType = f.FormatType
 LEFT JOIN ipeds_data i ON c.unit_id = i.unitid
 LEFT JOIN panel p ON c.email = p.email
 LEFT JOIN opt_out oo ON c.email = oo.email;
+
+-- Validation: Check distribution of OER/IA classifications including NULLs
+SELECT
+    'OER/IA Distribution Check' AS validation_status,
+    is_oer,
+    is_ia,
+    COUNT(*) as record_count,
+    ROUND(100.0 * COUNT(*) / SUM(COUNT(*)) OVER (), 2) as percent
+FROM comprehensive_data
+GROUP BY is_oer, is_ia
+ORDER BY record_count DESC;
 
 COMMIT;

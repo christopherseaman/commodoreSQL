@@ -9,6 +9,7 @@ docker rm metabase 2>/dev/null
 docker run -d \
   --name metabase \
   -p 3000:3000 \
+  --restart=unless-stopped \
   -v "$(pwd)/duckdb:/duckdb:rw" \
   -v "$(pwd)/data:/import_data:ro" \
   -v "$(pwd)/plugins:/plugins:rw" \

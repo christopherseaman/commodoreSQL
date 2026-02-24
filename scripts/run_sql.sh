@@ -136,7 +136,7 @@ process_export() {
     echo "[EXPORT] Processing ${sql_file}..."
 
     # Create temporary SQL with wrapping logic
-    cat > "${TMP_DIR}/${sql_file}" << EOF
+    cat > "${TMP_DIR}/${export_name}.sql" << EOF
 -- Load DuckDB configuration
 ${CONFIG}
 
@@ -155,7 +155,7 @@ DROP TABLE IF EXISTS export_table;
 EOF
 
     # Execute with lower priority
-    time nice -n 19 ${DUCKDB} "${MAIN_DB}" < "${TMP_DIR}/${sql_file}"
+    time nice -n 19 ${DUCKDB} "${MAIN_DB}" < "${TMP_DIR}/${export_name}.sql"
 }
 
 # Process and run SQL files
