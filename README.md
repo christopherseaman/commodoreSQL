@@ -1,19 +1,11 @@
 # CommodoreSQL
 
-> **IMPORTANT NOTE:** During development and testing:
-> - Database is configured with dynamic memory limits and thread count
-> - Temporary directory set to `./tmp`
-> - Insertion order preservation is disabled
-> 
-> Before using in production:
-> - Review and adjust configuration settings in `dot.env`
-> - Ensure appropriate memory and thread settings for your system
-
 ## Setup and Usage
 
 ### Initial Setup
 
 1. Create required directories:
+
    ```bash
    mkdir -p csv output tmp
    ```
@@ -24,6 +16,7 @@
    - Opt-out data: `csv/Master_optOut.csv`
 
 3. Make all scripts executable:
+
    ```bash
    chmod +x scripts/*.sh
    ```
@@ -31,11 +24,13 @@
 ### Running the Pipeline
 
 To run the entire pipeline:
+
 ```bash
 ./scripts/run_all.sh [CSV_DATE]
 ```
 
 For example:
+
 ```bash
 ./scripts/run_all.sh 20240612
 ```
@@ -45,12 +40,14 @@ If no CSV_DATE is provided, it will use the default from `dot.env`.
 ### For the Next Data Update
 
 1. Update the CSV_DATE in `dot.env` or provide it as an argument:
+
    ```bash
    # Example: Update for September 2024 data
    ./scripts/run_all.sh 20240915
    ```
 
 2. Alternatively, edit the `dot.env` file to update the CSV_DATE:
+
    ```bash
    # Change this line in dot.env
    CSV_DATE="20240915"  # Format: YYYYMMDD
@@ -138,6 +135,7 @@ STREAMING_BUFFER_SIZE="1GB"     # Streaming buffer size
 ### DuckDB Configuration Details
 
 Key configuration settings in `sql/0_setup/config.sql`:
+
 - Dynamic memory limit based on `MEM_LIMIT`
 - Temporary directory set to `./tmp`
 - Thread count configurable via `NUM_THREADS`
@@ -161,13 +159,16 @@ The project uses a combination of versioned tables and unversioned views:
    - `optout_data` - Always points to the latest opt-out data
 
 This approach allows you to:
+
 - Keep historical data in versioned tables
 - Always access the latest data through consistent view names
 - Switch to a new data version by simply updating the CSV_DATE
 
 You can customize the DuckDB executable path by:
+
 1. Editing the `dot.env` file
 2. Setting the `DUCKDB` environment variable before running the scripts:
+
    ```bash
    # Example: Use system-installed DuckDB
    export DUCKDB=duckdb

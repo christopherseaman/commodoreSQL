@@ -1,5 +1,6 @@
 *.crt
 *.key
+.claude/
 /csv
 /parquet
 /error.log
