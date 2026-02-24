@@ -14,6 +14,7 @@ docker run -d \
   -v "$(pwd)/data:/import_data:ro" \
   -v "$(pwd)/plugins:/plugins:rw" \
   -v metabase-data:/metabase-data \
-  -e "MUID=1000" \
-  -e "MGID=1000" \
+  -e "MUID=$(id -u)" \
+  -e "MGID=$(id -g)" \
   metabase-duckdb:latest
+ # metabase/metabase:latest
