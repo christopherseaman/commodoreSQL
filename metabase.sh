@@ -1,20 +1,36 @@
 #!/bin/bash
-# Metabase Docker launcher with DuckDB support
-# Based on docker-compose.yml volume mounts for Superset
+set -e
 
-# Stop and remove existing container (use 'docker restart metabase' if just restarting)
-docker stop metabase 2>/dev/null
-docker rm metabase 2>/dev/null
+SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+IMAGE="metabase-local:latest"
+
+# Pull upstream and check if newer
+echo "Checking for upstream updates..."
+PULL_OUTPUT=$(docker pull metabase/metabase:latest 2>&1)
+UPDATED=$(echo "$PULL_OUTPUT" | grep -c "Downloaded newer image" || true)
+
+# Build local image if not present or upstream updated
+if [[ "$UPDATED" -gt 0 ]] || ! docker image inspect "$IMAGE" &>/dev/null; then
+    echo "Building local image..."
+    docker build -t "$IMAGE" "$SCRIPT_DIR"
+fi
+
+# Stop and remove existing container
+docker stop metabase 2>/dev/null || true
+docker rm metabase 2>/dev/null || true
 
 docker run -d \
-  --name metabase \
-  -p 3000:3000 \
-  --restart=unless-stopped \
-  -v "$(pwd)/duckdb:/duckdb:rw" \
-  -v "$(pwd)/data:/import_data:ro" \
-  -v "$(pwd)/plugins:/plugins:rw" \
-  -v metabase-data:/metabase-data \
-  -e "MUID=$(id -u)" \
-  -e "MGID=$(id -g)" \
-  metabase-duckdb:latest
- # metabase/metabase:latest
+    --name metabase \
+    --restart unless-stopped \
+    -p 3000:3000 \
+    -v "$SCRIPT_DIR/duckdb:/duckdb:rw" \
+    -v "$SCRIPT_DIR/data:/import_data:ro" \
+    -v "$SCRIPT_DIR/plugins:/plugins:rw" \
+    -v metabase-data:/metabase-data \
+    -e "MUID=$(id -u)" \
+    -e "MGID=$(id -g)" \
+    -e "MB_DB_FILE=/metabase-data/metabase.db" \
+    -e "TZ=UTC" \
+    "$IMAGE"
+
+echo "Metabase starting at http://localhost:3000"
