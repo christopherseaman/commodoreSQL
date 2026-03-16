@@ -26,6 +26,8 @@ export CONFIG=$(envsubst < sql/config.sql)
 IMPORT_SQL=(
     "0_setup.sql"
     "1_bookprices_import.sql"
+    "1b_section_filter.sql"
+    "1c_pricing_wide.sql"
     "2_oer_classification.sql"
 )
 
@@ -97,13 +99,10 @@ DUCKDB=${DUCKDB:-"duckdb"}
 # Ensure export script is executable
 chmod +x export_all.sh
 
-# Convert bookprices Excel files to CSV if they exist (IMPORT stage only)
+# Verify pricing CSV exists (IMPORT stage only)
 if [ -z "${NO_IMPORT+x}" ]; then
-    if [ -f "${BOOKPRICES_INSTITUTIONAL_XLSX}" ] && [ -f "${BOOKPRICES_PUBLISHER_XLSX}" ]; then
-        echo "Converting bookprices Excel files to CSV..."
-        ./convert_bookprices.sh || echo "Warning: Bookprices conversion failed (continuing anyway)"
-    else
-        echo "Note: Bookprices Excel files not found (${BOOKPRICES_DIR}), skipping conversion"
+    if [ ! -f "${PRICING_CSV}" ]; then
+        echo "Warning: Pricing CSV not found at ${PRICING_CSV}"
     fi
 fi
 

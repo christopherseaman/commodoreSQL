@@ -4,13 +4,8 @@ set -e
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 IMAGE="metabase-local:latest"
 
-# Pull upstream and check if newer
-echo "Checking for upstream updates..."
-PULL_OUTPUT=$(docker pull metabase/metabase:latest 2>&1)
-UPDATED=$(echo "$PULL_OUTPUT" | grep -c "Downloaded newer image" || true)
-
-# Build local image if not present or upstream updated
-if [[ "$UPDATED" -gt 0 ]] || ! docker image inspect "$IMAGE" &>/dev/null; then
+# Build local image if not present
+if ! docker image inspect "$IMAGE" &>/dev/null; then
     echo "Building local image..."
     docker build -t "$IMAGE" "$SCRIPT_DIR"
 fi

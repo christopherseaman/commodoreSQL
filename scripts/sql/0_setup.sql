@@ -28,12 +28,12 @@ SELECT
     -- "Published Year" AS published_year,  -- Excluded: not needed for current analysis
     "Format",
     "FormatType",
-    "Book Status" AS book_status,
+    LOWER(TRIM("Book Status")) AS book_status,
     "IPED ID" AS unit_id,
     "School" AS school,
     -- "SchoolYearType" AS school_year_type,  -- Excluded: not needed for current analysis
     "State" AS state,
-    -- "Dept Code" AS dept_code,  -- Excluded: have dept_description instead
+    "Dept Code" AS dept_code,
     "Department" AS department,
     "Dept Description" AS dept_description,
     "Course Number" AS course_number,
@@ -65,10 +65,10 @@ SELECT
     -- Derived fields: Use :: as delimiter (pipe | appears in source data)
     -- NULLIF treats empty strings as NULL, then COALESCE provides default
     COALESCE(CAST("IPED ID" AS VARCHAR), 'UNKNOWN') || '::' ||
-    COALESCE(NULLIF(TRIM("Department"), ''), 'UNKNOWN') || '::' ||
+    COALESCE(NULLIF(TRIM("Dept Code"), ''), 'UNKNOWN') || '::' ||
     COALESCE(NULLIF(TRIM("Course Number"), ''), 'UNKNOWN') AS course_id,
     COALESCE(CAST("IPED ID" AS VARCHAR), 'UNKNOWN') || '::' ||
-    COALESCE(NULLIF(TRIM("Department"), ''), 'UNKNOWN') || '::' ||
+    COALESCE(NULLIF(TRIM("Dept Code"), ''), 'UNKNOWN') || '::' ||
     COALESCE(NULLIF(TRIM("Course Number"), ''), 'UNKNOWN') || '::' ||
     COALESCE(NULLIF(TRIM("Section"), ''), 'UNKNOWN') AS section_id,
     CASE

@@ -1,113 +1,84 @@
--- Import bookprices sample data for OER identification and pricing analysis
--- This script imports sample pricing data from institutional bookstores and publishers
+-- Import historical bookstore pricing data and derive section_id for catalog joins
+
+${CONFIG}
 
 BEGIN TRANSACTION;
 
--- Drop existing bookprices tables
+-- Clear existing pricing tables
+DROP TABLE IF EXISTS pricing_historical;
 DROP TABLE IF EXISTS bookprices_institutional;
 DROP TABLE IF EXISTS bookprices_publisher;
+DROP VIEW IF EXISTS bookprices_publishers;
 
--- Convert Excel files to CSV if not already done
--- Note: This should be run via a pre-processing step
--- xlsx2csv.py is used externally to convert Excel to CSV
-
--- Import institutional bookstore pricing data (Barnes & Noble sample)
-CREATE TABLE bookprices_institutional AS
+-- Import historical bookstore pricing data
+CREATE TABLE pricing_historical AS
 SELECT
-    TRY_CAST(iped_id AS INTEGER) AS unit_id,
-    TRIM(Name) AS institution_name,
-    TRIM(address) AS bookstore_url,
-    TRIM(Engine) AS pricing_engine,
-    TRY_CAST("Book Pricing Date" AS DATE) AS pricing_date,
-    TRIM("Term Name") AS term_name,
-    TRY_CAST(Year AS INTEGER) AS year,
-    TRY_CAST(Term AS INTEGER) AS term,
-    TRY_CAST(BatchId AS INTEGER) AS batch_id,
+    TRY_CAST(IPEDSID AS INTEGER) AS unit_id,
+    TRIM(Institute) AS institute,
+    TRIM(Address) AS bookstore_url,
+    TRY_CAST("Book Pricing Date" AS TIMESTAMP) AS pricing_date,
+    TRIM(Period) AS period,
     TRIM("Department Code") AS dept_code,
     TRIM("Department Name") AS dept_name,
-    TRIM(Course) AS course,
-    TRIM(Section) AS section,
-    TRIM(Crn) AS crn,
+    TRIM("Course Code") AS course_code,
+    TRIM("Section Code") AS section_code,
+    TRIM(CRN) AS crn,
+    TRIM("Instructor Name") AS instructor_name,
+    TRIM(ISBN13) AS isbn13,
+    TRIM(Title) AS title,
+    TRIM(Author) AS author,
+    TRIM(Publisher) AS publisher,
+    TRIM(Edition) AS edition,
     LOWER(TRIM("Book Status")) AS book_status,
-    LOWER(TRIM("Book Option")) AS book_option, -- buy, rental, access code
-    LOWER(TRIM("Book Condition")) AS book_condition, -- new, used
-    LOWER(TRIM("Book Format")) AS book_format, -- physical, digital
+    LOWER(TRIM("Book Option")) AS book_option,
+    LOWER(TRIM("Book Condition")) AS book_condition,
+    LOWER(TRIM("Book Format")) AS book_format,
     TRY_CAST(Price AS DECIMAL(10,2)) AS price,
-    TRY_CAST("Rental Length (Days)" AS INTEGER) AS rental_days,
+    TRY_CAST("Rental Length" AS INTEGER) AS rental_days,  -- VARCHAR from reader, cast to INT
     TRY_CAST("Return Date" AS DATE) AS return_date,
-    TRIM(CAST(ISBN13 AS VARCHAR)) AS isbn13,
-    TRIM(Title) AS title,
-    TRIM(Author) AS author,
-    TRIM(Publisher) AS publisher,
-    TRIM(Edition) AS edition,
-    -- Derive course_id for joining with main catalog
-    TRIM(Name) || '::' || COALESCE(NULLIF(TRIM("Department Name"), ''), 'UNKNOWN') || '::' || COALESCE(NULLIF(TRIM(Course), ''), 'UNKNOWN') AS course_id
-FROM read_csv('/tmp/bookpricing_sample.csv',
-    header = true,
-    delim = ',',
-    quote = '"',
-    escape = '"',
-    nullstr = 'NULL',
-    auto_detect = true
-);
-
--- Import publisher list pricing data (Cengage sample)
-CREATE TABLE bookprices_publisher AS
-SELECT
-    TRY_CAST(Date AS TIMESTAMP) AS pricing_date,
-    TRIM(CAST(ISBN13 AS VARCHAR)) AS isbn13,
-    TRIM(Title) AS title,
-    TRIM(Author) AS author,
-    TRIM(Publisher) AS publisher,
-    TRY_CAST(PublishDate AS DATE) AS publish_date,
-    TRY_CAST(Year AS INTEGER) AS year,
-    TRIM(Edition) AS edition,
-    LOWER(TRIM(BookType)) AS book_type, -- eTextbook, Hardcopy, Bundle
-    LOWER(TRIM(PurchaseType)) AS purchase_type, -- Buy, Rental, Subscription
-    TRY_CAST(Price AS DECIMAL(10,2)) AS price,
-    TRIM(RentalLength) AS rental_length,
-    TRIM(FormatDescription) AS format_description,
-    LOWER(TRIM(lifecycleStatus)) AS lifecycle_status -- unlimited, active, etc.
-FROM read_csv('/tmp/publisher_pricing_sample.csv',
-    header = true,
-    delim = ',',
-    quote = '"',
-    escape = '"',
-    auto_detect = true
-);
-
--- Create summary view of unique publishers from bookprices data
-CREATE OR REPLACE VIEW bookprices_publishers AS
-SELECT DISTINCT
-    publisher,
-    COUNT(*) as occurrence_count,
+    -- Derive IDs matching catalog logic (0_setup.sql uses "Dept Code")
+    COALESCE(CAST(IPEDSID AS VARCHAR), 'UNKNOWN') || '::' ||
+    COALESCE(NULLIF(TRIM("Department Code"), ''), 'UNKNOWN') || '::' ||
+    COALESCE(NULLIF(TRIM("Course Code"), ''), 'UNKNOWN') AS course_id,
+    COALESCE(CAST(IPEDSID AS VARCHAR), 'UNKNOWN') || '::' ||
+    COALESCE(NULLIF(TRIM("Department Code"), ''), 'UNKNOWN') || '::' ||
+    COALESCE(NULLIF(TRIM("Course Code"), ''), 'UNKNOWN') || '::' ||
+    COALESCE(NULLIF(TRIM("Section Code"), ''), 'UNKNOWN') AS section_id,
     CASE
-        WHEN LOWER(publisher) LIKE '%openstax%' THEN true
-        WHEN LOWER(publisher) LIKE '%oer%' THEN true
-        WHEN publisher = 'OER' THEN true
-        ELSE false
-    END AS is_likely_oer
-FROM (
-    SELECT publisher FROM bookprices_institutional WHERE publisher IS NOT NULL
-    UNION ALL
-    SELECT publisher FROM bookprices_publisher WHERE publisher IS NOT NULL
-) combined
-GROUP BY publisher
-ORDER BY occurrence_count DESC;
+        WHEN Period LIKE 'Winter %' THEN substr(Period, -4) || '-1'
+        WHEN Period LIKE 'Spring %' THEN substr(Period, -4) || '-2'
+        WHEN Period LIKE 'Summer %' THEN substr(Period, -4) || '-3'
+        WHEN Period LIKE 'Fall %' THEN substr(Period, -4) || '-4'
+        ELSE NULL
+    END AS period_sortable,
+    CASE
+        WHEN Period LIKE 'Winter %' THEN CAST(substr(Period, -4) || '-01-01' AS DATE)
+        WHEN Period LIKE 'Spring %' THEN CAST(substr(Period, -4) || '-04-01' AS DATE)
+        WHEN Period LIKE 'Summer %' THEN CAST(substr(Period, -4) || '-07-01' AS DATE)
+        WHEN Period LIKE 'Fall %' THEN CAST(substr(Period, -4) || '-10-01' AS DATE)
+        ELSE NULL
+    END AS period_date
+FROM read_csv('${PRICING_CSV}',
+    compression='auto',
+    header=true,
+    delim=',',
+    quote='"',
+    escape='"',
+    nullstr=['N/A', '', 'Not applicable'],
+    types={'CRN': 'VARCHAR', 'ISBN13': 'VARCHAR', 'Edition': 'VARCHAR', 'Rental Length': 'VARCHAR'});
+
+-- Index for joins and lookups
+CREATE INDEX idx_pricing_section ON pricing_historical (section_id);
+CREATE INDEX idx_pricing_isbn ON pricing_historical (isbn13);
+CREATE INDEX idx_pricing_period ON pricing_historical (period_sortable);
 
 COMMIT;
 
 -- Summary statistics
-SELECT 'Institutional bookstore records' AS metric, COUNT(*)::VARCHAR AS count FROM bookprices_institutional
+SELECT 'Pricing historical records' AS metric, COUNT(*)::VARCHAR AS value FROM pricing_historical
 UNION ALL
-SELECT 'Publisher pricing records', COUNT(*)::VARCHAR FROM bookprices_publisher
+SELECT 'Unique section_ids', COUNT(DISTINCT section_id)::VARCHAR FROM pricing_historical
 UNION ALL
-SELECT 'Unique ISBNs (institutional)', COUNT(DISTINCT isbn13)::VARCHAR FROM bookprices_institutional WHERE isbn13 IS NOT NULL
+SELECT 'Unique ISBNs', COUNT(DISTINCT isbn13)::VARCHAR FROM pricing_historical WHERE isbn13 IS NOT NULL
 UNION ALL
-SELECT 'Unique ISBNs (publisher)', COUNT(DISTINCT isbn13)::VARCHAR FROM bookprices_publisher WHERE isbn13 IS NOT NULL
-UNION ALL
-SELECT 'Unique publishers (institutional)', COUNT(DISTINCT publisher)::VARCHAR FROM bookprices_institutional WHERE publisher IS NOT NULL
-UNION ALL
-SELECT 'Unique publishers (list)', COUNT(DISTINCT publisher)::VARCHAR FROM bookprices_publisher WHERE publisher IS NOT NULL
-UNION ALL
-SELECT 'Likely OER publishers', COUNT(*)::VARCHAR FROM bookprices_publishers WHERE is_likely_oer = true;
+SELECT 'Period range', MIN(period) || ' - ' || MAX(period) FROM pricing_historical;
