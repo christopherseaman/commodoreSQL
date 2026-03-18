@@ -70,16 +70,20 @@ def card_exists(card_id: int) -> bool:
     try:
         api("GET", f"/card/{card_id}")
         return True
-    except urllib.error.HTTPError:
-        return False
+    except urllib.error.HTTPError as e:
+        if e.code == 404:
+            return False
+        raise
 
 
 def dashboard_exists(dash_id: int) -> bool:
     try:
         api("GET", f"/dashboard/{dash_id}")
         return True
-    except urllib.error.HTTPError:
-        return False
+    except urllib.error.HTTPError as e:
+        if e.code == 404:
+            return False
+        raise
 
 
 # ---------------------------------------------------------------------------

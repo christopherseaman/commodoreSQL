@@ -19,22 +19,8 @@ GROUP BY section_id;
 
 CREATE INDEX idx_sbs_section ON section_book_status (section_id);
 
--- Add filter_include to comprehensive_data
--- TRUE when period >= 2024 AND book_status matches has_required logic
-ALTER TABLE comprehensive_data ADD COLUMN filter_include BOOLEAN DEFAULT FALSE;
-
-UPDATE comprehensive_data c
-SET filter_include = TRUE
-FROM section_book_status s
-WHERE c.section_id = s.section_id
-  AND c.period_date >= '2024-01-01'
-  AND (
-    (s.has_required = TRUE  AND c.book_status = 'required')
-    OR
-    (s.has_required = FALSE AND c.book_status IS NULL)
-  );
-
 -- Add filter_include to pricing_historical
+-- (comprehensive_data gets filter_include in 2_oer_classification.sql where it is recreated)
 ALTER TABLE pricing_historical ADD COLUMN filter_include BOOLEAN DEFAULT FALSE;
 
 UPDATE pricing_historical p
@@ -59,8 +45,5 @@ SELECT 'Sections with has_required=FALSE', COUNT(*)::VARCHAR FROM section_book_s
 UNION ALL
 SELECT 'Sections with has_required=NULL', COUNT(*)::VARCHAR FROM section_book_status WHERE has_required IS NULL;
 
-SELECT 'comprehensive_data filter_include' AS table_name, filter_include, COUNT(*)::VARCHAR AS row_count
-FROM comprehensive_data GROUP BY filter_include
-UNION ALL
-SELECT 'pricing_historical filter_include', filter_include, COUNT(*)::VARCHAR
+SELECT 'pricing_historical filter_include' AS table_name, filter_include, COUNT(*)::VARCHAR AS row_count
 FROM pricing_historical GROUP BY filter_include;

@@ -47,7 +47,7 @@ SELECT FormatType, record_count
 FROM data_quality_unmatched_formats
 ORDER BY record_count DESC;
 
--- Add OER and IA fields to comprehensive_data table
+-- Add OER, IA, and filter_include fields to comprehensive_data table
 -- Note: comprehensive_data was created as a table in 0_setup.sql, so we need to recreate it
 DROP TABLE IF EXISTS comprehensive_data;
 CREATE TABLE comprehensive_data AS
@@ -72,12 +72,24 @@ SELECT
     p.response_year AS panel_response_year,
     -- Opt-out data
     CASE WHEN oo.email IS NOT NULL THEN true ELSE false END AS is_opted_out,
-    'opt_out' AS opt_out_source
+    'opt_out' AS opt_out_source,
+    -- filter_include: period >= 2024 AND book_status matches has_required logic
+    CASE
+        WHEN c.period_date >= '2024-01-01'
+         AND (
+             (s.has_required = TRUE  AND c.book_status = 'required')
+             OR
+             (s.has_required = FALSE AND c.book_status IS NULL)
+         )
+        THEN TRUE
+        ELSE FALSE
+    END AS filter_include
 FROM course_catalog_20251215 c
 LEFT JOIN format_type_classification f ON c.FormatType = f.FormatType
 LEFT JOIN ipeds_data i ON c.unit_id = i.unitid
 LEFT JOIN panel p ON c.email = p.email
-LEFT JOIN opt_out oo ON c.email = oo.email;
+LEFT JOIN opt_out oo ON c.email = oo.email
+LEFT JOIN section_book_status s ON c.section_id = s.section_id;
 
 -- Validation: Check distribution of OER/IA classifications including NULLs
 SELECT
