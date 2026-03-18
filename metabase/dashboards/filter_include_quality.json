@@ -1,0 +1,29 @@
+[
+  {
+    "__meta__": {
+      "name": "Filter Include — Data Quality (2024+)",
+      "description": "Included/excluded material counts, FormatType coverage, and sections with no materials — grouped by course level and period"
+    }
+  },
+  {
+    "question": "01_filter_include_counts",
+    "row": 0,
+    "col": 0,
+    "size_x": 24,
+    "size_y": 8
+  },
+  {
+    "question": "02_formattype_coverage",
+    "row": 8,
+    "col": 0,
+    "size_x": 24,
+    "size_y": 8
+  },
+  {
+    "question": "03_sections_no_materials",
+    "row": 16,
+    "col": 0,
+    "size_x": 24,
+    "size_y": 8
+  }
+]

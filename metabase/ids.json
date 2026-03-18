@@ -4,5 +4,6 @@
   "03_sections_no_materials": 51,
   "04_filtered_formattype_status": 54,
   "05_filtered_oer_over_time": 55,
-  "dashboard_oer_ia_status_filtered": 5
+  "dashboard_oer_ia_status_filtered": 5,
+  "dashboard_filter_include_quality": 6
 }

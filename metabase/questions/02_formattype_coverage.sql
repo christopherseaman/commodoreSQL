@@ -1,18 +1,20 @@
--- name: FormatType Coverage by Section (Filtered)
+-- name: FormatType Coverage by Course Level and Period (Filtered)
 -- display: table
--- description: Per section, count of ISBNs with and without a non-null FormatType (filtered materials only)
+-- description: FormatType null coverage grouped by course level and period (filtered materials only)
 
 SELECT
-    section_id,
-    COUNT(DISTINCT isbn13)                                                         AS total_isbns,
-    COUNT(DISTINCT CASE WHEN "FormatType" IS NOT NULL THEN isbn13 END)             AS isbns_with_formattype,
-    COUNT(DISTINCT CASE WHEN "FormatType" IS NULL     THEN isbn13 END)             AS isbns_missing_formattype,
+    c.course_level,
+    c.period_sortable,
+    c.period_date,
+    COUNT(DISTINCT c.isbn13)                                                          AS total_isbns,
+    COUNT(DISTINCT CASE WHEN c."FormatType" IS NOT NULL THEN c.isbn13 END)            AS isbns_with_formattype,
+    COUNT(DISTINCT CASE WHEN c."FormatType" IS NULL     THEN c.isbn13 END)            AS isbns_missing_formattype,
     ROUND(
-        100.0 * COUNT(DISTINCT CASE WHEN "FormatType" IS NOT NULL THEN isbn13 END)
-              / NULLIF(COUNT(DISTINCT isbn13), 0),
+        100.0 * COUNT(DISTINCT CASE WHEN c."FormatType" IS NOT NULL THEN c.isbn13 END)
+              / NULLIF(COUNT(DISTINCT c.isbn13), 0),
         1
-    )                                                                              AS formattype_pct
-FROM comprehensive_data
-WHERE filter_include = TRUE
-GROUP BY section_id
-ORDER BY isbns_missing_formattype DESC
+    )                                                                                 AS formattype_pct
+FROM comprehensive_data c
+WHERE c.filter_include = TRUE
+GROUP BY c.course_level, c.period_sortable, c.period_date
+ORDER BY c.period_sortable DESC, c.course_level
