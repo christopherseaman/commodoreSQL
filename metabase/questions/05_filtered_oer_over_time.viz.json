@@ -1,0 +1,6 @@
+{
+  "graph.dimensions": ["period_date", "is_oer", "is_ia"],
+  "graph.metrics": ["record_count"],
+  "graph.x_axis.title_text": "Period",
+  "graph.y_axis.title_text": "Record Count"
+}

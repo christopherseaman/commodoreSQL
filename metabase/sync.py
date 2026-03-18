@@ -110,6 +110,14 @@ def parse_question(path: Path) -> dict:
     return meta
 
 
+def load_viz_settings(sql_path: Path) -> dict:
+    """Load optional visualization settings from a .viz.json sidecar file."""
+    viz_path = sql_path.with_suffix(".viz.json")
+    if viz_path.exists():
+        return json.loads(viz_path.read_text())
+    return {}
+
+
 def build_card_payload(meta: dict) -> dict:
     payload = {
         "name": meta["name"],
@@ -120,7 +128,7 @@ def build_card_payload(meta: dict) -> dict:
             "native": {"query": meta["query"]},
             "database": DB_ID,
         },
-        "visualization_settings": {},
+        "visualization_settings": meta.get("viz_settings", {}),
         "collection_id": int(meta.get("collection_id", DEFAULT_COLLECTION_ID)),
     }
     if meta.get("description"):
@@ -130,6 +138,7 @@ def build_card_payload(meta: dict) -> dict:
 
 def sync_question(path: Path, ids: dict, dry_run: bool) -> dict:
     meta = parse_question(path)
+    meta["viz_settings"] = load_viz_settings(path)
     key = path.stem
     existing_id = ids.get(key)
 
