@@ -40,7 +40,7 @@ cat > "$SYSTEMD_DIR/$TIMER" <<EOF
 Description=Run CommodoreSQL backup daily
 
 [Timer]
-OnCalendar=daily
+OnCalendar=*-*-* 02:00:00
 Persistent=true
 
 [Install]
