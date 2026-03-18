@@ -45,13 +45,7 @@ SELECT
     MAX(CASE WHEN p.book_option = 'rental' AND p.book_condition IS NULL AND p.book_format = 'digital' THEN p.price END) AS price_rental_na_digital,
     MAX(CASE WHEN p.book_option = 'rental' AND p.book_condition IS NULL AND p.book_format IS NULL THEN p.price END) AS price_rental_na_na
 FROM pricing_historical p
-JOIN section_book_status s ON p.section_id = s.section_id
-WHERE p.period_date >= '2024-01-01'
-  AND (
-    (s.has_required = TRUE  AND p.book_status = 'required')
-    OR
-    (s.has_required = FALSE AND p.book_status IS NULL)
-  )
+WHERE p.filter_include = TRUE
 GROUP BY p.section_id, p.isbn13;
 
 CREATE INDEX idx_pw_section ON pricing_wide (section_id);

@@ -8,7 +8,6 @@ ${CONFIG}
 BEGIN TRANSACTION;
 
 DROP TABLE IF EXISTS section_book_status;
-DROP VIEW IF EXISTS catalog_filtered;
 
 -- One row per section_id with has_required flag from catalog
 CREATE TABLE section_book_status AS
@@ -20,16 +19,33 @@ GROUP BY section_id;
 
 CREATE INDEX idx_sbs_section ON section_book_status (section_id);
 
--- Filtered catalog: period >= 2024 + book_status logic
-CREATE VIEW catalog_filtered AS
-SELECT c.*
-FROM ${SURVEY_TABLE} c
-JOIN section_book_status s ON c.section_id = s.section_id
-WHERE c.period_date >= '2024-01-01'
+-- Add filter_include to comprehensive_data
+-- TRUE when period >= 2024 AND book_status matches has_required logic
+ALTER TABLE comprehensive_data ADD COLUMN filter_include BOOLEAN DEFAULT FALSE;
+
+UPDATE comprehensive_data c
+SET filter_include = TRUE
+FROM section_book_status s
+WHERE c.section_id = s.section_id
+  AND c.period_date >= '2024-01-01'
   AND (
-    (s.has_required = TRUE AND c.book_status = 'required')
+    (s.has_required = TRUE  AND c.book_status = 'required')
     OR
     (s.has_required = FALSE AND c.book_status IS NULL)
+  );
+
+-- Add filter_include to pricing_historical
+ALTER TABLE pricing_historical ADD COLUMN filter_include BOOLEAN DEFAULT FALSE;
+
+UPDATE pricing_historical p
+SET filter_include = TRUE
+FROM section_book_status s
+WHERE p.section_id = s.section_id
+  AND p.period_date >= '2024-01-01'
+  AND (
+    (s.has_required = TRUE  AND p.book_status = 'required')
+    OR
+    (s.has_required = FALSE AND p.book_status IS NULL)
   );
 
 COMMIT;
@@ -41,6 +57,10 @@ SELECT 'Sections with has_required=TRUE', COUNT(*)::VARCHAR FROM section_book_st
 UNION ALL
 SELECT 'Sections with has_required=FALSE', COUNT(*)::VARCHAR FROM section_book_status WHERE has_required = FALSE
 UNION ALL
-SELECT 'Sections with has_required=NULL', COUNT(*)::VARCHAR FROM section_book_status WHERE has_required IS NULL
+SELECT 'Sections with has_required=NULL', COUNT(*)::VARCHAR FROM section_book_status WHERE has_required IS NULL;
+
+SELECT 'comprehensive_data filter_include' AS table_name, filter_include, COUNT(*)::VARCHAR AS row_count
+FROM comprehensive_data GROUP BY filter_include
 UNION ALL
-SELECT 'Filtered catalog rows', COUNT(*)::VARCHAR FROM catalog_filtered;
+SELECT 'pricing_historical filter_include', filter_include, COUNT(*)::VARCHAR
+FROM pricing_historical GROUP BY filter_include;
