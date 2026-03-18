@@ -13,8 +13,9 @@ docker cp metabase:/metabase-data/metabase.db.mv.db "$DEST"
 echo "Metabase backup saved: $DEST"
 
 # --- Rsync to NAS ---
-if ! mountpoint -q "$(dirname "$NAS_DEST")"; then
-    echo "ERROR: NAS not mounted at $(dirname "$NAS_DEST")" >&2
+NAS_MOUNT="/media/anenome"
+if ! mountpoint -q "$NAS_MOUNT"; then
+    echo "ERROR: NAS not mounted at $NAS_MOUNT" >&2
     exit 1
 fi
 
