@@ -1,20 +1,16 @@
--- name: Sections with No Included Materials (2024+)
+-- name: Sections with No Included Materials — Summary (2024+)
 -- display: table
--- description: Sections present in 2024+ data with zero rows passing the has_required filter — potential cross-listed or data-quality cases
+-- description: Count of sections with no included materials after has_required filter, grouped by school and has_required flag
 
-SELECT DISTINCT
-    c.section_id,
-    c.course_id,
+SELECT
     c.school,
-    c.department,
-    c.course_number,
-    c.section,
-    c.course_title,
-    c.period,
-    c.period_date,
-    s.has_required
+    s.has_required,
+    COUNT(DISTINCT c.section_id)  AS sections_no_materials,
+    COUNT(DISTINCT c.course_id)   AS courses_affected,
+    COUNT(DISTINCT c.period)      AS periods_seen
 FROM comprehensive_data c
 JOIN section_book_status s ON c.section_id = s.section_id
 WHERE c.period_date >= '2024-01-01'
   AND c.filter_include = FALSE
-ORDER BY c.school, c.period_date DESC
+GROUP BY c.school, s.has_required
+ORDER BY sections_no_materials DESC

@@ -3,7 +3,7 @@
 -- description: Per section, counts of materials included and excluded by the has_required filter (2024+)
 
 SELECT
-    s.section_id,
+    c.section_id,
     s.has_required,
     COUNT(*)                                                             AS total_materials,
     SUM(CASE WHEN c.filter_include = TRUE  THEN 1 ELSE 0 END)           AS included_materials,
