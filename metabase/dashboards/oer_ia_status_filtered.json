@@ -1,0 +1,22 @@
+[
+  {
+    "__meta__": {
+      "name": "OER/IA + Status (Filtered, 2024+)",
+      "description": "Replicates OER/IA + Status using has_required filter logic and period >= 2024 only"
+    }
+  },
+  {
+    "question": "04_filtered_formattype_status",
+    "row": 0,
+    "col": 0,
+    "size_x": 24,
+    "size_y": 10
+  },
+  {
+    "question": "05_filtered_oer_over_time",
+    "row": 10,
+    "col": 0,
+    "size_x": 24,
+    "size_y": 8
+  }
+]
