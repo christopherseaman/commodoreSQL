@@ -29,6 +29,7 @@ superset/
 
 # Metabase backups
 metabase-backup-*/
+metabase-backups/
 
 # Metabase bundled drivers (extracted by official image on startup; only duckdb is custom)
 plugins/*.jar
