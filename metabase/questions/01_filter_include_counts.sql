@@ -8,8 +8,8 @@ SELECT
     COUNT(*)                                                             AS total_materials,
     SUM(CASE WHEN c.filter_include = TRUE  THEN 1 ELSE 0 END)           AS included_materials,
     SUM(CASE WHEN c.filter_include = FALSE THEN 1 ELSE 0 END)           AS excluded_materials
-FROM section_book_status s
-JOIN course_catalog_20251215 c ON c.section_id = s.section_id
+FROM comprehensive_data c
+JOIN section_book_status s ON c.section_id = s.section_id
 WHERE c.period_date >= '2024-01-01'
-GROUP BY s.section_id, s.has_required
+GROUP BY c.section_id, s.has_required
 ORDER BY excluded_materials DESC

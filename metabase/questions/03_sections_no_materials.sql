@@ -13,12 +13,8 @@ SELECT DISTINCT
     c.period,
     c.period_date,
     s.has_required
-FROM course_catalog_20251215 c
+FROM comprehensive_data c
 JOIN section_book_status s ON c.section_id = s.section_id
 WHERE c.period_date >= '2024-01-01'
-  AND c.section_id NOT IN (
-      SELECT DISTINCT section_id
-      FROM comprehensive_data
-      WHERE filter_include = TRUE
-  )
+  AND c.filter_include = FALSE
 ORDER BY c.school, c.period_date DESC
