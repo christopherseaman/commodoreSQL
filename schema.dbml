@@ -1,0 +1,534 @@
+// CommodoreSQL — Data Landscape
+// Course catalog + institutional + pricing pipeline for OER/IA analysis
+// Pipeline: IMPORT (CSV → tables) → EDA (views) → EXPORT (CSV) → Metabase (dashboards)
+
+Project CommodoreSQL {
+  database_type: 'DuckDB'
+  Note: '''
+    ## Metabase Questions (5)
+    - 01_filter_include_counts: Material counts by course level/period (included vs excluded) — table
+    - 02_formattype_coverage: FormatType null coverage by course level/period (filtered) — table
+    - 03_sections_no_materials: Sections with no included materials (2024+) — table
+    - 04_filtered_formattype_status: FormatType × OER × IA × Status (filtered, 2024+) — table
+    - 05_filtered_oer_over_time: OER/IA adoption over time (filtered, 2024+) — line chart
+
+    ## Metabase Dashboards (2)
+    - filter_include_quality: Questions 01, 02, 03 — data quality after has_required filter
+    - oer_ia_status_filtered: Questions 04, 05 — OER/IA status analysis
+  '''
+}
+
+// ---------------------------------------------------------------------------
+// SOURCE DATA FILES
+// ---------------------------------------------------------------------------
+
+// Database: duckdb/commodore.duckdb
+
+Enum source_files {
+  "data/2025.12.15/2025_12/DiscoveryExtract.20251215.csv" [note: '→ course_catalog_20251215 (~103M rows)']
+  "data/2025.12.15/IPEDS_2024.csv" [note: '→ ipeds_data (~7K rows)']
+  "data/2025.12.15/OptOut_20251215.csv" [note: '→ opt_out']
+  "data/2025.12.15/panel_20260108.csv" [note: '→ panel']
+  "data/2025.12.15/format_type_lookup.tsv" [note: '→ format_type_classification (69 rows)']
+  "data/BookPricing.Historical_20260224.csv" [note: '→ pricing_historical (~11K rows)']
+}
+
+// ---------------------------------------------------------------------------
+// IMPORT STAGE — Source Tables (CSV loads)
+// ---------------------------------------------------------------------------
+
+Table course_catalog_20251215 {
+  ISBN13 varchar
+  Title varchar
+  Author varchar
+  Publisher varchar
+  Imprint varchar
+  Format varchar
+  FormatType varchar
+  book_status varchar [note: 'lowercase: required, recommended, option, NULL']
+  unit_id integer
+  school varchar
+  state varchar
+  dept_code varchar
+  department varchar
+  dept_description varchar
+  course_number varchar
+  section varchar
+  course_title varchar
+  course_level varchar
+  course_subject varchar
+  period varchar [note: 'e.g. "Fall 2024"']
+  enrollments integer
+  seats_taken integer
+  instructor varchar
+  first_name varchar
+  last_name varchar
+  email varchar [note: 'cleaned/normalized from raw E-Mail']
+  course_id varchar [note: 'unit_id::dept_code::course_number']
+  section_id varchar [note: 'unit_id::dept_code::course_number::section']
+  period_sortable varchar [note: 'YYYY-N where 1=Winter 2=Spring 3=Summer 4=Fall']
+  period_date date [note: 'canonical: 01-01, 04-01, 07-01, 10-01']
+
+  indexes {
+    email [name: 'idx_course_email']
+    unit_id [name: 'idx_course_unitid']
+    period_sortable [name: 'idx_course_period']
+    course_id [name: 'idx_course_courseid']
+    section_id [name: 'idx_course_sectionid']
+  }
+
+  Note: '~103M rows. Source: DiscoveryExtract CSV. Central fact table for course material adoptions.'
+}
+
+Table ipeds_data {
+  unitid integer [pk]
+  instnm varchar
+  sector integer [note: '1-9: Public/Private × 4yr/2yr/lt2yr']
+  iclevel integer [note: '1=4yr+, 2=2-4yr, 3=lt2yr']
+  control integer [note: '1=Public, 2=Private nonprofit, 3=For-profit']
+  instsize integer
+  enroll_24 integer [note: '2024 enrollment']
+  dist_enroll_24 integer [note: '2024 distance enrollment']
+  inst_type varchar
+
+  Note: '~7K rows. Source: IPEDS_2024.csv. Institutional characteristics.'
+}
+
+Table opt_out {
+  email varchar [pk]
+  source varchar
+
+  Note: 'Source: OptOut CSV. Emails excluded from mailing lists.'
+}
+
+Table panel {
+  email varchar [pk]
+  response_year varchar
+
+  Note: 'Source: panel CSV. Survey response tracking.'
+}
+
+Table format_type_classification {
+  FormatType varchar [pk]
+  is_oer boolean
+  oer_category varchar [note: 'book_oer, ebook_oer, bundle_oer, courseware_oer, pure_oer, non_oer, etc.']
+  is_ia boolean
+  ia_category varchar [note: 'book_ia, ebook_ia, bundle_ia, courseware_ia, pure_ia, non_ia, etc.']
+
+  Note: '69 rows. Source: format_type_lookup.tsv. Classifies FormatType into OER and IA categories.'
+}
+
+Table pricing_historical {
+  unit_id integer
+  institute varchar
+  bookstore_url varchar
+  pricing_date timestamp
+  period varchar
+  dept_code varchar
+  dept_name varchar
+  course_code varchar
+  section_code varchar
+  crn varchar
+  instructor_name varchar
+  isbn13 varchar
+  title varchar
+  author varchar
+  publisher varchar
+  edition varchar
+  book_status varchar [note: 'lowercase: required, recommended, option, NULL']
+  book_option varchar [note: 'buy, rental']
+  book_condition varchar [note: 'new, used, NULL']
+  book_format varchar [note: 'physical, digital, NULL']
+  price decimal
+  rental_days integer
+  return_date date
+  course_id varchar [note: 'unit_id::dept_code::course_code']
+  section_id varchar [note: 'unit_id::dept_code::course_code::section_code']
+  period_sortable varchar
+  period_date date
+  filter_include boolean [note: 'added by 1b_section_filter; TRUE = period>=2024 AND status matches has_required logic']
+
+  indexes {
+    section_id [name: 'idx_pricing_section']
+    isbn13 [name: 'idx_pricing_isbn']
+    period_sortable [name: 'idx_pricing_period']
+  }
+
+  Note: '~11K rows. Source: Bookprices CSV. Historical bookstore pricing per section × ISBN × option.'
+}
+
+// ---------------------------------------------------------------------------
+// IMPORT STAGE — Derived Tables
+// ---------------------------------------------------------------------------
+
+Table section_book_status {
+  section_id varchar [pk]
+  has_required boolean [note: 'TRUE if section has any required-status material in catalog']
+
+  indexes {
+    section_id [name: 'idx_sbs_section']
+  }
+
+  Note: 'One row per section_id. Drives filter_include logic for pricing and comprehensive_data.'
+}
+
+Table pricing_wide {
+  section_id varchar
+  isbn13 varchar
+  institute varchar
+  bookstore_url varchar
+  title varchar
+  author varchar
+  publisher varchar
+  edition varchar
+  price_buy_new_physical decimal
+  price_buy_new_digital decimal
+  price_buy_new_na decimal
+  price_buy_used_physical decimal
+  price_buy_used_digital decimal
+  price_buy_used_na decimal
+  price_buy_na_physical decimal
+  price_buy_na_digital decimal
+  price_buy_na_na decimal
+  price_rental_new_physical decimal
+  price_rental_new_digital decimal
+  price_rental_new_na decimal
+  price_rental_used_physical decimal
+  price_rental_used_digital decimal
+  price_rental_used_na decimal
+  price_rental_na_physical decimal
+  price_rental_na_digital decimal
+  price_rental_na_na decimal
+
+  indexes {
+    section_id [name: 'idx_pw_section']
+    isbn13 [name: 'idx_pw_isbn']
+  }
+
+  Note: 'Pivoted from pricing_historical. One row per (section_id × isbn13). 18 price columns = option × condition × format. Filtered: filter_include = TRUE only.'
+}
+
+Table comprehensive_data {
+  // -- course_catalog columns --
+  ISBN13 varchar
+  Title varchar
+  Author varchar
+  Publisher varchar
+  Imprint varchar
+  Format varchar
+  FormatType varchar
+  book_status varchar
+  unit_id integer
+  school varchar
+  state varchar
+  dept_code varchar
+  department varchar
+  dept_description varchar
+  course_number varchar
+  section varchar
+  course_title varchar
+  course_level varchar
+  course_subject varchar
+  period varchar
+  enrollments integer
+  seats_taken integer
+  instructor varchar
+  first_name varchar
+  last_name varchar
+  email varchar
+  course_id varchar
+  section_id varchar
+  period_sortable varchar
+  period_date date
+  // -- OER/IA classification --
+  is_oer boolean
+  oer_category varchar [note: 'defaults to "unknown" if no lookup match']
+  is_ia boolean
+  ia_category varchar [note: 'defaults to "unknown" if no lookup match']
+  // -- IPEDS institutional --
+  institution_name varchar
+  sector integer
+  level integer
+  control integer
+  size integer
+  enrollment_2024 integer
+  distance_enrollment_2024 integer
+  institution_type varchar
+  // -- Panel / opt-out --
+  panel_response_year varchar
+  is_opted_out boolean
+  opt_out_source varchar
+  // -- Filter --
+  filter_include boolean [note: 'period>=2024 AND book_status matches has_required logic']
+
+  Note: '~103M rows. Master join: catalog × IPEDS × opt_out × panel × format_type × section_book_status. Recreated in 2_oer_classification.sql with OER/IA fields.'
+}
+
+// ---------------------------------------------------------------------------
+// IMPORT STAGE — Audit Tables
+// ---------------------------------------------------------------------------
+
+Table email_issues {
+  email_raw varchar
+  email_cleaned varchar
+  source_table varchar [note: 'always "course_catalog"']
+  cleaning_action varchar [note: 'extracted_from_text, multiple_emails_took_first, removed_spaces, missing_at_sign, too_short, other']
+
+  Note: 'Audit trail for email normalization. Only rows where cleaning was needed.'
+}
+
+Table data_quality_unmatched_formats {
+  FormatType varchar
+  record_count integer
+
+  Note: 'FormatTypes in catalog that have no match in format_type_classification lookup.'
+}
+
+// ---------------------------------------------------------------------------
+// EDA STAGE — Mailing List Views
+// ---------------------------------------------------------------------------
+
+Table master_mailing [note: 'view'] {
+  unit_id integer
+  school varchar
+  state varchar
+  department varchar
+  course_level varchar
+  course_subject varchar
+  period varchar
+  period_sortable varchar
+  period_date date
+  instructor varchar
+  first_name varchar
+  last_name varchar
+  email varchar
+
+  Note: 'DISTINCT ON (email). Excludes opted-out. Most recent period per instructor.'
+}
+
+Table recent_periods [note: 'view'] {
+  period_sortable varchar
+
+  Note: 'Last 12 distinct periods from comprehensive_data.'
+}
+
+Table current_mailing [note: 'view'] {
+  unit_id integer
+  school varchar
+  state varchar
+  department varchar
+  course_level varchar
+  course_subject varchar
+  period varchar
+  period_sortable varchar
+  period_date date
+  instructor varchar
+  first_name varchar
+  last_name varchar
+  email varchar
+  panel_response_year varchar
+
+  Note: 'master_mailing filtered to recent_periods, with panel data joined.'
+}
+
+Table current_mailing_ca [note: 'view'] {
+  email varchar
+  Note: 'current_mailing WHERE state = "CA". Same columns as current_mailing.'
+}
+
+Table current_mailing_tx [note: 'view'] {
+  email varchar
+  Note: 'current_mailing WHERE state = "TX". Same columns as current_mailing.'
+}
+
+Table current_mailing_fl [note: 'view'] {
+  email varchar
+  Note: 'current_mailing WHERE state = "FL". Same columns as current_mailing.'
+}
+
+Table current_mailing_ny [note: 'view'] {
+  email varchar
+  Note: 'current_mailing WHERE state = "NY". Same columns as current_mailing.'
+}
+
+Table current_mailing_other [note: 'view'] {
+  email varchar
+  Note: 'current_mailing WHERE state NOT IN (CA, TX, FL, NY). Same columns as current_mailing.'
+}
+
+// ---------------------------------------------------------------------------
+// EDA STAGE — Merged Record Views
+// ---------------------------------------------------------------------------
+
+Table faculty_records [note: 'view'] {
+  faculty_id varchar [note: 'email or instructor_school fallback']
+  instructor varchar
+  school varchar
+  email varchar
+  department varchar
+  record_counts_by_period varchar [note: 'LIST of "period:count" strings']
+  section_counts_by_period varchar [note: 'LIST of "period:count" strings']
+
+  Note: 'One row per (email, school, department). Aggregated from comprehensive_data.'
+}
+
+Table master_section [note: 'view'] {
+  section_id varchar
+  course_id varchar
+  period varchar
+  period_sortable varchar
+  period_date date
+  school varchar
+  department varchar
+  course_number varchar
+  section varchar
+  course_title varchar
+  course_level varchar
+  course_subject varchar
+  material_count integer
+  required_count integer
+  optional_count integer
+  publishers varchar [note: 'LIST(DISTINCT publisher)']
+  required_publishers varchar [note: 'LIST(DISTINCT publisher) WHERE required']
+  required_publisher_count integer
+  optional_publisher_count integer
+  enrollments integer
+  seats_taken integer
+
+  Note: 'One row per (section_id × period). Aggregated material counts from comprehensive_data.'
+}
+
+Table master_course [note: 'view'] {
+  course_id varchar
+  period varchar
+  period_sortable varchar
+  period_date date
+  school varchar
+  department varchar
+  course_number varchar
+  course_title varchar
+  course_level varchar
+  course_subject varchar
+  section_count integer
+  enrollment_total integer
+  seats_taken_total integer
+  total_materials integer
+  total_required integer
+  total_optional integer
+  all_publishers varchar [note: 'nested LIST of publisher arrays']
+  unique_required_publishers integer
+
+  Note: 'One row per (course_id × period). Aggregated from master_section.'
+}
+
+Table master_course_material [note: 'view'] {
+  course_id varchar
+  period varchar
+  period_sortable varchar
+  period_date date
+  school varchar
+  department varchar
+  course_number varchar
+  course_title varchar
+  publisher varchar
+  book_status varchar
+  material_instances integer
+  sections_using integer
+  total_seats_affected integer
+
+  Note: 'One row per (course_id × period × publisher × book_status). Material distribution.'
+}
+
+Table course_section_records [note: 'view'] {
+  section_id varchar
+  course_id varchar
+  course_number varchar
+  section varchar
+  course_title varchar
+  school varchar
+  period_sortable varchar
+  period_date date
+  records_in_period integer
+  publishers varchar
+
+  Note: 'Legacy alias for master_section (subset of columns).'
+}
+
+Table course_records [note: 'view'] {
+  course_id varchar
+  course_number varchar
+  course_title varchar
+  school varchar
+  period_sortable varchar
+  period_date date
+  sections_in_period integer
+  total_enrollment integer
+  publishers varchar
+
+  Note: 'Legacy alias for master_course (subset of columns).'
+}
+
+// ---------------------------------------------------------------------------
+// RELATIONSHIPS — Join Keys
+// ---------------------------------------------------------------------------
+
+// catalog → dimension tables
+Ref: course_catalog_20251215.FormatType > format_type_classification.FormatType
+Ref: course_catalog_20251215.unit_id > ipeds_data.unitid
+Ref: course_catalog_20251215.email > opt_out.email
+Ref: course_catalog_20251215.email > panel.email
+Ref: course_catalog_20251215.section_id > section_book_status.section_id
+
+// comprehensive_data → dimension tables
+Ref: comprehensive_data.FormatType > format_type_classification.FormatType
+Ref: comprehensive_data.unit_id > ipeds_data.unitid
+Ref: comprehensive_data.section_id > section_book_status.section_id
+
+// pricing → section filter
+Ref: pricing_historical.section_id > section_book_status.section_id
+Ref: pricing_wide.section_id > pricing_historical.section_id
+
+// ---------------------------------------------------------------------------
+// TABLE GROUPS — Pipeline Stages
+// ---------------------------------------------------------------------------
+
+TableGroup import_sources {
+  course_catalog_20251215
+  ipeds_data
+  opt_out
+  panel
+  format_type_classification
+  pricing_historical
+}
+
+TableGroup import_derived {
+  section_book_status
+  pricing_wide
+  comprehensive_data
+}
+
+TableGroup import_audit {
+  email_issues
+  data_quality_unmatched_formats
+}
+
+TableGroup eda_mailing {
+  master_mailing
+  recent_periods
+  current_mailing
+  current_mailing_ca
+  current_mailing_tx
+  current_mailing_fl
+  current_mailing_ny
+  current_mailing_other
+}
+
+TableGroup eda_records {
+  faculty_records
+  master_section
+  master_course
+  master_course_material
+  course_section_records
+  course_records
+}
+

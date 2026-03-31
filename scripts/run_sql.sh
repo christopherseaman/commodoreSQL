@@ -34,8 +34,6 @@ IMPORT_SQL=(
 EDA_SQL=(
     "3_mailing_lists.sql"
     "4_merged_records.sql"
-    "5_univariate_summaries.sql"
-    "6_crosstab_summaries.sql"
 )
 
 # Populate EXPORT_SQL from exports directory
@@ -43,7 +41,7 @@ EXPORT_SQL=()
 if [ -d "sql/exports" ]; then
     while IFS= read -r export_file; do
         EXPORT_SQL+=("exports/$(basename "$export_file")")
-    done < <(find sql/exports -name "*.sql" -type f | sort)
+    done < <(find sql/exports -maxdepth 1 -name "*.sql" -type f | sort)
 fi
 
 # Build SQL_FILES array based on stage flags
