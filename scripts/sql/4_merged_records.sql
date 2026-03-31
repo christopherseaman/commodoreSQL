@@ -163,33 +163,3 @@ GROUP BY
     publisher,
     book_status;
 
--- Create course section records with period-based metrics (legacy compatibility)
-DROP VIEW IF EXISTS course_section_records;
-CREATE VIEW course_section_records AS
-SELECT
-    section_id,
-    course_id,
-    course_number,
-    section,
-    course_title,
-    school,
-    period_sortable,
-    period_date,
-    material_count AS records_in_period,
-    publishers
-FROM master_section;
-
--- Generate course records with aggregated enrollment and section data (legacy compatibility)
-DROP VIEW IF EXISTS course_records;
-CREATE VIEW course_records AS
-SELECT
-    course_id,
-    course_number,
-    course_title,
-    school,
-    period_sortable,
-    period_date,
-    section_count AS sections_in_period,
-    enrollment_total AS total_enrollment,
-    all_publishers AS publishers
-FROM master_course;

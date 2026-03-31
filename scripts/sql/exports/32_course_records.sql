@@ -1,2 +1,2 @@
--- Export course records
-SELECT * FROM course_records;
+-- Export course-level records
+SELECT * FROM master_course;

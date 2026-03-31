@@ -187,7 +187,7 @@ echo "Verifying critical tables exist..."
 ${DUCKDB} "${MAIN_DB}" -c "
     SELECT name FROM sqlite_master 
     WHERE type='table' 
-    AND name IN ('comprehensive_data', 'master_mailing', 'faculty_records', 'course_section_records', 'course_records');
+    AND name IN ('comprehensive_data', 'master_mailing', 'faculty_records', 'master_section', 'master_course');
 "
 
 # Clean up temporary files

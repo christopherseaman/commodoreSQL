@@ -1,2 +1,2 @@
--- Export course section records
-SELECT * FROM course_section_records;
+-- Export section-level records
+SELECT * FROM master_section;

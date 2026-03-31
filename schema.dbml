@@ -439,34 +439,6 @@ Table master_course_material [note: 'view'] {
   Note: 'One row per (course_id × period × publisher × book_status). Material distribution.'
 }
 
-Table course_section_records [note: 'view'] {
-  section_id varchar
-  course_id varchar
-  course_number varchar
-  section varchar
-  course_title varchar
-  school varchar
-  period_sortable varchar
-  period_date date
-  records_in_period integer
-  publishers varchar
-
-  Note: 'Legacy alias for master_section (subset of columns).'
-}
-
-Table course_records [note: 'view'] {
-  course_id varchar
-  course_number varchar
-  course_title varchar
-  school varchar
-  period_sortable varchar
-  period_date date
-  sections_in_period integer
-  total_enrollment integer
-  publishers varchar
-
-  Note: 'Legacy alias for master_course (subset of columns).'
-}
 
 // ---------------------------------------------------------------------------
 // RELATIONSHIPS — Join Keys
@@ -493,10 +465,6 @@ Ref: current_mailing_tx.email > current_mailing.email
 Ref: current_mailing_fl.email > current_mailing.email
 Ref: current_mailing_ny.email > current_mailing.email
 Ref: current_mailing_other.email > current_mailing.email
-
-// legacy aliases (1:1)
-Ref: course_section_records.section_id - master_section.section_id
-Ref: course_records.course_id - master_course.course_id
 
 // ---------------------------------------------------------------------------
 // TABLE GROUPS — Pipeline Stages
@@ -538,7 +506,5 @@ TableGroup eda_records {
   master_section
   master_course
   master_course_material
-  course_section_records
-  course_records
 }
 
