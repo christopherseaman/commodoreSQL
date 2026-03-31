@@ -410,6 +410,8 @@ Ref: course_catalog_20251215.section_id > section_book_status.section_id
 Ref: comprehensive_data.FormatType > format_type_classification.FormatType
 Ref: comprehensive_data.unit_id > ipeds_data.unitid
 Ref: comprehensive_data.section_id > section_book_status.section_id
+Ref: comprehensive_data.email > opt_out.email
+Ref: comprehensive_data.email > panel.email
 
 // pricing → section filter (section_id is PK in section_book_status)
 Ref: pricing_historical.section_id > section_book_status.section_id
