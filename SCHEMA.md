@@ -26,15 +26,15 @@ Run via `scripts/run_sql.sh`. Three stages controlled by `NO_IMPORT`, `NO_EDA`, 
 | `0_setup.sql` | `course_catalog_20251215`, `ipeds_data`, `opt_out`, `panel`, `email_issues`, `comprehensive_data` | Load CSVs, normalize emails, derive composite keys, build master join |
 | `1_bookprices_import.sql` | `pricing_historical` | Load bookstore pricing, derive section_id/period keys |
 | `1b_section_filter.sql` | `section_book_status` | One row per section: `has_required` flag. Adds `filter_include` to pricing |
-| `1c_pricing_wide.sql` | `pricing_wide` | Pivot pricing into 18 price columns (option x condition x format) |
-| `2_oer_classification.sql` | `format_type_classification`, `data_quality_unmatched_formats`, recreates `comprehensive_data` | OER/IA lookup, add classification + filter_include to comprehensive_data |
+| `1c_pricing_wide.sql` | `pricing_wide` (view) | Pivot pricing into 18 price columns (option x condition x format) |
+| `2_oer_classification.sql` | `format_type_classification`, recreates `comprehensive_data` | OER/IA lookup, add classification + filter_include to comprehensive_data |
 
 ### EDA stage
 
 | SQL File | Creates | Purpose |
 |----------|---------|---------|
-| `3_mailing_lists.sql` | `master_mailing`, `recent_periods`, `current_mailing`, 5 state-specific views | Deduplicated instructor mailing lists |
-| `4_merged_records.sql` | `faculty_records`, `master_section`, `master_course`, `master_course_material`, 2 legacy aliases | Aggregated records by faculty, section, course, material |
+| `3_mailing_lists.sql` | `master_mailing`, `current_mailing`, 5 state-specific views | Deduplicated instructor mailing lists |
+| `4_merged_records.sql` | `master_section`, `master_course`, `master_course_material` | Aggregated records by section, course, material |
 
 ### EXPORT stage
 
@@ -66,24 +66,17 @@ flowchart TD
 
     subgraph import_derived ["IMPORT — Derived"]
         sbs["section_book_status"]
-        pw["pricing_wide"]
+        pw["pricing_wide (view)"]
         cd["comprehensive_data\n~103M rows, 42 columns"]
-    end
-
-    subgraph import_audit ["Audit"]
-        ei["email_issues"]
-        dq["data_quality_unmatched_formats"]
     end
 
     subgraph eda_mailing ["EDA — Mailing Lists"]
         mm["master_mailing"]
-        rp["recent_periods"]
         cm["current_mailing"]
         cm_states["current_mailing_ca/tx/fl/ny/other"]
     end
 
-    subgraph eda_records ["EDA — Merged Records"]
-        fr["faculty_records"]
+    subgraph eda_records ["EDA — Aggregated Records"]
         ms["master_section"]
         mc["master_course"]
         mcm["master_course_material"]
@@ -97,8 +90,6 @@ flowchart TD
     csv_pricing --> pricing
 
     catalog -->|"GROUP BY section_id"| sbs
-    catalog --> ei
-    catalog --> dq
 
     catalog -->|"base rows"| cd
     ipeds -->|"LEFT JOIN unit_id"| cd
@@ -111,15 +102,12 @@ flowchart TD
     pricing -->|"PIVOT"| pw
 
     cd -->|"DISTINCT ON email"| mm
-    cd --> rp
-    mm --> cm
-    rp --> cm
+    mm -->|"last 12 periods"| cm
     cm --> cm_states
 
-    cd --> fr
-    cd --> ms
-    cd --> mcm
-    ms --> mc
+    cd -->|"GROUP BY section_id, period"| ms
+    cd -->|"GROUP BY course_id, period,\npublisher, book_status"| mcm
+    ms -->|"GROUP BY course_id, period"| mc
 ```
 
 ## Key Concepts
@@ -148,7 +136,7 @@ Explicit lookup via `format_type_classification` (69 FormatType values mapped to
 
 ### Email Cleaning
 
-Emails normalized to lowercase/trimmed. Handles embedded text patterns, multiple addresses, interior spaces. See `email_issues` table for audit trail.
+Emails normalized to lowercase/trimmed. Handles embedded text patterns, multiple addresses, interior spaces. Audit trail written to `output/email_issues.tsv` during import.
 
 ## Metabase
 

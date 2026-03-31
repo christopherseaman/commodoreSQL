@@ -34,7 +34,7 @@ Enum source_files {
 }
 
 // ---------------------------------------------------------------------------
-// IMPORT STAGE — Source Tables (CSV loads)
+// IMPORT — Source Tables (CSV loads)
 // ---------------------------------------------------------------------------
 
 Table course_catalog_20251215 {
@@ -98,14 +98,14 @@ Table opt_out {
   email varchar [pk]
   source varchar
 
-  Note: 'Source: OptOut CSV. Emails excluded from mailing lists.'
+  Note: 'Source: OptOut CSV. LEFT JOINed into comprehensive_data on email.'
 }
 
 Table panel {
   email varchar [pk]
   response_year varchar
 
-  Note: 'Source: panel CSV. Survey response tracking.'
+  Note: 'Source: panel CSV. LEFT JOINed into comprehensive_data on email.'
 }
 
 Table format_type_classification {
@@ -158,7 +158,7 @@ Table pricing_historical {
 }
 
 // ---------------------------------------------------------------------------
-// IMPORT STAGE — Derived Tables
+// IMPORT — Derived
 // ---------------------------------------------------------------------------
 
 Table section_book_status {
@@ -172,7 +172,7 @@ Table section_book_status {
   Note: 'One row per section_id. Drives filter_include logic for pricing and comprehensive_data.'
 }
 
-Table pricing_wide {
+Table pricing_wide [note: 'view'] {
   section_id varchar
   isbn13 varchar
   institute varchar
@@ -200,12 +200,7 @@ Table pricing_wide {
   price_rental_na_digital decimal
   price_rental_na_na decimal
 
-  indexes {
-    section_id [name: 'idx_pw_section']
-    isbn13 [name: 'idx_pw_isbn']
-  }
-
-  Note: 'Pivoted from pricing_historical. One row per (section_id × isbn13). 18 price columns = option × condition × format. Filtered: filter_include = TRUE only.'
+  Note: 'View on pricing_historical. One row per (section_id × isbn13). 18 price columns = option × condition × format. Filtered: filter_include = TRUE only.'
 }
 
 Table comprehensive_data {
@@ -265,27 +260,7 @@ Table comprehensive_data {
 }
 
 // ---------------------------------------------------------------------------
-// IMPORT STAGE — Audit Tables
-// ---------------------------------------------------------------------------
-
-Table email_issues {
-  email_raw varchar
-  email_cleaned varchar
-  source_table varchar [note: 'always "course_catalog"']
-  cleaning_action varchar [note: 'extracted_from_text, multiple_emails_took_first, removed_spaces, missing_at_sign, too_short, other']
-
-  Note: 'Audit trail for email normalization. Only rows where cleaning was needed.'
-}
-
-Table data_quality_unmatched_formats {
-  FormatType varchar
-  record_count integer
-
-  Note: 'FormatTypes in catalog that have no match in format_type_classification lookup.'
-}
-
-// ---------------------------------------------------------------------------
-// EDA STAGE — Mailing List Views
+// EDA — Mailing List Views (3_mailing_lists.sql)
 // ---------------------------------------------------------------------------
 
 Table master_mailing [note: 'view'] {
@@ -306,12 +281,6 @@ Table master_mailing [note: 'view'] {
   Note: 'DISTINCT ON (email). Excludes opted-out. Most recent period per instructor.'
 }
 
-Table recent_periods [note: 'view'] {
-  period_sortable varchar
-
-  Note: 'Last 12 distinct periods from comprehensive_data.'
-}
-
 Table current_mailing [note: 'view'] {
   unit_id integer
   school varchar
@@ -328,7 +297,7 @@ Table current_mailing [note: 'view'] {
   email varchar
   panel_response_year varchar
 
-  Note: 'master_mailing filtered to recent_periods, with panel data joined.'
+  Note: 'master_mailing filtered to last 12 periods, with panel data joined.'
 }
 
 Table current_mailing_ca [note: 'view'] {
@@ -357,20 +326,8 @@ Table current_mailing_other [note: 'view'] {
 }
 
 // ---------------------------------------------------------------------------
-// EDA STAGE — Merged Record Views
+// EDA — Aggregated Record Views (4_merged_records.sql)
 // ---------------------------------------------------------------------------
-
-Table faculty_records [note: 'view'] {
-  faculty_id varchar [note: 'email or instructor_school fallback']
-  instructor varchar
-  school varchar
-  email varchar
-  department varchar
-  record_counts_by_period varchar [note: 'LIST of "period:count" strings']
-  section_counts_by_period varchar [note: 'LIST of "period:count" strings']
-
-  Note: 'One row per (email, school, department). Aggregated from comprehensive_data.'
-}
 
 Table master_section [note: 'view'] {
   section_id varchar
@@ -439,32 +396,34 @@ Table master_course_material [note: 'view'] {
   Note: 'One row per (course_id × period × publisher × book_status). Material distribution.'
 }
 
-
 // ---------------------------------------------------------------------------
 // RELATIONSHIPS — Join Keys
 // Only true many-to-one refs where the referenced column is unique/PK
 // ---------------------------------------------------------------------------
 
-// catalog many-to-one → dimension/lookup tables (referenced col is PK)
+// catalog → dimension/lookup tables (referenced col is PK)
 Ref: course_catalog_20251215.FormatType > format_type_classification.FormatType
 Ref: course_catalog_20251215.unit_id > ipeds_data.unitid
 Ref: course_catalog_20251215.section_id > section_book_status.section_id
 
-// comprehensive_data many-to-one → dimension/lookup tables
+// comprehensive_data → dimension/lookup tables
 Ref: comprehensive_data.FormatType > format_type_classification.FormatType
 Ref: comprehensive_data.unit_id > ipeds_data.unitid
 Ref: comprehensive_data.section_id > section_book_status.section_id
 
-// pricing many-to-one → section filter (section_id is PK in section_book_status)
+// pricing → section filter (section_id is PK in section_book_status)
 Ref: pricing_historical.section_id > section_book_status.section_id
 
-// mailing list chain (email is unique in each via DISTINCT ON)
+// mailing list chain (email is unique via DISTINCT ON)
 Ref: current_mailing.email > master_mailing.email
 Ref: current_mailing_ca.email > current_mailing.email
 Ref: current_mailing_tx.email > current_mailing.email
 Ref: current_mailing_fl.email > current_mailing.email
 Ref: current_mailing_ny.email > current_mailing.email
 Ref: current_mailing_other.email > current_mailing.email
+
+// aggregated views → section_book_status (section_id is PK)
+Ref: master_section.section_id > section_book_status.section_id
 
 // ---------------------------------------------------------------------------
 // TABLE GROUPS — Pipeline Stages
@@ -485,14 +444,8 @@ TableGroup import_derived {
   comprehensive_data
 }
 
-TableGroup import_audit {
-  email_issues
-  data_quality_unmatched_formats
-}
-
 TableGroup eda_mailing {
   master_mailing
-  recent_periods
   current_mailing
   current_mailing_ca
   current_mailing_tx
@@ -502,9 +455,7 @@ TableGroup eda_mailing {
 }
 
 TableGroup eda_records {
-  faculty_records
   master_section
   master_course
   master_course_material
 }
-

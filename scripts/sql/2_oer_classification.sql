@@ -26,26 +26,21 @@ FROM read_csv('${LOOKUP_DIR}/format_type_lookup.tsv',
 
 -- Validate FormatType coverage before processing
 -- Check for non-empty FormatTypes that aren't in the lookup table
-DROP TABLE IF EXISTS data_quality_unmatched_formats;
-CREATE TABLE data_quality_unmatched_formats AS
-SELECT DISTINCT c.FormatType, COUNT(*) as record_count
-FROM course_catalog_20251215 c
-LEFT JOIN format_type_classification f ON c.FormatType = f.FormatType
-WHERE c.FormatType IS NOT NULL
-  AND c.FormatType != ''
-  AND f.FormatType IS NULL
-GROUP BY c.FormatType;
-
--- Display unmatched formats (if any exist, this will show them in pipeline output)
+WITH unmatched AS (
+    SELECT c.FormatType, COUNT(*) as record_count
+    FROM course_catalog_20251215 c
+    LEFT JOIN format_type_classification f ON c.FormatType = f.FormatType
+    WHERE c.FormatType IS NOT NULL
+      AND c.FormatType != ''
+      AND f.FormatType IS NULL
+    GROUP BY c.FormatType
+)
 SELECT
     'WARNING: Unmatched FormatTypes found' AS validation_status,
     COUNT(*) as unmatched_format_count,
     SUM(record_count) as affected_records
-FROM data_quality_unmatched_formats;
-
-SELECT FormatType, record_count
-FROM data_quality_unmatched_formats
-ORDER BY record_count DESC;
+FROM unmatched
+HAVING COUNT(*) > 0;
 
 -- Add OER, IA, and filter_include fields to comprehensive_data table
 -- Note: comprehensive_data was created as a table in 0_setup.sql, so we need to recreate it

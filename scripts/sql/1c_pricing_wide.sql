@@ -4,11 +4,9 @@
 
 ${CONFIG}
 
-BEGIN TRANSACTION;
+DROP VIEW IF EXISTS pricing_wide;
 
-DROP TABLE IF EXISTS pricing_wide;
-
-CREATE TABLE pricing_wide AS
+CREATE VIEW pricing_wide AS
 SELECT
     p.section_id,
     p.isbn13,
@@ -47,11 +45,6 @@ SELECT
 FROM pricing_historical p
 WHERE p.filter_include = TRUE
 GROUP BY p.section_id, p.isbn13;
-
-CREATE INDEX idx_pw_section ON pricing_wide (section_id);
-CREATE INDEX idx_pw_isbn ON pricing_wide (isbn13);
-
-COMMIT;
 
 -- Summary statistics
 SELECT 'Wide pricing rows' AS metric, COUNT(*)::VARCHAR AS value FROM pricing_wide

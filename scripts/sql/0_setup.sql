@@ -14,8 +14,6 @@ DROP TABLE IF EXISTS ${SURVEY_TABLE};
 DROP TABLE IF EXISTS ${IPEDS_TABLE};
 DROP TABLE IF EXISTS ${OPTOUT_TABLE};
 DROP TABLE IF EXISTS ${PANEL_TABLE};
-DROP TABLE IF EXISTS email_issues;
-
 -- Import and normalize course catalog data
 CREATE TABLE ${SURVEY_TABLE} AS
 SELECT
@@ -140,47 +138,48 @@ FROM read_csv('${PANEL_CSV}',
     delim=',',
     nullstr=['N/A', '', 'Not applicable']);
 
--- Create email quality check table showing raw vs cleaned emails
-CREATE TABLE email_issues AS
-WITH raw_emails AS (
-    SELECT DISTINCT
-        "E-Mail" AS email_raw,
-        'course_catalog' AS source_table
-    FROM read_csv('${SURVEY_CSV}',
-        compression='auto',
-        header=true,
-        delim=',',
-        quote='"',
-        escape='"',
-        nullstr=['N/A', '', 'Not applicable'])
-    WHERE "E-Mail" LIKE '% %'
-       OR "E-Mail" LIKE '%email:%'
-       OR "E-Mail" LIKE '%email %'
-       OR "E-Mail" LIKE '%@% %@%'
-       OR ("E-Mail" IS NOT NULL AND "E-Mail" != '' AND "E-Mail" NOT LIKE '%@%')
-       OR LENGTH(TRIM("E-Mail")) < 5
-)
-SELECT
-    email_raw,
-    LOWER(TRIM(
+-- Export email cleaning audit to TSV (import artifact, not a persistent table)
+COPY (
+    WITH raw_emails AS (
+        SELECT DISTINCT
+            "E-Mail" AS email_raw,
+            'course_catalog' AS source_table
+        FROM read_csv('${SURVEY_CSV}',
+            compression='auto',
+            header=true,
+            delim=',',
+            quote='"',
+            escape='"',
+            nullstr=['N/A', '', 'Not applicable'])
+        WHERE "E-Mail" LIKE '% %'
+           OR "E-Mail" LIKE '%email:%'
+           OR "E-Mail" LIKE '%email %'
+           OR "E-Mail" LIKE '%@% %@%'
+           OR ("E-Mail" IS NOT NULL AND "E-Mail" != '' AND "E-Mail" NOT LIKE '%@%')
+           OR LENGTH(TRIM("E-Mail")) < 5
+    )
+    SELECT
+        email_raw,
+        LOWER(TRIM(
+            CASE
+                WHEN email_raw LIKE '%email:%@%' THEN REGEXP_EXTRACT(email_raw, '([a-zA-Z0-9._+-]+@[a-zA-Z0-9.-]+\.[a-zA-Z]{2,})', 1)
+                WHEN email_raw LIKE '%email %@%' THEN REGEXP_EXTRACT(email_raw, '([a-zA-Z0-9._+-]+@[a-zA-Z0-9.-]+\.[a-zA-Z]{2,})', 1)
+                WHEN email_raw LIKE '%@% %@%' THEN SPLIT_PART(email_raw, ' ', 1)
+                WHEN email_raw LIKE '% %' AND email_raw LIKE '%@%' THEN REPLACE(email_raw, ' ', '')
+                ELSE email_raw
+            END
+        )) AS email_cleaned,
+        source_table,
         CASE
-            WHEN email_raw LIKE '%email:%@%' THEN REGEXP_EXTRACT(email_raw, '([a-zA-Z0-9._+-]+@[a-zA-Z0-9.-]+\.[a-zA-Z]{2,})', 1)
-            WHEN email_raw LIKE '%email %@%' THEN REGEXP_EXTRACT(email_raw, '([a-zA-Z0-9._+-]+@[a-zA-Z0-9.-]+\.[a-zA-Z]{2,})', 1)
-            WHEN email_raw LIKE '%@% %@%' THEN SPLIT_PART(email_raw, ' ', 1)
-            WHEN email_raw LIKE '% %' AND email_raw LIKE '%@%' THEN REPLACE(email_raw, ' ', '')
-            ELSE email_raw
-        END
-    )) AS email_cleaned,
-    source_table,
-    CASE
-        WHEN email_raw LIKE '%email:%@%' OR email_raw LIKE '%email %@%' THEN 'extracted_from_text'
-        WHEN email_raw LIKE '%@% %@%' THEN 'multiple_emails_took_first'
-        WHEN email_raw LIKE '% %' AND email_raw LIKE '%@%' THEN 'removed_spaces'
-        WHEN email_raw NOT LIKE '%@%' THEN 'missing_at_sign'
-        WHEN LENGTH(TRIM(email_raw)) < 5 THEN 'too_short'
-        ELSE 'other'
-    END AS cleaning_action
-FROM raw_emails;
+            WHEN email_raw LIKE '%email:%@%' OR email_raw LIKE '%email %@%' THEN 'extracted_from_text'
+            WHEN email_raw LIKE '%@% %@%' THEN 'multiple_emails_took_first'
+            WHEN email_raw LIKE '% %' AND email_raw LIKE '%@%' THEN 'removed_spaces'
+            WHEN email_raw NOT LIKE '%@%' THEN 'missing_at_sign'
+            WHEN LENGTH(TRIM(email_raw)) < 5 THEN 'too_short'
+            ELSE 'other'
+        END AS cleaning_action
+    FROM raw_emails
+) TO '${OUTPUT_DIR}/email_issues.tsv' (DELIMITER '\t', HEADER);
 
 -- Create comprehensive merged dataset
 CREATE TABLE comprehensive_data AS
@@ -209,5 +208,4 @@ ANALYZE ${SURVEY_TABLE};
 ANALYZE ${IPEDS_TABLE};
 ANALYZE ${OPTOUT_TABLE};
 ANALYZE ${PANEL_TABLE};
-ANALYZE email_issues;
 ANALYZE comprehensive_data;
