@@ -470,30 +470,23 @@ Table course_records [note: 'view'] {
 
 // ---------------------------------------------------------------------------
 // RELATIONSHIPS — Join Keys
+// Only true many-to-one refs where the referenced column is unique/PK
 // ---------------------------------------------------------------------------
 
-// catalog → dimension/lookup tables
+// catalog many-to-one → dimension/lookup tables (referenced col is PK)
 Ref: course_catalog_20251215.FormatType > format_type_classification.FormatType
 Ref: course_catalog_20251215.unit_id > ipeds_data.unitid
-Ref: course_catalog_20251215.email > opt_out.email
-Ref: course_catalog_20251215.email > panel.email
 Ref: course_catalog_20251215.section_id > section_book_status.section_id
 
-// comprehensive_data → source tables
+// comprehensive_data many-to-one → dimension/lookup tables
 Ref: comprehensive_data.FormatType > format_type_classification.FormatType
 Ref: comprehensive_data.unit_id > ipeds_data.unitid
-Ref: comprehensive_data.email > opt_out.email
-Ref: comprehensive_data.email > panel.email
 Ref: comprehensive_data.section_id > section_book_status.section_id
-Ref: comprehensive_data.course_id > course_catalog_20251215.course_id
 
-// pricing chain
+// pricing many-to-one → section filter (section_id is PK in section_book_status)
 Ref: pricing_historical.section_id > section_book_status.section_id
-Ref: pricing_wide.section_id > pricing_historical.section_id
-Ref: pricing_wide.isbn13 > pricing_historical.isbn13
 
-// mailing views → comprehensive_data
-Ref: master_mailing.email > comprehensive_data.email
+// mailing list chain (email is unique in each via DISTINCT ON)
 Ref: current_mailing.email > master_mailing.email
 Ref: current_mailing_ca.email > current_mailing.email
 Ref: current_mailing_tx.email > current_mailing.email
@@ -501,14 +494,7 @@ Ref: current_mailing_fl.email > current_mailing.email
 Ref: current_mailing_ny.email > current_mailing.email
 Ref: current_mailing_other.email > current_mailing.email
 
-// record views → comprehensive_data
-Ref: faculty_records.email > comprehensive_data.email
-Ref: master_section.section_id > comprehensive_data.section_id
-Ref: master_section.course_id > comprehensive_data.course_id
-Ref: master_course.course_id > master_section.course_id
-Ref: master_course_material.course_id > comprehensive_data.course_id
-
-// legacy aliases
+// legacy aliases (1:1)
 Ref: course_section_records.section_id - master_section.section_id
 Ref: course_records.course_id - master_course.course_id
 
