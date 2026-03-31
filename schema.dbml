@@ -424,8 +424,13 @@ Ref: current_mailing_fl.email > current_mailing.email
 Ref: current_mailing_ny.email > current_mailing.email
 Ref: current_mailing_other.email > current_mailing.email
 
-// aggregated views → section_book_status (section_id is PK)
+// pricing view → section filter
+Ref: pricing_wide.section_id > section_book_status.section_id
+
+// aggregated views
 Ref: master_section.section_id > section_book_status.section_id
+Ref: master_section.(course_id, period_sortable) > master_course.(course_id, period_sortable)
+Ref: master_course_material.(course_id, period_sortable) > master_course.(course_id, period_sortable)
 
 // ---------------------------------------------------------------------------
 // TABLE GROUPS — Pipeline Stages
