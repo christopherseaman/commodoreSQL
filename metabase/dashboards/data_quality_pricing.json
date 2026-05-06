@@ -1,0 +1,16 @@
+[
+  {
+    "__meta__": {
+      "name": "Data Quality — Pricing",
+      "description": "DQ checks on the pricing pipeline: dedupe stages, outliers, buy/rental discipline, format coverage, and pricing↔catalog matching."
+    }
+  },
+  { "question": "18_dq_critical_should_be_zero",          "row":  0, "col":  0, "size_x": 24, "size_y": 4 },
+  { "question": "06_dq_pricing_dedupe_stages",            "row":  4, "col":  0, "size_x": 12, "size_y": 7 },
+  { "question": "07_dq_pricing_price_outliers",           "row":  4, "col": 12, "size_x": 12, "size_y": 7 },
+  { "question": "08_dq_pricing_buy_rental_discipline",    "row": 11, "col":  0, "size_x": 12, "size_y": 7 },
+  { "question": "09_dq_pricing_digital_rental_days",      "row": 11, "col": 12, "size_x": 12, "size_y": 7 },
+  { "question": "10_dq_pricing_match_by_period",          "row": 18, "col":  0, "size_x": 12, "size_y": 7 },
+  { "question": "11_dq_pricing_format_count_distribution","row": 18, "col": 12, "size_x": 12, "size_y": 7 },
+  { "question": "12_dq_pricing_top_unmatched_sections",   "row": 25, "col":  0, "size_x": 24, "size_y": 8 }
+]
