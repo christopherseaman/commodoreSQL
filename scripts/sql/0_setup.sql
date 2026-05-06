@@ -65,10 +65,22 @@ SELECT
     COALESCE(CAST("IPED ID" AS VARCHAR), 'UNKNOWN') || '::' ||
     COALESCE(NULLIF(TRIM("Dept Code"), ''), 'UNKNOWN') || '::' ||
     COALESCE(NULLIF(TRIM("Course Number"), ''), 'UNKNOWN') AS course_id,
+    -- section_id includes period to keep grain unique across semesters (the same section
+    -- number recurs each term with different instructors). period_sortable is computed inline
+    -- here so the column itself can also be exposed below.
     COALESCE(CAST("IPED ID" AS VARCHAR), 'UNKNOWN') || '::' ||
     COALESCE(NULLIF(TRIM("Dept Code"), ''), 'UNKNOWN') || '::' ||
     COALESCE(NULLIF(TRIM("Course Number"), ''), 'UNKNOWN') || '::' ||
-    COALESCE(NULLIF(TRIM("Section"), ''), 'UNKNOWN') AS section_id,
+    COALESCE(NULLIF(TRIM("Section"), ''), 'UNKNOWN') || '::' ||
+    COALESCE(
+        CASE
+            WHEN "Period" LIKE 'Winter %' THEN substr("Period", -4) || '-1'
+            WHEN "Period" LIKE 'Spring %' THEN substr("Period", -4) || '-2'
+            WHEN "Period" LIKE 'Summer %' THEN substr("Period", -4) || '-3'
+            WHEN "Period" LIKE 'Fall %' THEN substr("Period", -4) || '-4'
+        END,
+        'UNKNOWN'
+    ) AS section_id,
     CASE
         WHEN "Period" LIKE 'Winter %' THEN substr("Period", -4) || '-1'
         WHEN "Period" LIKE 'Spring %' THEN substr("Period", -4) || '-2'
@@ -99,14 +111,17 @@ CREATE INDEX idx_course_courseid ON ${SURVEY_TABLE} (course_id);
 CREATE INDEX idx_course_sectionid ON ${SURVEY_TABLE} (section_id);
 
 -- Import IPEDS institutional data
+-- Note: sector/iclevel/control/instsize are STRING descriptors in the source CSV
+-- (e.g., 'Public, 4-year or above', 'Four or more years', '20,000 and above'),
+-- not numeric codes — keep as VARCHAR.
 CREATE TABLE ${IPEDS_TABLE} AS
 SELECT
     TRY_CAST("UNITID" AS INTEGER) AS unitid,
     "INSTNM" AS instnm,
-    TRY_CAST("SECTOR" AS INTEGER) AS sector,
-    TRY_CAST("ICLEVEL" AS INTEGER) AS iclevel,
-    TRY_CAST("CONTROL" AS INTEGER) AS control,
-    TRY_CAST("INSTSIZE" AS INTEGER) AS instsize,
+    "SECTOR"   AS sector,
+    "ICLEVEL"  AS iclevel,
+    "CONTROL"  AS control,
+    "INSTSIZE" AS instsize,
     TRY_CAST("Enroll_24" AS INTEGER) AS enroll_24,
     TRY_CAST("DistEnroll_24" AS INTEGER) AS dist_enroll_24,
     "InstType" AS inst_type
@@ -114,7 +129,7 @@ FROM read_csv('${IPEDS_CSV}',
     compression='auto',
     header=true,
     delim=',',
-    nullstr=['N/A', '', 'Not applicable']);
+    nullstr=['N/A', '', 'Not applicable', '{Not available}', 'Sector unknown (not active)']);
 
 -- Import and normalize opt-out data
 CREATE TABLE ${OPTOUT_TABLE} AS
@@ -209,3 +224,77 @@ ANALYZE ${IPEDS_TABLE};
 ANALYZE ${OPTOUT_TABLE};
 ANALYZE ${PANEL_TABLE};
 ANALYZE comprehensive_data;
+
+-- =====================================================================
+-- Data Quality checks (console-only — see TODO.md for persistent logging)
+-- =====================================================================
+
+-- DQ: 'UNKNOWN' segments in composite IDs (silent missing-source-data signal)
+SELECT
+    'Catalog composite-key UNKNOWN segments' AS metric,
+    COUNT(*) FILTER (WHERE section_id LIKE '%UNKNOWN%') AS section_id_unknown_rows,
+    COUNT(*) FILTER (WHERE course_id  LIKE '%UNKNOWN%') AS course_id_unknown_rows,
+    COUNT(*) FILTER (WHERE period_sortable IS NULL)     AS null_period_sortable_rows
+FROM comprehensive_data;
+
+-- DQ: IPEDS match — split unmatched into Canadian (no unit_id) vs closed/consolidated US schools
+-- Background: IPEDS_2024.csv covers US institutions only. ~70% of unmatched is by design (CA schools);
+-- the remainder is ~80 distinct unit_ids for closed/merged/consolidated US institutions.
+SELECT
+    'Catalog → IPEDS match' AS metric,
+    COUNT(*) AS total_rows,
+    COUNT(*) FILTER (WHERE c.unit_id IS NULL)                          AS no_unit_id_likely_canadian,
+    COUNT(*) FILTER (WHERE c.unit_id IS NOT NULL AND i.unitid IS NULL) AS unit_id_not_in_ipeds,
+    ROUND(100.0 * COUNT(*) FILTER (WHERE i.unitid IS NULL) / COUNT(*), 2) AS pct_unmatched_total
+FROM ${SURVEY_TABLE} c
+LEFT JOIN ${IPEDS_TABLE} i ON c.unit_id = i.unitid;
+
+-- DQ: schools missing from IPEDS_2024.csv (top 10 by row count)
+SELECT
+    'Top schools missing IPEDS' AS check_name,
+    c.school,
+    c.unit_id,
+    COUNT(*) AS catalog_rows
+FROM ${SURVEY_TABLE} c
+LEFT JOIN ${IPEDS_TABLE} i ON c.unit_id = i.unitid
+WHERE i.unitid IS NULL
+GROUP BY c.school, c.unit_id
+ORDER BY catalog_rows DESC
+LIMIT 10;
+
+-- DQ: NULL ISBN13 distribution by school (top 10 sources)
+SELECT
+    'Top schools by NULL ISBN13' AS check_name,
+    school,
+    COUNT(*) AS null_isbn_rows,
+    COUNT(DISTINCT section_id) AS distinct_sections
+FROM ${SURVEY_TABLE}
+WHERE ISBN13 IS NULL
+GROUP BY school
+ORDER BY null_isbn_rows DESC
+LIMIT 10;
+
+-- DQ: email validity (loose) — what survived cleaning that still looks bad
+SELECT
+    'Email loose-validity check' AS metric,
+    COUNT(*) FILTER (WHERE email IS NULL) AS email_null,
+    COUNT(*) FILTER (WHERE email IS NOT NULL AND email NOT LIKE '%@%') AS email_no_at,
+    COUNT(*) FILTER (WHERE email IS NOT NULL AND email LIKE '%@%' AND email NOT LIKE '%.%') AS email_no_dot,
+    COUNT(*) FILTER (WHERE email IS NOT NULL AND LENGTH(email) < 5) AS email_too_short
+FROM ${SURVEY_TABLE};
+
+-- DQ: enrollment sanity — split into sentinel (9999 = uncapped/unspecified) vs real overages.
+-- Source uses seats_taken=9999 for research / topics-vary courses without enrollment limits.
+SELECT
+    'Enrollment sanity' AS metric,
+    COUNT(*) FILTER (WHERE enrollments < 0)                                   AS enrollments_negative,
+    COUNT(*) FILTER (WHERE seats_taken < 0)                                   AS seats_taken_negative,
+    COUNT(*) FILTER (WHERE seats_taken = 9999)                                AS seats_taken_sentinel_9999,
+    COUNT(*) FILTER (WHERE seats_taken > enrollments AND seats_taken < 9999
+                       AND seats_taken - enrollments BETWEEN 1 AND 5)         AS overage_small_1_to_5,
+    COUNT(*) FILTER (WHERE seats_taken > enrollments AND seats_taken < 9999
+                       AND seats_taken - enrollments BETWEEN 6 AND 100)       AS overage_medium_6_to_100,
+    COUNT(*) FILTER (WHERE seats_taken > enrollments AND seats_taken < 9999
+                       AND seats_taken - enrollments > 100)                   AS overage_large_over_100,
+    COUNT(*) FILTER (WHERE enrollments > 10000)                               AS enrollments_implausibly_large
+FROM ${SURVEY_TABLE};

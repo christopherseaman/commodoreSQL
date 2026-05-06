@@ -47,3 +47,12 @@ SELECT 'Sections with has_required=NULL', COUNT(*)::VARCHAR FROM section_book_st
 
 SELECT 'pricing_historical filter_include' AS table_name, filter_include, COUNT(*)::VARCHAR AS row_count
 FROM pricing_historical GROUP BY filter_include;
+
+-- DQ: section_book_status should cover every catalog section_id (built via GROUP BY catalog).
+-- Nonzero diff would indicate a code bug.
+SELECT
+    'section_book_status coverage' AS metric,
+    (SELECT COUNT(DISTINCT section_id) FROM ${SURVEY_TABLE}) AS catalog_distinct_sections,
+    (SELECT COUNT(*) FROM section_book_status)               AS sbs_rows,
+    (SELECT COUNT(DISTINCT section_id) FROM ${SURVEY_TABLE})
+        - (SELECT COUNT(*) FROM section_book_status)         AS uncovered_sections;

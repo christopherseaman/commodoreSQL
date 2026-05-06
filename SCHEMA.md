@@ -117,9 +117,11 @@ flowchart TD
 Derived via `::` delimiter (pipe `|` appears in source data):
 
 - `course_id` = `unit_id::dept_code::course_number`
-- `section_id` = `unit_id::dept_code::course_number::section`
+- `section_id` = `unit_id::dept_code::course_number::section::period_sortable`
 - `period_sortable` = `YYYY-N` (1=Winter, 2=Spring, 3=Summer, 4=Fall)
 - `period_date` = canonical DATE (01-01, 04-01, 07-01, 10-01) for time-series axes
+
+**Note:** `section_id` includes period (each section-offering is its own ID). `course_id` does not. Aggregations grouped by `(section_id, isbn13)` are naturally period-specific.
 
 ### filter_include
 
@@ -133,6 +135,10 @@ Applied to both `comprehensive_data` and `pricing_historical`.
 ### OER/IA Classification
 
 Explicit lookup via `format_type_classification` (69 FormatType values mapped to `is_oer`/`is_ia` flags and categories). Publisher-based guessing was removed as unreliable.
+
+### Pricing — rental term collapsing
+
+`pricing_historical` natural grain: `(section_id, isbn13, book_option, book_condition, book_format, rental_days)`. Buy options have exactly one price per (condition × format). Rentals have one price per `rental_days` (~95 distinct values: 30, 90, 180, 365, 1825, …). `pricing_wide` collapses all rental terms via `MAX(price)` into a single cell per (option × condition × format), and exposes `rental_days_min` / `rental_days_max` to preserve the term range. For per-term rental pricing, query `pricing_historical` directly.
 
 ### Email Cleaning
 

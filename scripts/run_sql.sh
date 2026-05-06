@@ -27,8 +27,10 @@ IMPORT_SQL=(
     "0_setup.sql"
     "1_bookprices_import.sql"
     "1b_section_filter.sql"
-    "1c_pricing_wide.sql"
     "2_oer_classification.sql"
+    "2b_pricing_oer_ia.sql"
+    "2c_pricing_wide.sql"
+    "2d_data_quality.sql"
 )
 
 EDA_SQL=(

@@ -30,7 +30,7 @@ Enum source_files {
   "data/2025.12.15/OptOut_20251215.csv" [note: '→ opt_out']
   "data/2025.12.15/panel_20260108.csv" [note: '→ panel']
   "data/2025.12.15/format_type_lookup.tsv" [note: '→ format_type_classification (69 rows)']
-  "data/BookPricing.Historical_20260224.csv" [note: '→ pricing_historical (~11K rows)']
+  "data/BookPricing.Historical_20260224.csv" [note: '→ pricing_historical (~30M rows)']
 }
 
 // ---------------------------------------------------------------------------
@@ -65,7 +65,7 @@ Table course_catalog_20251215 {
   last_name varchar
   email varchar [note: 'cleaned/normalized from raw E-Mail']
   course_id varchar [note: 'unit_id::dept_code::course_number']
-  section_id varchar [note: 'unit_id::dept_code::course_number::section']
+  section_id varchar [note: 'unit_id::dept_code::course_number::section::period_sortable — includes period so each section-offering is unique']
   period_sortable varchar [note: 'YYYY-N where 1=Winter 2=Spring 3=Summer 4=Fall']
   period_date date [note: 'canonical: 01-01, 04-01, 07-01, 10-01']
 
@@ -83,15 +83,15 @@ Table course_catalog_20251215 {
 Table ipeds_data {
   unitid integer [pk]
   instnm varchar
-  sector integer [note: '1-9: Public/Private × 4yr/2yr/lt2yr']
-  iclevel integer [note: '1=4yr+, 2=2-4yr, 3=lt2yr']
-  control integer [note: '1=Public, 2=Private nonprofit, 3=For-profit']
-  instsize integer
+  sector varchar [note: 'string descriptor, e.g., "Public, 4-year or above" — NOT a numeric code']
+  iclevel varchar [note: 'string descriptor, e.g., "Four or more years"']
+  control varchar [note: 'string descriptor, e.g., "Public", "Private not-for-profit"']
+  instsize varchar [note: 'string descriptor, e.g., "20,000 and above"']
   enroll_24 integer [note: '2024 enrollment']
   dist_enroll_24 integer [note: '2024 distance enrollment']
   inst_type varchar
 
-  Note: '~7K rows. Source: IPEDS_2024.csv. Institutional characteristics.'
+  Note: '~6K rows. Source: IPEDS_2024.csv. Institutional characteristics. sector/iclevel/control/instsize are STRING descriptors, not codes.'
 }
 
 Table opt_out {
@@ -136,14 +136,17 @@ Table pricing_historical {
   publisher varchar
   edition varchar
   book_status varchar [note: 'lowercase: required, recommended, option, NULL']
+  required boolean [note: 'TRUE if book_status = "required"']
+  is_oer boolean [note: 'BOOL_OR(is_oer) from comprehensive_data join on (section_id, isbn13); added by 2b_pricing_oer_ia']
+  is_ia boolean [note: 'BOOL_OR(is_ia) from comprehensive_data join on (section_id, isbn13); added by 2b_pricing_oer_ia']
   book_option varchar [note: 'buy, rental']
   book_condition varchar [note: 'new, used, NULL']
   book_format varchar [note: 'physical, digital, NULL']
   price decimal
-  rental_days integer
+  rental_days integer [note: '~95 distinct values (e.g., 90, 120, 180, 365, 1825). Part of natural grain.']
   return_date date
   course_id varchar [note: 'unit_id::dept_code::course_code']
-  section_id varchar [note: 'unit_id::dept_code::course_code::section_code']
+  section_id varchar [note: 'unit_id::dept_code::course_code::section_code::period_sortable']
   period_sortable varchar
   period_date date
   filter_include boolean [note: 'added by 1b_section_filter; TRUE = period>=2024 AND status matches has_required logic']
@@ -154,7 +157,7 @@ Table pricing_historical {
     period_sortable [name: 'idx_pricing_period']
   }
 
-  Note: '~11K rows. Source: Bookprices CSV. Historical bookstore pricing per section × ISBN × option.'
+  Note: '~30M rows. Source: Bookprices CSV. Natural grain: (section_id, isbn13, book_option, book_condition, book_format, rental_days). Some residual source-data dupes; pricing_wide aggregations tolerate them.'
 }
 
 // ---------------------------------------------------------------------------
@@ -175,6 +178,9 @@ Table section_book_status {
 Table pricing_wide [note: 'view'] {
   section_id varchar
   isbn13 varchar
+  required boolean [note: 'BOOL_OR(required) over the (section, isbn) group']
+  is_oer boolean [note: 'BOOL_OR(is_oer) over the group; sourced from pricing_historical.is_oer']
+  is_ia boolean [note: 'BOOL_OR(is_ia) over the group; sourced from pricing_historical.is_ia']
   institute varchar
   bookstore_url varchar
   title varchar
@@ -199,8 +205,14 @@ Table pricing_wide [note: 'view'] {
   price_rental_na_physical decimal
   price_rental_na_digital decimal
   price_rental_na_na decimal
+  format_count integer [note: 'COUNT(DISTINCT option × condition × format) FILTERed to buy/rental — equals non-null pivot cells, max 18']
+  price_min decimal
+  price_max decimal
+  price_avg decimal [note: 'LEGACY definition: (price_min + price_max) / 2 — NOT the arithmetic mean. See CLAUDE.md.']
+  rental_days_min integer [note: 'shortest rental term offered for this (section, isbn)']
+  rental_days_max integer [note: 'longest rental term offered (~95 distinct values, summarized as range)']
 
-  Note: 'View on pricing_historical. One row per (section_id × isbn13). 18 price columns = option × condition × format. Filtered: filter_include = TRUE only.'
+  Note: 'View on pricing_historical only. One row per (section_id × isbn13). 18 price columns = option × condition × format. Filtered: filter_include = TRUE only. is_oer/is_ia come from pricing_historical (set by 2b_pricing_oer_ia). Fact aggregations follow <dimension>_<aggfunc> naming.'
 }
 
 Table comprehensive_data {
@@ -242,10 +254,10 @@ Table comprehensive_data {
   ia_category varchar [note: 'defaults to "unknown" if no lookup match']
   // -- IPEDS institutional --
   institution_name varchar
-  sector integer
-  level integer
-  control integer
-  size integer
+  sector varchar [note: 'string descriptor — see ipeds_data']
+  level varchar
+  control varchar
+  size varchar
   enrollment_2024 integer
   distance_enrollment_2024 integer
   institution_type varchar
@@ -465,4 +477,69 @@ TableGroup eda_records {
   master_section
   master_course
   master_course_material
+}
+
+// ---------------------------------------------------------------------------
+// DATA QUALITY — populated by 2d_data_quality.sql; surface for BI dashboards.
+// Recreated each pipeline run (snapshot of latest state).
+// ---------------------------------------------------------------------------
+
+Table __data_quality_metrics {
+  category varchar [note: 'catalog | pricing | wide | oer_ia | cross_table']
+  check_id varchar [note: 'short identifier, e.g., dedupe_stages, price_outliers']
+  metric_name varchar
+  metric_value bigint
+
+  Note: 'Long-format scalar metrics. Recreated on each pipeline run.'
+}
+
+Table __data_quality_top_unmatched_ipeds_schools {
+  school varchar
+  unit_id integer
+  catalog_rows bigint
+
+  Note: 'Top 10 catalog schools whose unit_id is not in IPEDS_2024.csv.'
+}
+
+Table __data_quality_top_null_isbn_schools {
+  school varchar
+  null_isbn_rows bigint
+  distinct_sections bigint
+
+  Note: 'Top 10 schools by NULL ISBN13 row count (catalog).'
+}
+
+Table __data_quality_pricing_match_by_period {
+  period_sortable varchar
+  pricing_rows bigint
+  rows_matched bigint
+  match_pct double
+
+  Note: 'Pricing rows that found a (section_id, isbn13) match in catalog, by period.'
+}
+
+Table __data_quality_top_unmatched_pricing_sections {
+  unit_id integer
+  period_sortable varchar
+  pricing_sections bigint
+  unmatched bigint
+  unmatched_pct double
+
+  Note: 'Top 10 (unit_id, period) combos by unmatched pricing sections (filter_include=FALSE only).'
+}
+
+Table __data_quality_format_count_distribution {
+  format_count integer
+  pricing_wide_rows bigint
+
+  Note: 'Distribution of format_count values in pricing_wide.'
+}
+
+TableGroup data_quality {
+  __data_quality_metrics
+  __data_quality_top_unmatched_ipeds_schools
+  __data_quality_top_null_isbn_schools
+  __data_quality_pricing_match_by_period
+  __data_quality_top_unmatched_pricing_sections
+  __data_quality_format_count_distribution
 }
