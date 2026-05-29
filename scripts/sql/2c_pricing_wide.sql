@@ -69,7 +69,10 @@ SELECT
     -- LEGACY definition: price_avg = (min + max) / 2 — NOT the arithmetic mean. See CLAUDE.md.
     (MIN(price) + MAX(price)) / 2.0 AS price_avg,
     MIN(rental_days) FILTER (WHERE book_option = 'rental') AS rental_days_min,
-    MAX(rental_days) FILTER (WHERE book_option = 'rental') AS rental_days_max
+    MAX(rental_days) FILTER (WHERE book_option = 'rental') AS rental_days_max,
+    -- owned (buy-only) price range: feeds the "owned" cost columns (rentals omitted)
+    MIN(price) FILTER (WHERE book_option = 'buy') AS price_buy_min,
+    MAX(price) FILTER (WHERE book_option = 'buy') AS price_buy_max
 FROM pricing_historical
 GROUP BY section_id, isbn13;
 
