@@ -1,0 +1,20 @@
+[
+  {
+    "__meta__": {
+      "name": "Data Quality — Pricing (Filtered)",
+      "description": "Pricing DQ over the required / filter_include subset. Duplicate of 'Data Quality — Pricing' with the format_count card sourced from pricing_wide_filtered (Q27) instead of the full pricing_wide base (Q11)."
+    }
+  },
+  { "question": "18_dq_critical_should_be_zero",                   "row":  0, "col":  0, "size_x": 24, "size_y": 4 },
+  { "question": "06_dq_pricing_dedupe_stages",                     "row":  4, "col":  0, "size_x": 12, "size_y": 7 },
+  { "question": "07_dq_pricing_price_outliers",                    "row":  4, "col": 12, "size_x": 12, "size_y": 7 },
+  { "question": "08_dq_pricing_buy_rental_discipline",             "row": 11, "col":  0, "size_x": 12, "size_y": 7 },
+  { "question": "09_dq_pricing_digital_rental_days",               "row": 11, "col": 12, "size_x": 12, "size_y": 7 },
+  { "question": "10_dq_pricing_match_by_period",                   "row": 18, "col":  0, "size_x": 12, "size_y": 7 },
+  { "question": "27_dq_pricing_format_count_distribution_filtered","row": 18, "col": 12, "size_x": 12, "size_y": 7 },
+  { "question": "12_dq_pricing_top_unmatched_sections",            "row": 25, "col":  0, "size_x": 24, "size_y": 8 },
+  { "question": "21_dq_rental_rows_per_pair_physical",             "row": 33, "col":  0, "size_x": 12, "size_y": 7 },
+  { "question": "22_dq_rental_rows_per_pair_digital",              "row": 33, "col": 12, "size_x": 12, "size_y": 7 },
+  { "question": "20_dq_rental_period_length_distribution",         "row": 40, "col":  0, "size_x": 12, "size_y": 7 },
+  { "question": "19_dq_rental_rows_per_section_item",              "row": 40, "col": 12, "size_x": 12, "size_y": 7 }
+]
