@@ -25,6 +25,7 @@ export CONFIG=$(envsubst < sql/config.sql)
 # Define SQL processing stages
 IMPORT_SQL=(
     "0_setup.sql"
+    "0b_state_region.sql"
     "1_bookprices_import.sql"
     "1b_section_filter.sql"
     "2_oer_classification.sql"

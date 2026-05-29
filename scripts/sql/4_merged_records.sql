@@ -211,7 +211,9 @@ FROM comprehensive_data
 WHERE
     course_id IS NOT NULL AND
     publisher IS NOT NULL AND
-    period_sortable IS NOT NULL
+    period_sortable IS NOT NULL AND
+    -- 2024+ scope, consistent with master_section / master_course (#24)
+    period_date >= '2024-01-01'
 GROUP BY
     course_id,
     period,
