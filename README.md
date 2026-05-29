@@ -1,191 +1,64 @@
 # CommodoreSQL
 
-## Setup and Usage
+A DuckDB pipeline that integrates course-catalog data (~103M rows) with institutional
+characteristics (IPEDS), bookstore pricing, and opt-out/panel lists — to support targeted
+mailing lists and analysis of course-materials cost and OER/Inclusive-Access adoption.
 
-### Initial Setup
+> **Where to look:** data model overview in [`SCHEMA.md`](SCHEMA.md) · full column
+> definitions in [`schema.dbml`](schema.dbml) (load in dbdiagram.io) · naming standards and
+> gotchas in [`CLAUDE.md`](CLAUDE.md) · recent design decisions in
+> [`260529-DECISIONS.md`](260529-DECISIONS.md).
 
-1. Create required directories:
+## Data sources
 
-   ```bash
-   mkdir -p csv output tmp
-   ```
+CSVs live under `data/<date>/`; paths are configured in `scripts/dot.env`.
 
-2. Place your CSV files in the `csv` directory:
-   - Survey data: `csv/Bayview.YYYYMMDD.csv` (where YYYYMMDD is the date)
-   - IPEDS data: `csv/hdic_dist_2022_selected.csv`
-   - Opt-out data: `csv/Master_optOut.csv`
+| File | Target table | Rows |
+|------|--------------|------|
+| `DiscoveryExtract.*.csv` | `course_catalog_<date>` | ~103M |
+| `IPEDS_2024.csv` | `ipeds_data` | ~7K |
+| `OptOut_*.csv` | `opt_out` | variable |
+| `panel_*.csv` | `panel` | variable |
+| `format_type_lookup.tsv` | `format_type_classification` | 69 |
+| `BookPricing.Historical_*.csv` | `pricing_historical` | ~11K |
 
-3. Make all scripts executable:
-
-   ```bash
-   chmod +x scripts/*.sh
-   ```
-
-### Running the Pipeline
-
-To run the entire pipeline:
-
-```bash
-./scripts/run_all.sh [CSV_DATE]
-```
-
-For example:
+## Running the pipeline
 
 ```bash
-./scripts/run_all.sh 20240612
+scripts/run_sql.sh
 ```
 
-If no CSV_DATE is provided, it will use the default from `dot.env`.
+The runner loads `scripts/dot.env`, templates each `scripts/sql/*.sql` file (env vars via
+`envsubst`, e.g. `${CONFIG}`), and executes it against the DuckDB database at `MAIN_DB`
+(`duckdb/commodore.duckdb`). It runs three stages, each skippable by setting a flag:
 
-### For the Next Data Update
-
-1. Update the CSV_DATE in `dot.env` or provide it as an argument:
-
-   ```bash
-   # Example: Update for September 2024 data
-   ./scripts/run_all.sh 20240915
-   ```
-
-2. Alternatively, edit the `dot.env` file to update the CSV_DATE:
-
-   ```bash
-   # Change this line in dot.env
-   CSV_DATE="20240915"  # Format: YYYYMMDD
-   ```
-
-### Running Individual Steps
-
-You can run each step individually:
+| Stage | Flag to skip | What it does |
+|-------|--------------|--------------|
+| IMPORT | `NO_IMPORT` | Load CSVs; derive composite keys; build `comprehensive_data`; classify OER/IA; pivot pricing |
+| EDA | `NO_EDA` | Build mailing lists and the `master_section` / `master_course` / `section_cost` records |
+| EXPORT | `NO_EXPORT` | Auto-discover `scripts/sql/exports/*.sql`, wrap each in a temp table, `COPY` to CSV in `output/` |
 
 ```bash
-# Step 0: Setup, import, and join data
-./scripts/0_setup.sh [CSV_DATE]
-
-# Step 1: Create CSV versions of key mailing lists
-./scripts/1_mailing_lists.sh
-
-# Step 2: Create merged records by faculty member and by course
-./scripts/2_merged_records.sh
-
-# Step 3: Create CSV versions of key merged records
-./scripts/3_export_csv.sh
+NO_IMPORT=1 NO_EXPORT=1 scripts/run_sql.sh   # rebuild just the EDA records
 ```
 
-## Project Structure
+Update `CSV_DATE` in `scripts/dot.env` for a new data drop. The pipeline drops-before-creates
+and is re-runnable.
 
-### Directory Structure
+## Key outputs
 
-```
-commodoreSQL/
-├── csv/                  # Input CSV files
-├── sql/                  # SQL files for each operation
-│   ├── 0_setup/          # Setup and import SQL files
-│   │   ├── config.sql                # DuckDB configuration settings
-│   │   ├── import.sql                # Import CSV files and create views
-│   │   ├── describe_import.sql       # Validate imported data
-│   │   ├── comprehensive.sql         # Join data and create comprehensive database
-│   │   └── describe_comprehensive.sql # Validate comprehensive database
-│   ├── 1_mailing_lists/  # Mailing lists SQL files
-│   ├── 2_merged_records/ # Merged records SQL files
-│   └── 3_export_csv/     # Export SQL files
-├── scripts/              # Shell scripts to execute SQL files
-│   ├── 0_setup.sh        # Step 0: Setup, import, and join data
-│   ├── 1_mailing_lists.sh # Step 1: Create mailing lists
-│   ├── 2_merged_records.sh # Step 2: Create merged records
-│   ├── 3_export_csv.sh   # Step 3: Export to CSV
-│   └── run_all.sh        # Step 4: Run all steps in sequence
-├── tmp/                  # Temporary files directory
-└── output/               # Output CSV files directory
-    ├── import_description.txt        # Description of imported data
-    └── comprehensive_description.txt # Description of comprehensive database
-```
+- **`comprehensive_data`** — the master join (catalog × IPEDS × opt-out × panel × format-type ×
+  section status), with `filter_include` (2024+ required-material scope) and OER/IA flags.
+- **`master_section`** / **`master_course`** — one row per section-offering / course-offering
+  (2024+), with material counts, OER/IA indicators, and required/non-required cost columns
+  (min/max/owned/avg). Cost is computed in **`section_cost`**.
+- **`pricing_wide`** (all priced materials) / **`pricing_wide_filtered`** (required subset) —
+  18 price columns pivoted per `(section_id, isbn13)`.
+- **Mailing lists** — `master_mailing`, `current_mailing`, and state-specific views.
 
-### Configuration
+## Metabase
 
-The project uses a `dot.env` file for configuration:
-
-```bash
-# Database path
-MAIN_DB="commodore.db"
-
-# CSV input files - use variables for date-based filenames
-CSV_DATE="20240612"  # Format: YYYYMMDD - update for each import
-SURVEY_CSV="csv/Bayview.${CSV_DATE}.csv"
-IPEDS_CSV="csv/hdic_dist_2022_selected.csv"
-OPTOUT_CSV="csv/Master_optOut.csv"
-
-# Output directory
-OUTPUT_DIR="output"
-
-# Performance settings
-MEM_LIMIT="16GB"      # Memory limit for DuckDB
-NUM_THREADS=8         # Number of threads for parallel processing
-TEMP_DIRECTORY="./tmp" # Temporary directory for DuckDB operations
-MAX_TEMP_DIR_SIZE="100GB" # Maximum size of temporary directory
-
-# DuckDB executable path
-DUCKDB="./duckdb"  # Path to DuckDB executable
-
-# DuckDB Configuration Options
-PRESERVE_INSERTION_ORDER=false  # Disable insertion order preservation
-ENABLE_PROGRESS_BAR=true        # Enable progress bar for long operations
-STREAMING_BUFFER_SIZE="1GB"     # Streaming buffer size
-```
-
-### DuckDB Configuration Details
-
-Key configuration settings in `sql/0_setup/config.sql`:
-
-- Dynamic memory limit based on `MEM_LIMIT`
-- Temporary directory set to `./tmp`
-- Thread count configurable via `NUM_THREADS`
-- Maximum temporary directory size: 100GB
-- Insertion order preservation disabled
-- Progress bar enabled
-- Streaming buffer size set to 1GB
-
-### Table and View Structure
-
-The project uses a combination of versioned tables and unversioned views:
-
-1. **Versioned Tables**: Tables are named after the CSV files (with lowercase names, no extension, periods replaced with underscores)
-   - Example: `bayview_20241211` for the survey data from December 11, 2024
-   - Example: `hdic_dist_2022_selected` for the IPEDS data
-   - Example: `master_optout` for the opt-out data
-
-2. **Unversioned Views**: Views provide consistent access to the latest data
-   - `survey_data` - Always points to the latest survey data
-   - `ipeds_data` - Always points to the latest IPEDS data
-   - `optout_data` - Always points to the latest opt-out data
-
-This approach allows you to:
-
-- Keep historical data in versioned tables
-- Always access the latest data through consistent view names
-- Switch to a new data version by simply updating the CSV_DATE
-
-You can customize the DuckDB executable path by:
-
-1. Editing the `dot.env` file
-2. Setting the `DUCKDB` environment variable before running the scripts:
-
-   ```bash
-   # Example: Use system-installed DuckDB
-   export DUCKDB=duckdb
-   ./scripts/run_all.sh
-   
-   # Example: Use DuckDB from a specific path
-   export DUCKDB=/usr/local/bin/duckdb
-   ./scripts/run_all.sh
-   ```
-
-## Project Plan
-
-This project implements the following steps:
-
-1. Create CSV versions of key mailing lists for immediate use
-2. Create merged records by faculty member and by course
-3. Create CSV versions of key merged records
-4. Save all code in a format that can easily be run for each master file update
-
-For detailed specifications of each step, see `plan.md`.
+Dashboards and questions are config-as-code: SQL questions (with frontmatter) in
+`metabase/questions/`, dashboard layouts in `metabase/dashboards/`, IDs in `metabase/ids.json`,
+synced via `metabase/sync.py`. The local image is built/launched by `metabase.sh` (custom
+glibc-based image so the DuckDB driver works). It connects read-only to `duckdb/commodore.duckdb`.
