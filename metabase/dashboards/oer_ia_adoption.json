@@ -1,0 +1,5 @@
+[
+  { "__meta__": { "name": "OER/IA Adoption", "description": "OER / Inclusive-Access adoption — section share over time (master_section) and filtered record trends (comprehensive_data)." } },
+  { "question": "26_oer_ia_section_adoption", "row": 0, "col": 0, "size_x": 24, "size_y": 8 },
+  { "question": "05_filtered_oer_over_time", "row": 8, "col": 0, "size_x": 24, "size_y": 8 }
+]

@@ -1,0 +1,6 @@
+{
+  "graph.dimensions": ["period_date"],
+  "graph.metrics": ["pct_oer", "pct_ia"],
+  "graph.x_axis.title_text": "Period",
+  "graph.y_axis.title_text": "% of Sections"
+}
