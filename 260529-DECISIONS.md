@@ -35,7 +35,10 @@ confirmed), it is marked **[assumed]** and is open to revision in the issue's Re
   `optional_cost_owned_avg` omitted (raw min/max available).
 - **NULL-price handling [assumed]:** materials with no matched price contribute nothing
   (`SUM` skips NULL); `required_priced_count` / `optional_priced_count` (section level) expose
-  coverage so partial cost is visible.
+  coverage so partial cost is visible. **Caveat (verification):** `priced_count` counts
+  materials with *any* price (total coverage), **not owned-only** — ~682k sections have a
+  non-NULL total cost but NULL owned cost (their priced materials are rental-only), so
+  `priced_count` is not the right coverage denominator for the `*_owned_*` columns.
 - **owned ≠ subset of all-options:** owned sums only buy-priced materials (a smaller set), so
   `owned_min` can be *less* than `total_min`. Intended.
 
