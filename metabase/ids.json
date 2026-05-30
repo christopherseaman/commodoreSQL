@@ -32,5 +32,7 @@
   "dashboard_course_materials_cost": 9,
   "dashboard_oer_ia_adoption": 10,
   "27_dq_pricing_format_count_distribution_filtered": 78,
-  "dashboard_data_quality_pricing_filtered": 11
+  "dashboard_data_quality_pricing_filtered": 11,
+  "30_report_overview": 80,
+  "dashboard_report": 13
 }

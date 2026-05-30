@@ -1,0 +1,7 @@
+{
+  "state":           { "display-name": "State",          "field": "comprehensive_data.state" },
+  "control":         { "display-name": "Control",        "field": "comprehensive_data.control" },
+  "course_level":    { "display-name": "Course Level",   "field": "comprehensive_data.course_level" },
+  "course_subject":  { "display-name": "Course Subject", "field": "comprehensive_data.course_subject" },
+  "period_sortable": { "display-name": "Term",           "field": "comprehensive_data.period_sortable" }
+}

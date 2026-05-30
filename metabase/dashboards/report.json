@@ -1,0 +1,14 @@
+[
+  { "__meta__": {
+      "name": "Course Materials Report",
+      "description": "Filterable report surface (#18). Dashboard filters (time, geography, institution control, course level/subject) auto-map to any card declaring a matching template-tag. Foundation for the parameterized reporting layer (#9-13).",
+      "parameters": [
+        { "name": "State",          "slug": "state" },
+        { "name": "Control",        "slug": "control" },
+        { "name": "Course Level",   "slug": "course_level" },
+        { "name": "Course Subject", "slug": "course_subject" },
+        { "name": "Term",           "slug": "period_sortable" }
+      ]
+  } },
+  { "question": "30_report_overview", "row": 0, "col": 0, "size_x": 24, "size_y": 6 }
+]
