@@ -98,9 +98,11 @@ FROM (
         COUNT(*) FILTER (WHERE is_oer) AS oer_count,
         COUNT(*) FILTER (WHERE is_ia)  AS ia_count,
         LIST(DISTINCT publisher) FILTER (WHERE publisher IS NOT NULL) AS publishers,
-        LIST(DISTINCT publisher) FILTER (WHERE publisher IS NOT NULL AND LOWER(book_status) = 'required') AS required_publishers,
-        COUNT(DISTINCT CASE WHEN LOWER(book_status) = 'required' THEN publisher END) AS required_publisher_count,
-        COUNT(DISTINCT CASE WHEN LOWER(book_status) != 'required' THEN publisher END) AS optional_publisher_count,
+        -- required/optional publisher splits reuse filter_include (consistent with #1's
+        -- required_count classification), not raw book_status='required'.
+        LIST(DISTINCT publisher) FILTER (WHERE publisher IS NOT NULL AND filter_include) AS required_publishers,
+        COUNT(DISTINCT publisher) FILTER (WHERE filter_include)     AS required_publisher_count,
+        COUNT(DISTINCT publisher) FILTER (WHERE NOT filter_include) AS optional_publisher_count,
         MAX(enrollments) AS enrollments,
         MAX(seats_taken) AS seats_taken
     FROM comprehensive_data
