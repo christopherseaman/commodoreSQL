@@ -47,9 +47,9 @@ SELECT
 FROM materials
 GROUP BY section_id;
 
--- Create master_section: one row per section per period (2024+).
--- Cost columns (#2/#3/#4) come from section_cost, attached at section_id grain; on
--- the ~0.13% of section_ids that split into >1 row they repeat (read via the key).
+-- Create master_section: exactly one row per section_id (2024+). Collapsed by section_id;
+-- descriptive cols resolved via mode() (most-frequent) / ANY_VALUE (constant) / MAX (#24 —
+-- see the divergence DQ at the bottom). Cost columns (#2/#3/#4) join 1:1 on section_id.
 DROP VIEW IF EXISTS master_section;
 CREATE VIEW master_section AS
 SELECT
@@ -66,17 +66,24 @@ SELECT
 FROM (
     SELECT
         section_id,
-        course_id,
-        period,
-        period_sortable,
-        period_date,
-        school,
-        department,
-        course_number,
-        section,
-        course_title,
-        course_level,
-        course_subject,
+        -- course_id/period_sortable are substrings of section_id, and period/period_date
+        -- derive deterministically from them -> constant per section_id (0 divergence,
+        -- can't break by construction), so ANY_VALUE is exact (no DQ needed).
+        ANY_VALUE(course_id)       AS course_id,
+        ANY_VALUE(period)          AS period,
+        ANY_VALUE(period_sortable) AS period_sortable,
+        ANY_VALUE(period_date)     AS period_date,
+        -- descriptive cols can diverge within a section_id (source-noise spelling /
+        -- normalization variants, e.g. raw course_number "101" vs "0101" that normalize
+        -- to one section_id); mode() keeps the most-frequent value. enrollments/seats_taken
+        -- stay MAX. No columns dropped (#24).
+        mode(school)               AS school,
+        mode(department)           AS department,
+        mode(course_number)        AS course_number,
+        mode(section)              AS section,
+        mode(course_title)         AS course_title,
+        mode(course_level)         AS course_level,
+        mode(course_subject)       AS course_subject,
         COUNT(*) AS material_count,
         -- required vs non-required reuses filter_include (the has_required fallback:
         -- 'required' rows, plus no-entry rows in sections with no required material).
@@ -103,19 +110,7 @@ FROM (
         -- filter_include is gated on period_date >= 2024; scope the view to match so
         -- required_count (= filter_include count) is meaningful on every row.
         period_date >= '2024-01-01'
-    GROUP BY
-        section_id,
-        course_id,
-        period,
-        period_sortable,
-        period_date,
-        school,
-        department,
-        course_number,
-        section,
-        course_title,
-        course_level,
-        course_subject
+    GROUP BY section_id
 ) base
 LEFT JOIN section_cost sc ON base.section_id = sc.section_id;
 
@@ -135,15 +130,15 @@ SELECT
 FROM (
     SELECT
         course_id,
-        period,
         period_sortable,
-        period_date,
-        school,
-        department,
-        course_number,
-        course_title,
-        course_level,
-        course_subject,
+        ANY_VALUE(period)      AS period,
+        ANY_VALUE(period_date) AS period_date,
+        mode(school)           AS school,
+        mode(department)       AS department,
+        mode(course_number)    AS course_number,
+        mode(course_title)     AS course_title,
+        mode(course_level)     AS course_level,
+        mode(course_subject)   AS course_subject,
         COUNT(DISTINCT section_id) AS section_count,
         SUM(enrollments) AS enrollment_total,
         SUM(seats_taken) AS seats_taken_total,
@@ -159,17 +154,7 @@ FROM (
         LIST(publishers) FILTER (WHERE publishers IS NOT NULL) AS all_publishers,
         SUM(required_publisher_count) AS unique_required_publishers
     FROM master_section
-    GROUP BY
-        course_id,
-        period,
-        period_sortable,
-        period_date,
-        school,
-        department,
-        course_number,
-        course_title,
-        course_level,
-        course_subject
+    GROUP BY course_id, period_sortable
 ) base
 LEFT JOIN (
     SELECT
@@ -251,4 +236,39 @@ SELECT 'master_section cost min<=max' AS metric,
                            OR optional_cost_total_min > optional_cost_total_max
                            OR required_cost_owned_min > required_cost_owned_max
                            OR optional_cost_owned_min > optional_cost_owned_max) AS violations
-FROM master_section;
+FROM master_section
+UNION ALL
+SELECT 'master_section unique per section_id' AS metric,
+       COUNT(*) AS rows,
+       COUNT(*) - COUNT(DISTINCT section_id) AS violations
+FROM master_section
+UNION ALL
+SELECT 'master_course unique per (course_id, period_sortable)' AS metric,
+       COUNT(*) AS rows,
+       COUNT(*) - COUNT(DISTINCT (course_id, period_sortable)) AS violations
+FROM master_course;
+
+-- DQ (informational, #24): descriptive-column divergence flattened by the section
+-- collapse — mode() keeps the most-frequent value per section_id. Nonzero is expected
+-- source noise, not an error; this surfaces which field is noisy and how many sections.
+SELECT 'section descriptive divergence (flattened)' AS note,
+       COUNT(*) FILTER (WHERE n_subject > 1) AS course_subject,
+       COUNT(*) FILTER (WHERE n_cnum > 1)    AS course_number,
+       COUNT(*) FILTER (WHERE n_title > 1)   AS course_title,
+       COUNT(*) FILTER (WHERE n_level > 1)   AS course_level,
+       COUNT(*) FILTER (WHERE n_school > 1)  AS school,
+       COUNT(*) FILTER (WHERE n_section > 1) AS section,
+       COUNT(*) FILTER (WHERE n_dept > 1)    AS department
+FROM (
+    SELECT section_id,
+           COUNT(DISTINCT course_subject) AS n_subject,
+           COUNT(DISTINCT course_number)  AS n_cnum,
+           COUNT(DISTINCT course_title)   AS n_title,
+           COUNT(DISTINCT course_level)   AS n_level,
+           COUNT(DISTINCT school)         AS n_school,
+           COUNT(DISTINCT section)        AS n_section,
+           COUNT(DISTINCT department)     AS n_dept
+    FROM comprehensive_data
+    WHERE period_date >= '2024-01-01' AND section_id IS NOT NULL AND period_sortable IS NOT NULL
+    GROUP BY section_id
+);
