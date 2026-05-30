@@ -1,14 +1,23 @@
 [
   { "__meta__": {
       "name": "Course Materials Report",
-      "description": "Filterable report surface (#18). Dashboard filters (time, geography, institution control, course level/subject) auto-map to any card declaring a matching template-tag. Foundation for the parameterized reporting layer (#9-13).",
+      "description": "Parameterized report surface (#18). 13 dashboard filters (time, geography, institution, course, material) auto-mapped to every card. Overview = sections/OER/IA; Cost = required/optional/owned cost over the selected sections.",
       "parameters": [
-        { "name": "State",          "slug": "state" },
-        { "name": "Control",        "slug": "control" },
-        { "name": "Course Level",   "slug": "course_level" },
-        { "name": "Course Subject", "slug": "course_subject" },
-        { "name": "Term",           "slug": "period_sortable" }
+        { "name": "State",               "slug": "state" },
+        { "name": "Region",              "slug": "region" },
+        { "name": "IPEDS unit_id",       "slug": "unit_id",         "type": "id",            "sectionId": "id" },
+        { "name": "Control",             "slug": "control" },
+        { "name": "Institution Level",   "slug": "iclevel" },
+        { "name": "Institution Size",    "slug": "instsize" },
+        { "name": "Enrollment",          "slug": "enroll_24",       "type": "number/between", "sectionId": "number" },
+        { "name": "Distance Enrollment", "slug": "dist_enroll_24",  "type": "number/between", "sectionId": "number" },
+        { "name": "Course Level",        "slug": "course_level" },
+        { "name": "Course Subject",      "slug": "course_subject" },
+        { "name": "Course Code",         "slug": "course_id" },
+        { "name": "Term",                "slug": "period_sortable" },
+        { "name": "Material status",     "slug": "material" }
       ]
   } },
-  { "question": "30_report_overview", "row": 0, "col": 0, "size_x": 24, "size_y": 6 }
+  { "question": "30_report_overview", "row": 0, "col": 0, "size_x": 24, "size_y": 5 },
+  { "question": "40_report_cost",     "row": 5, "col": 0, "size_x": 24, "size_y": 5 }
 ]
