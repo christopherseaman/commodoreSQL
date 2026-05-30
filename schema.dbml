@@ -5,16 +5,14 @@
 Project CommodoreSQL {
   database_type: 'DuckDB'
   Note: '''
-    ## Metabase Questions (5)
-    - 01_filter_include_counts: Material counts by course level/period (included vs excluded) — table
-    - 02_formattype_coverage: FormatType null coverage by course level/period (filtered) — table
-    - 03_sections_no_materials: Sections with no included materials (2024+) — table
-    - 04_filtered_formattype_status: FormatType × OER × IA × Status (filtered, 2024+) — table
-    - 05_filtered_oer_over_time: OER/IA adoption over time (filtered, 2024+) — line chart
+    ## Metabase Questions (26) — see metabase/questions/
+    - Analysis: 01-05 (filter_include counts + OER/IA), 24-26 (materials cost + OER/IA section adoption)
+    - Data quality: 06-12 (pricing), 13-18 (catalog), 19-23 (rental + null-ISBN)
 
-    ## Metabase Dashboards (2)
-    - filter_include_quality: Questions 01, 02, 03 — data quality after has_required filter
-    - oer_ia_status_filtered: Questions 04, 05 — OER/IA status analysis
+    ## Metabase Dashboards (6)
+    - filter_include_quality, oer_ia_status_filtered
+    - data_quality_catalog, data_quality_pricing
+    - course_materials_cost (24, 25), oer_ia_adoption (26, 05)
   '''
 }
 
@@ -175,10 +173,19 @@ Table section_book_status {
   Note: 'One row per section_id. Drives filter_include logic for pricing and comprehensive_data.'
 }
 
-Table pricing_wide [note: 'view'] {
+Table state_region {
+  state varchar [pk, note: '2-letter code (matches catalog/ipeds state)']
+  region varchar [note: 'US Census region: Northeast, Midwest, South, West (+ Outlying Areas, Other)']
+  division varchar [note: 'US Census division (9) + Outlying Areas / Other']
+
+  Note: 'Static reference (0b_state_region.sql). Maps state -> Census region/division for geography filters (#10).'
+}
+
+Table pricing_wide {
   section_id varchar
   isbn13 varchar
   required boolean [note: 'BOOL_OR(required) over the (section, isbn) group']
+  filter_include boolean [note: 'BOOL_OR(filter_include); TRUE = required + in-scope (period>=2024). pricing_wide_filtered is this subset.']
   is_oer boolean [note: 'BOOL_OR(is_oer) over the group; sourced from pricing_historical.is_oer']
   is_ia boolean [note: 'BOOL_OR(is_ia) over the group; sourced from pricing_historical.is_ia']
   institute varchar
@@ -211,8 +218,14 @@ Table pricing_wide [note: 'view'] {
   price_avg decimal [note: 'LEGACY definition: (price_min + price_max) / 2 — NOT the arithmetic mean. See CLAUDE.md.']
   rental_days_min integer [note: 'shortest rental term offered for this (section, isbn)']
   rental_days_max integer [note: 'longest rental term offered (~95 distinct values, summarized as range)']
+  price_buy_min decimal [note: 'MIN buy-option price (owned; rentals excluded) — feeds owned cost']
+  price_buy_max decimal [note: 'MAX buy-option price (owned; rentals excluded)']
 
-  Note: 'View on pricing_historical only. One row per (section_id × isbn13). 18 price columns = option × condition × format. Filtered: filter_include = TRUE only. is_oer/is_ia come from pricing_historical (set by 2b_pricing_oer_ia). Fact aggregations follow <dimension>_<aggfunc> naming.'
+  Note: 'TABLE (materialized). One row per (section_id × isbn13) over ALL pricing_historical (no filter). 18 price columns = option × condition × format. price_buy_min/max feed the "owned" cost columns. is_oer/is_ia from pricing_historical (2b_pricing_oer_ia). pricing_wide_filtered is the filter_include=TRUE subset.'
+}
+
+Table pricing_wide_filtered [note: 'view'] {
+  Note: 'View: SELECT * FROM pricing_wide WHERE filter_include — the required, in-scope (period>=2024) subset. Preserves the prior pricing_wide semantics for downstream consumers. Same columns as pricing_wide.'
 }
 
 Table comprehensive_data {
@@ -341,6 +354,24 @@ Table current_mailing_other [note: 'view'] {
 // EDA — Aggregated Record Views (4_merged_records.sql)
 // ---------------------------------------------------------------------------
 
+Table section_cost {
+  section_id varchar [pk]
+  course_id varchar
+  period_sortable varchar
+  required_cost_total_min decimal
+  required_cost_total_max decimal
+  optional_cost_total_min decimal
+  optional_cost_total_max decimal
+  required_cost_owned_min decimal
+  required_cost_owned_max decimal
+  optional_cost_owned_min decimal
+  optional_cost_owned_max decimal
+  required_priced_count integer
+  optional_priced_count integer
+
+  Note: 'TABLE. One row per section_id (2024+). Cost over DISTINCT priced (section_id, ISBN13) materials, required vs non-required via filter_include. owned = buy-only. Feeds master_section (join) and master_course (MIN/MAX/AVG rollup).'
+}
+
 Table master_section [note: 'view'] {
   section_id varchar
   course_id varchar
@@ -355,16 +386,33 @@ Table master_section [note: 'view'] {
   course_level varchar
   course_subject varchar
   material_count integer
-  required_count integer
-  optional_count integer
+  required_count integer [note: 'COUNT FILTER(filter_include); 2024+ scope']
+  optional_count integer [note: 'COUNT FILTER(NOT filter_include)']
+  is_oer boolean [note: 'COALESCE(BOOL_OR(is_oer), FALSE) over section materials']
+  is_ia boolean
+  oer_count integer
+  ia_count integer
   publishers varchar [note: 'LIST(DISTINCT publisher)']
   required_publishers varchar [note: 'LIST(DISTINCT publisher) WHERE required']
   required_publisher_count integer
   optional_publisher_count integer
   enrollments integer
   seats_taken integer
+  required_cost_total_min decimal [note: 'SUM of per-material price_min over distinct required materials (from section_cost)']
+  required_cost_total_max decimal
+  optional_cost_total_min decimal
+  optional_cost_total_max decimal
+  required_cost_owned_min decimal [note: 'buy-only (rentals excluded)']
+  required_cost_owned_max decimal
+  optional_cost_owned_min decimal
+  optional_cost_owned_max decimal
+  required_cost_avg decimal [note: '(min+max)/2 — legacy price_avg convention, NOT arithmetic mean']
+  required_cost_owned_avg decimal
+  optional_cost_avg decimal
+  required_priced_count integer [note: 'distinct required materials with ANY price (total coverage; NOT owned-only — can be >0 while owned cost is NULL when priced materials are rental-only)']
+  optional_priced_count integer
 
-  Note: 'One row per (section_id × period). Aggregated material counts from comprehensive_data.'
+  Note: 'One row per section-offering (2024+). Counts/OER from comprehensive_data; cost columns from section_cost (attached at section_id; repeats on the ~0.13% of section_ids that split into >1 row — read via the key). NOT strictly unique per section_id (descriptive cols can vary within a section_id from source noise).'
 }
 
 Table master_course [note: 'view'] {
@@ -384,10 +432,25 @@ Table master_course [note: 'view'] {
   total_materials integer
   total_required integer
   total_optional integer
+  is_oer boolean [note: 'BOOL_OR across the course sections']
+  is_ia boolean
+  oer_count integer [note: 'SUM of section oer_count']
+  ia_count integer
+  required_cost_total_min decimal [note: 'MIN(min) across sections — cost rolls up MIN/MAX/AVG, NOT SUM (sections share materials)']
+  required_cost_total_max decimal
+  optional_cost_total_min decimal
+  optional_cost_total_max decimal
+  required_cost_owned_min decimal
+  required_cost_owned_max decimal
+  optional_cost_owned_min decimal
+  optional_cost_owned_max decimal
+  required_cost_avg decimal [note: 'AVG of section (min+max)/2']
+  required_cost_owned_avg decimal
+  optional_cost_avg decimal
   all_publishers varchar [note: 'nested LIST of publisher arrays']
   unique_required_publishers integer
 
-  Note: 'One row per (course_id × period). Aggregated from master_section.'
+  Note: 'One row per course-offering (2024+, rolled up from master_section). Cost rolled up from section_cost via MIN/MAX/AVG.'
 }
 
 Table master_course_material [note: 'view'] {
@@ -459,7 +522,9 @@ TableGroup import_sources {
 
 TableGroup import_derived {
   section_book_status
+  state_region
   pricing_wide
+  pricing_wide_filtered
   comprehensive_data
 }
 
@@ -474,6 +539,7 @@ TableGroup eda_mailing {
 }
 
 TableGroup eda_records {
+  section_cost
   master_section
   master_course
   master_course_material
@@ -501,12 +567,26 @@ Table __data_quality_top_unmatched_ipeds_schools {
   Note: 'Top 10 catalog schools whose unit_id is not in IPEDS_2024.csv.'
 }
 
+Table __data_quality_null_isbn_breakdown {
+  school varchar
+  no_book_details bigint [note: 'Title = "*No Book Details*" — non-classroom (research, dissertation, independent study)']
+  no_books_required bigint [note: 'Title = "*No Books Required*" — explicit "no textbook required" marker']
+  bad_course bigint [note: 'Title = "*Bad Course*" — explicit DQ flag from source']
+  other bigint [note: 'Should be 0; nonzero would indicate a new placeholder string in source']
+  total_null_isbn bigint
+
+  Note: 'Top 20 schools by NULL ISBN, split by placeholder type. Globally only 3 placeholder strings exist; there are NO genuinely-missing null-ISBN rows.'
+}
+
 Table __data_quality_top_null_isbn_schools {
   school varchar
   null_isbn_rows bigint
+  non_null_isbn_rows bigint
+  total_rows bigint
+  null_pct double
   distinct_sections bigint
 
-  Note: 'Top 10 schools by NULL ISBN13 row count (catalog).'
+  Note: 'Top 10 schools by NULL ISBN13 row count (catalog), with proportion of NULL vs total.'
 }
 
 Table __data_quality_pricing_match_by_period {
@@ -539,6 +619,7 @@ TableGroup data_quality {
   __data_quality_metrics
   __data_quality_top_unmatched_ipeds_schools
   __data_quality_top_null_isbn_schools
+  __data_quality_null_isbn_breakdown
   __data_quality_pricing_match_by_period
   __data_quality_top_unmatched_pricing_sections
   __data_quality_format_count_distribution
