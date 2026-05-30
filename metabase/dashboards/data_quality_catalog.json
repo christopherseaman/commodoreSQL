@@ -2,12 +2,13 @@
   {
     "__meta__": {
       "name": "Data Quality — Catalog",
-      "description": "DQ checks on the course catalog: IPEDS coverage, NULL ISBN distribution, email validity, enrollment sanity."
+      "description": "DQ checks on the course catalog (filter_include = TRUE only — analytical subset, period >= 2024). IPEDS coverage, NULL ISBN distribution, email validity, enrollment sanity."
     }
   },
   { "question": "13_dq_catalog_ipeds_match",          "row":  0, "col":  0, "size_x": 12, "size_y": 7 },
   { "question": "14_dq_catalog_top_unmatched_ipeds",  "row":  0, "col": 12, "size_x": 12, "size_y": 7 },
   { "question": "15_dq_catalog_top_null_isbn",        "row":  7, "col":  0, "size_x": 12, "size_y": 7 },
-  { "question": "16_dq_catalog_enrollment_sanity",    "row":  7, "col": 12, "size_x": 12, "size_y": 7 },
-  { "question": "17_dq_catalog_email_validity",       "row": 14, "col":  0, "size_x": 24, "size_y": 7 }
+  { "question": "23_dq_null_isbn_breakdown",          "row":  7, "col": 12, "size_x": 12, "size_y": 7 },
+  { "question": "16_dq_catalog_enrollment_sanity",    "row": 14, "col":  0, "size_x": 12, "size_y": 7 },
+  { "question": "17_dq_catalog_email_validity",       "row": 14, "col": 12, "size_x": 12, "size_y": 7 }
 ]

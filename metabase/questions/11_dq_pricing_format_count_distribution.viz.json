@@ -1,0 +1,6 @@
+{
+  "graph.dimensions": ["format_count"],
+  "graph.metrics": ["pricing_wide_rows"],
+  "graph.x_axis.title_text": "format_count (non-null pivot cells, max 18)",
+  "graph.y_axis.title_text": "number of (section, isbn) pairs"
+}

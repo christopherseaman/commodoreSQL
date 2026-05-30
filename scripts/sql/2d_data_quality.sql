@@ -17,35 +17,39 @@ CREATE TABLE __data_quality_metrics (
     metric_value BIGINT
 );
 
+-- All catalog checks are scoped to filter_include = TRUE (analytical subset:
+-- period >= 2024-01-01 with the has_required / book_status logic from 1b_section_filter.sql).
+-- Source-quality of pre-2024 / non-required rows is acknowledged but not surfaced here.
+
 -- Catalog: composite-key UNKNOWN segments + null period
 INSERT INTO __data_quality_metrics
-SELECT 'catalog', 'composite_key_unknowns', 'section_id_unknown_rows', COUNT(*) FILTER (WHERE section_id LIKE '%UNKNOWN%') FROM comprehensive_data
-UNION ALL SELECT 'catalog', 'composite_key_unknowns', 'course_id_unknown_rows', COUNT(*) FILTER (WHERE course_id LIKE '%UNKNOWN%') FROM comprehensive_data
-UNION ALL SELECT 'catalog', 'composite_key_unknowns', 'period_sortable_null',  COUNT(*) FILTER (WHERE period_sortable IS NULL) FROM comprehensive_data;
+SELECT 'catalog', 'composite_key_unknowns', 'section_id_unknown_rows', COUNT(*) FILTER (WHERE section_id LIKE '%UNKNOWN%') FROM comprehensive_data WHERE filter_include = TRUE
+UNION ALL SELECT 'catalog', 'composite_key_unknowns', 'course_id_unknown_rows', COUNT(*) FILTER (WHERE course_id LIKE '%UNKNOWN%') FROM comprehensive_data WHERE filter_include = TRUE
+UNION ALL SELECT 'catalog', 'composite_key_unknowns', 'period_sortable_null',  COUNT(*) FILTER (WHERE period_sortable IS NULL) FROM comprehensive_data WHERE filter_include = TRUE;
 
--- Catalog → IPEDS match
+-- Catalog → IPEDS match (filter_include = TRUE)
 INSERT INTO __data_quality_metrics
-SELECT 'catalog', 'ipeds_match', 'total_rows', COUNT(*) FROM ${SURVEY_TABLE} c LEFT JOIN ${IPEDS_TABLE} i ON c.unit_id = i.unitid
-UNION ALL SELECT 'catalog', 'ipeds_match', 'no_unit_id_likely_canadian', COUNT(*) FROM ${SURVEY_TABLE} c LEFT JOIN ${IPEDS_TABLE} i ON c.unit_id = i.unitid WHERE c.unit_id IS NULL
-UNION ALL SELECT 'catalog', 'ipeds_match', 'unit_id_not_in_ipeds',       COUNT(*) FROM ${SURVEY_TABLE} c LEFT JOIN ${IPEDS_TABLE} i ON c.unit_id = i.unitid WHERE c.unit_id IS NOT NULL AND i.unitid IS NULL;
+SELECT 'catalog', 'ipeds_match', 'total_rows',                  COUNT(*) FROM comprehensive_data WHERE filter_include = TRUE
+UNION ALL SELECT 'catalog', 'ipeds_match', 'no_unit_id_likely_canadian', COUNT(*) FROM comprehensive_data WHERE filter_include = TRUE AND unit_id IS NULL
+UNION ALL SELECT 'catalog', 'ipeds_match', 'unit_id_not_in_ipeds',       COUNT(*) FROM comprehensive_data WHERE filter_include = TRUE AND unit_id IS NOT NULL AND institution_name IS NULL;
 
 -- Catalog: email validity (loose)
 INSERT INTO __data_quality_metrics
-SELECT 'catalog', 'email_validity', 'email_null',      COUNT(*) FILTER (WHERE email IS NULL) FROM ${SURVEY_TABLE}
-UNION ALL SELECT 'catalog', 'email_validity', 'email_no_at',     COUNT(*) FILTER (WHERE email IS NOT NULL AND email NOT LIKE '%@%') FROM ${SURVEY_TABLE}
-UNION ALL SELECT 'catalog', 'email_validity', 'email_no_dot',    COUNT(*) FILTER (WHERE email IS NOT NULL AND email LIKE '%@%' AND email NOT LIKE '%.%') FROM ${SURVEY_TABLE}
-UNION ALL SELECT 'catalog', 'email_validity', 'email_too_short', COUNT(*) FILTER (WHERE email IS NOT NULL AND LENGTH(email) < 5) FROM ${SURVEY_TABLE};
+SELECT 'catalog', 'email_validity', 'email_null',      COUNT(*) FILTER (WHERE email IS NULL) FROM comprehensive_data WHERE filter_include = TRUE
+UNION ALL SELECT 'catalog', 'email_validity', 'email_no_at',     COUNT(*) FILTER (WHERE email IS NOT NULL AND email NOT LIKE '%@%') FROM comprehensive_data WHERE filter_include = TRUE
+UNION ALL SELECT 'catalog', 'email_validity', 'email_no_dot',    COUNT(*) FILTER (WHERE email IS NOT NULL AND email LIKE '%@%' AND email NOT LIKE '%.%') FROM comprehensive_data WHERE filter_include = TRUE
+UNION ALL SELECT 'catalog', 'email_validity', 'email_too_short', COUNT(*) FILTER (WHERE email IS NOT NULL AND LENGTH(email) < 5) FROM comprehensive_data WHERE filter_include = TRUE;
 
 -- Catalog: enrollment sanity
 INSERT INTO __data_quality_metrics
-SELECT 'catalog', 'enrollment_sanity', 'enrollments_negative',         COUNT(*) FILTER (WHERE enrollments < 0) FROM ${SURVEY_TABLE}
-UNION ALL SELECT 'catalog', 'enrollment_sanity', 'seats_taken_sentinel_9999', COUNT(*) FILTER (WHERE seats_taken = 9999) FROM ${SURVEY_TABLE}
+SELECT 'catalog', 'enrollment_sanity', 'enrollments_negative',         COUNT(*) FILTER (WHERE enrollments < 0) FROM comprehensive_data WHERE filter_include = TRUE
+UNION ALL SELECT 'catalog', 'enrollment_sanity', 'seats_taken_sentinel_9999', COUNT(*) FILTER (WHERE seats_taken = 9999) FROM comprehensive_data WHERE filter_include = TRUE
 UNION ALL SELECT 'catalog', 'enrollment_sanity', 'overage_small_1_to_5',
-    COUNT(*) FILTER (WHERE seats_taken > enrollments AND seats_taken < 9999 AND seats_taken - enrollments BETWEEN 1 AND 5) FROM ${SURVEY_TABLE}
+    COUNT(*) FILTER (WHERE seats_taken > enrollments AND seats_taken < 9999 AND seats_taken - enrollments BETWEEN 1 AND 5) FROM comprehensive_data WHERE filter_include = TRUE
 UNION ALL SELECT 'catalog', 'enrollment_sanity', 'overage_medium_6_to_100',
-    COUNT(*) FILTER (WHERE seats_taken > enrollments AND seats_taken < 9999 AND seats_taken - enrollments BETWEEN 6 AND 100) FROM ${SURVEY_TABLE}
+    COUNT(*) FILTER (WHERE seats_taken > enrollments AND seats_taken < 9999 AND seats_taken - enrollments BETWEEN 6 AND 100) FROM comprehensive_data WHERE filter_include = TRUE
 UNION ALL SELECT 'catalog', 'enrollment_sanity', 'overage_large_over_100',
-    COUNT(*) FILTER (WHERE seats_taken > enrollments AND seats_taken < 9999 AND seats_taken - enrollments > 100) FROM ${SURVEY_TABLE};
+    COUNT(*) FILTER (WHERE seats_taken > enrollments AND seats_taken < 9999 AND seats_taken - enrollments > 100) FROM comprehensive_data WHERE filter_include = TRUE;
 
 -- Pricing dedupe stages — the headline DQ block from the import
 WITH src AS (
@@ -133,7 +137,7 @@ UNION ALL SELECT 'cross_table', 'pricing_section_coverage_filter_false', 'unmatc
 -- Wide table: tall vs wide DQ + price_avg sanity
 WITH tall AS (
     SELECT COUNT(DISTINCT (section_id, isbn13, book_option, book_condition, book_format)) AS tall_keys
-    FROM pricing_historical WHERE filter_include = TRUE AND book_option IN ('buy','rental')
+    FROM pricing_historical WHERE book_option IN ('buy','rental')
 ), wide AS (SELECT SUM(format_count) AS wide_sum FROM pricing_wide)
 INSERT INTO __data_quality_metrics
 SELECT 'wide', 'tall_vs_wide_parity', 'tall_distinct_keys', tall_keys FROM tall
@@ -149,20 +153,52 @@ UNION ALL SELECT 'wide', 'price_avg_sanity', 'rows_with_null_bounds', COUNT(*) F
 -- Side tables — distributions and top-N lists for drill-down
 -- =====================================================================
 
--- Top schools missing IPEDS (top 10)
+-- Top schools missing IPEDS (top 10) — filter_include = TRUE
 DROP TABLE IF EXISTS __data_quality_top_unmatched_ipeds_schools;
 CREATE TABLE __data_quality_top_unmatched_ipeds_schools AS
-SELECT c.school, c.unit_id, COUNT(*) AS catalog_rows
-FROM ${SURVEY_TABLE} c LEFT JOIN ${IPEDS_TABLE} i ON c.unit_id = i.unitid
-WHERE i.unitid IS NULL
-GROUP BY c.school, c.unit_id ORDER BY catalog_rows DESC LIMIT 10;
+SELECT school, unit_id, COUNT(*) AS catalog_rows
+FROM comprehensive_data
+WHERE filter_include = TRUE AND institution_name IS NULL
+GROUP BY school, unit_id ORDER BY catalog_rows DESC LIMIT 10;
 
--- Top schools by NULL ISBN13 (top 10)
+-- NULL ISBN13 placeholder breakdown by school (filter_include = TRUE).
+-- Globally only 3 placeholder strings exist for NULL-ISBN rows; none are "real missing":
+--   *No Book Details*    — non-classroom (research, dissertation, independent study); ~92% of NULLs
+--   *No Books Required*  — explicit "no textbook required" (UCI uses this distinctly); ~7.4%
+--   *Bad Course*         — explicit data-quality flag from source; ~0.03% but worth surfacing
+-- "other" should remain at 0; nonzero would indicate a new placeholder string in source.
+DROP TABLE IF EXISTS __data_quality_null_isbn_breakdown;
+CREATE TABLE __data_quality_null_isbn_breakdown AS
+SELECT
+    school,
+    COUNT(*) FILTER (WHERE Title = '*No Book Details*')   AS no_book_details,
+    COUNT(*) FILTER (WHERE Title = '*No Books Required*') AS no_books_required,
+    COUNT(*) FILTER (WHERE Title = '*Bad Course*')        AS bad_course,
+    COUNT(*) FILTER (WHERE Title IS NULL
+                       OR Title NOT IN ('*No Book Details*', '*No Books Required*', '*Bad Course*')) AS other,
+    COUNT(*)                                              AS total_null_isbn
+FROM comprehensive_data
+WHERE filter_include = TRUE AND ISBN13 IS NULL
+GROUP BY school
+HAVING COUNT(*) > 0
+ORDER BY total_null_isbn DESC
+LIMIT 20;
+
+-- Top schools by NULL ISBN13 (top 10) with proportion of NULL vs total rows (filter_include = TRUE)
 DROP TABLE IF EXISTS __data_quality_top_null_isbn_schools;
 CREATE TABLE __data_quality_top_null_isbn_schools AS
-SELECT school, COUNT(*) AS null_isbn_rows, COUNT(DISTINCT section_id) AS distinct_sections
-FROM ${SURVEY_TABLE} WHERE ISBN13 IS NULL
-GROUP BY school ORDER BY null_isbn_rows DESC LIMIT 10;
+SELECT
+    school,
+    COUNT(*) FILTER (WHERE ISBN13 IS NULL) AS null_isbn_rows,
+    COUNT(*) FILTER (WHERE ISBN13 IS NOT NULL) AS non_null_isbn_rows,
+    COUNT(*) AS total_rows,
+    ROUND(100.0 * COUNT(*) FILTER (WHERE ISBN13 IS NULL) / COUNT(*), 2) AS null_pct,
+    COUNT(DISTINCT section_id) FILTER (WHERE ISBN13 IS NULL) AS distinct_sections
+FROM comprehensive_data
+WHERE filter_include = TRUE
+GROUP BY school
+HAVING COUNT(*) FILTER (WHERE ISBN13 IS NULL) > 0
+ORDER BY null_isbn_rows DESC LIMIT 10;
 
 -- Pricing → catalog match by period (full table, all periods)
 DROP TABLE IF EXISTS __data_quality_pricing_match_by_period;
@@ -210,4 +246,5 @@ SELECT 'DQ surface ready' AS status,
     (SELECT COUNT(*) FROM __data_quality_top_null_isbn_schools) AS top_null_isbn_rows,
     (SELECT COUNT(*) FROM __data_quality_pricing_match_by_period) AS pricing_match_periods,
     (SELECT COUNT(*) FROM __data_quality_top_unmatched_pricing_sections) AS top_unmatched_pricing_rows,
-    (SELECT COUNT(*) FROM __data_quality_format_count_distribution) AS format_count_buckets;
+    (SELECT COUNT(*) FROM __data_quality_format_count_distribution) AS format_count_buckets,
+    (SELECT COUNT(*) FROM __data_quality_null_isbn_breakdown) AS null_isbn_breakdown_rows;

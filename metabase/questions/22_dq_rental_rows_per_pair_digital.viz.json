@@ -1,0 +1,6 @@
+{
+  "graph.dimensions": ["rental_rows"],
+  "graph.metrics": ["pairs"],
+  "graph.x_axis.title_text": "digital rental rows per pair",
+  "graph.y_axis.title_text": "number of (section, isbn) pairs"
+}

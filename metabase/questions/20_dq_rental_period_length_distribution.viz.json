@@ -1,0 +1,6 @@
+{
+  "graph.dimensions": ["rental_days"],
+  "graph.metrics": ["rows"],
+  "graph.x_axis.title_text": "rental_days (term length)",
+  "graph.y_axis.title_text": "row count"
+}
