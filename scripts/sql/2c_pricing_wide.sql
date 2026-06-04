@@ -73,7 +73,11 @@ SELECT
     -- owned (buy-only) price range: feeds the "owned" cost columns (rentals omitted)
     MIN(price) FILTER (WHERE book_option = 'buy') AS price_buy_min,
     MAX(price) FILTER (WHERE book_option = 'buy') AS price_buy_max
-FROM pricing_historical
+-- Null out round-nines sentinel/placeholder prices (9999, 9999.99, 99999, 100000,
+-- 999999) so they don't inflate cost min/max/sums. Highest real price ~$5,600, so
+-- price >= 9999 is treated as "no price" (#27). Adjust the threshold if a real
+-- ceiling above that is confirmed.
+FROM (SELECT * REPLACE (CASE WHEN price < 9999 THEN price END AS price) FROM pricing_historical)
 GROUP BY section_id, isbn13;
 
 CREATE VIEW pricing_wide_filtered AS
