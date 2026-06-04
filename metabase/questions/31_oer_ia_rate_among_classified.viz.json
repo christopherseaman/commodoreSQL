@@ -1,0 +1,6 @@
+{
+  "graph.dimensions": ["period_date"],
+  "graph.metrics": ["pct_oer_of_classified", "pct_ia_of_classified"],
+  "graph.x_axis.title_text": "Period",
+  "graph.y_axis.title_text": "% of classified materials"
+}
