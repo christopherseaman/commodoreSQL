@@ -35,5 +35,15 @@
   "dashboard_data_quality_pricing_filtered": 11,
   "30_report_overview": 80,
   "dashboard_report": 13,
-  "40_report_cost": 81
+  "40_report_cost": 81,
+  "31_oer_ia_rate_among_classified": 82,
+  "32_formattype_coverage_over_time": 83,
+  "50_lineage_catalog": 84,
+  "51_lineage_merged": 85,
+  "52_lineage_pricing": 86,
+  "53_lineage_pricing_wide": 87,
+  "54_lineage_section_cost": 88,
+  "55_lineage_master_section": 89,
+  "56_lineage_master_course": 90,
+  "dashboard_data_lineage": 14
 }

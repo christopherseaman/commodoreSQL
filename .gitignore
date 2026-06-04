@@ -34,6 +34,9 @@ metabase-backups/
 # Local environment (contains credentials — do not commit)
 dot.env
 
+# Scratch scripts (probes, one-off runners)
+.temp/
+
 # Metabase bundled drivers (extracted by official image on startup; only duckdb is custom)
 plugins/*.jar
 !plugins/duckdb.metabase-driver.jar

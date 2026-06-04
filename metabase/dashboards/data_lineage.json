@@ -1,0 +1,16 @@
+[
+  { "__meta__": {
+      "name": "Data Lineage — by School",
+      "description": "Walk one school's data through every pipeline stage to show how the final values were derived. Set the School (unit_id) filter. Examples: 100937 Birmingham-Southern, 110404 Caltech, 112251 Claremont Graduate, 114433 Feather River CC, 115409 Harvey Mudd.",
+      "parameters": [
+        { "name": "School (unit_id)", "slug": "unit_id", "type": "string/=", "default": "115409" }
+      ]
+  } },
+  { "question": "50_lineage_catalog",        "row":  0, "col": 0, "size_x": 24, "size_y": 6 },
+  { "question": "51_lineage_merged",         "row":  6, "col": 0, "size_x": 24, "size_y": 6 },
+  { "question": "52_lineage_pricing",        "row": 12, "col": 0, "size_x": 24, "size_y": 6 },
+  { "question": "53_lineage_pricing_wide",   "row": 18, "col": 0, "size_x": 24, "size_y": 6 },
+  { "question": "54_lineage_section_cost",   "row": 24, "col": 0, "size_x": 24, "size_y": 6 },
+  { "question": "55_lineage_master_section", "row": 30, "col": 0, "size_x": 24, "size_y": 6 },
+  { "question": "56_lineage_master_course",  "row": 36, "col": 0, "size_x": 24, "size_y": 6 }
+]

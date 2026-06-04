@@ -267,13 +267,16 @@ def build_dashboard_parameters(meta: dict) -> list:
     """Dashboard-level filter params (stable ids derived from slug)."""
     out = []
     for p in meta.get("parameters", []):
-        out.append({
+        param = {
             "id": _stable_param_id(p["slug"]),
             "name": p["name"],
             "slug": p["slug"],
             "type": p.get("type", "string/="),
             "sectionId": p.get("sectionId", "string"),
-        })
+        }
+        if "default" in p:
+            param["default"] = p["default"]
+        out.append(param)
     return out
 
 
@@ -302,11 +305,14 @@ def sync_dashboard(path: Path, ids: dict, dry_run: bool) -> dict:
             print(f"  Warning: question '{q_key}' not in ids.json — skipping card", file=sys.stderr)
             continue
         card_tags = load_params(QUESTIONS_DIR / f"{q_key}.sql")
-        pmaps = [
-            {"parameter_id": p["id"], "card_id": card_id,
-             "target": ["dimension", ["template-tag", p["slug"]]]}
-            for p in params_out if p["slug"] in card_tags
-        ]
+        pmaps = []
+        for p in params_out:
+            if p["slug"] not in card_tags:
+                continue
+            # field filters target a dimension; raw {{variables}} target a variable
+            kind = "dimension" if "field" in card_tags[p["slug"]] else "variable"
+            pmaps.append({"parameter_id": p["id"], "card_id": card_id,
+                          "target": [kind, ["template-tag", p["slug"]]]})
         dashcards.append({
             "id": -(i + 1),  # negative sentinel for new dashcards; Metabase replaces on save
             "card_id": card_id,
