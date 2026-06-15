@@ -155,15 +155,15 @@ SELECT
 FROM (
     SELECT *,
         -- Diagnostic availability flags (one section per row): which fill signals EXIST,
-        -- NOT that any value was imputed. enrollment_has_* are pure facts decoupled from
+        -- NOT that any value was imputed. has_enrollment_* are pure facts decoupled from
         -- has_enrollment (a section with its own enrollment can still have a sibling with
         -- enrollment); to assess a MISSING section, combine with NOT has_enrollment.
         -- Sibling = a DIFFERENT section in the same (course_id, period_sortable).
         -- TODO(#32): optionally expose the numeric fill candidate, not just availability.
         own_has_enrollment AS has_enrollment,
-        ((course_enroll_sections - CASE WHEN own_has_enrollment THEN 1 ELSE 0 END) > 0) AS enrollment_has_sibling,
-        own_has_seats                                                                   AS enrollment_has_own_seats,
-        ((course_seats_sections  - CASE WHEN own_has_seats      THEN 1 ELSE 0 END) > 0) AS enrollment_has_sibling_seats
+        ((course_enroll_sections - CASE WHEN own_has_enrollment THEN 1 ELSE 0 END) > 0) AS has_enrollment_sibling,
+        own_has_seats                                                                   AS has_enrollment_own_seats,
+        ((course_seats_sections  - CASE WHEN own_has_seats      THEN 1 ELSE 0 END) > 0) AS has_enrollment_sibling_seats
     FROM with_course
 ) base
 LEFT JOIN section_cost sc ON base.section_id = sc.section_id;
@@ -350,12 +350,12 @@ FROM (
 SELECT 'enrollment fill-potential (sections)' AS note,
        COUNT(*) FILTER (WHERE has_enrollment)                                          AS has_enrollment,
        COUNT(*) FILTER (WHERE NOT has_enrollment)                                      AS missing,
-       COUNT(*) FILTER (WHERE NOT has_enrollment AND enrollment_has_sibling)           AS missing_w_sibling_enroll,
-       COUNT(*) FILTER (WHERE NOT has_enrollment AND enrollment_has_own_seats)         AS missing_w_own_seats,
-       COUNT(*) FILTER (WHERE NOT has_enrollment AND enrollment_has_sibling_seats)     AS missing_w_sibling_seats,
-       COUNT(*) FILTER (WHERE NOT has_enrollment AND NOT enrollment_has_sibling
-                          AND NOT enrollment_has_own_seats
-                          AND NOT enrollment_has_sibling_seats)                        AS unfillable
+       COUNT(*) FILTER (WHERE NOT has_enrollment AND has_enrollment_sibling)           AS missing_w_sibling_enroll,
+       COUNT(*) FILTER (WHERE NOT has_enrollment AND has_enrollment_own_seats)         AS missing_w_own_seats,
+       COUNT(*) FILTER (WHERE NOT has_enrollment AND has_enrollment_sibling_seats)     AS missing_w_sibling_seats,
+       COUNT(*) FILTER (WHERE NOT has_enrollment AND NOT has_enrollment_sibling
+                          AND NOT has_enrollment_own_seats
+                          AND NOT has_enrollment_sibling_seats)                        AS unfillable
 FROM master_section;
 
 SELECT 'OER/IA + ISBN coverage' AS note,

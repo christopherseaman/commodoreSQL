@@ -417,12 +417,12 @@ Table master_section [note: 'table'] {
   isbn_count integer [note: 'materials with an ISBN']
   classified_count integer [note: 'materials carrying a FormatType']
   // -- enrollment fill-potential flags (diagnostic availability; enrollment is NOT imputed).
-  //    enrollment_has_* are pure facts (decoupled from has_enrollment); assess a missing
-  //    section via NOT has_enrollment AND enrollment_has_*. TODO(#32): numeric fill value. --
+  //    has_enrollment_* are pure facts (decoupled from has_enrollment); assess a missing
+  //    section via NOT has_enrollment AND has_enrollment_*. TODO(#32): numeric fill value. --
   has_enrollment boolean [note: 'section carries its own enrollment']
-  enrollment_has_sibling boolean [note: 'another section of the same course+period has enrollment']
-  enrollment_has_own_seats boolean [note: 'this section has usable seats_taken (<9999)']
-  enrollment_has_sibling_seats boolean [note: 'a sibling section has usable seats_taken']
+  has_enrollment_sibling boolean [note: 'another section of the same course+period has enrollment']
+  has_enrollment_own_seats boolean [note: 'this section has usable seats_taken (<9999)']
+  has_enrollment_sibling_seats boolean [note: 'a sibling section has usable seats_taken']
   required_cost_total_min decimal [note: 'SUM of per-material price_min over distinct required materials (from section_cost)']
   required_cost_total_max decimal
   optional_cost_total_min decimal
