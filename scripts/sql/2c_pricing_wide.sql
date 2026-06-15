@@ -23,9 +23,29 @@ DROP TABLE IF EXISTS pricing_wide;
 DROP VIEW  IF EXISTS pricing_wide;
 
 CREATE TABLE pricing_wide AS
+WITH inst AS (
+    -- Institution enrichment mirror (same upstream source as master_section:
+    -- comprehensive_data), per unit_id since institution attrs are unit-grain. Pulls from
+    -- the upstream merge, NOT master_section, which is built downstream of pricing_wide.
+    SELECT
+        unit_id,
+        ANY_VALUE(state)                    AS state,
+        ANY_VALUE(control)                  AS control,
+        ANY_VALUE(level)                    AS level,
+        ANY_VALUE(size)                     AS size,
+        ANY_VALUE(sector)                   AS sector,
+        ANY_VALUE(institution_name)         AS institution_name,
+        ANY_VALUE(institution_type)         AS institution_type,
+        ANY_VALUE(enrollment_2024)          AS enrollment_2024,
+        ANY_VALUE(distance_enrollment_2024) AS distance_enrollment_2024
+    FROM comprehensive_data
+    GROUP BY unit_id
+),
+agg AS (
 SELECT
     section_id,
     isbn13,
+    MAX(unit_id)::BIGINT    AS unit_id,
     BOOL_OR(required)       AS required,
     BOOL_OR(filter_include) AS filter_include,
     -- is_oer / is_ia stored on pricing_historical via 2b_pricing_oer_ia.sql
@@ -83,7 +103,14 @@ SELECT
 -- price >= 9999 is treated as "no price" (#27). Adjust the threshold if a real
 -- ceiling above that is confirmed.
 FROM (SELECT * REPLACE (CASE WHEN price < 9999 THEN price END AS price) FROM pricing_historical)
-GROUP BY section_id, isbn13;
+GROUP BY section_id, isbn13
+)
+SELECT
+    agg.*,
+    inst.state, inst.control, inst.level, inst.size, inst.sector,
+    inst.institution_name, inst.institution_type, inst.enrollment_2024, inst.distance_enrollment_2024
+FROM agg
+LEFT JOIN inst ON agg.unit_id = inst.unit_id;
 
 CREATE VIEW pricing_wide_filtered AS
 SELECT * FROM pricing_wide WHERE filter_include;

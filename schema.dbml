@@ -184,6 +184,7 @@ Table state_region {
 Table pricing_wide {
   section_id varchar
   isbn13 varchar
+  unit_id bigint [note: 'MAX(unit_id) over the group (constant per section)']
   required boolean [note: 'BOOL_OR(required) over the (section, isbn) group']
   filter_include boolean [note: 'BOOL_OR(filter_include); TRUE = required + in-scope (period>=2024). pricing_wide_filtered is this subset.']
   is_oer boolean [note: 'BOOL_OR(is_oer) over the group; sourced from pricing_historical.is_oer']
@@ -222,8 +223,18 @@ Table pricing_wide {
   rental_days_max integer [note: 'longest rental term offered (~95 distinct values, summarized as range)']
   price_buy_min decimal [note: 'MIN buy-option price (owned; rentals excluded) — feeds owned cost']
   price_buy_max decimal [note: 'MAX buy-option price (owned; rentals excluded)']
+  // -- institution enrichment (ANY_VALUE per unit_id from comprehensive_data; mirrors master_section) --
+  state varchar
+  control varchar
+  level varchar
+  size varchar
+  sector varchar
+  institution_name varchar
+  institution_type varchar
+  enrollment_2024 integer
+  distance_enrollment_2024 integer
 
-  Note: 'TABLE (materialized). One row per (section_id × isbn13) over ALL pricing_historical (no filter). 18 price columns = option × condition × format. price_buy_min/max feed the "owned" cost columns. is_oer/is_ia from pricing_historical (2b_pricing_oer_ia). pricing_wide_filtered is the filter_include=TRUE subset.'
+  Note: 'TABLE (materialized). One row per (section_id × isbn13) over ALL pricing_historical (no filter). 18 price columns = option × condition × format. price_buy_min/max feed the "owned" cost columns. is_oer/is_ia from comprehensive_data per (section,isbn) (2b_pricing_oer_ia); institution enrichment from comprehensive_data per unit_id (2c). pricing_wide_filtered is the filter_include=TRUE subset.'
 }
 
 Table pricing_wide_filtered [note: 'view'] {
@@ -476,6 +487,10 @@ Table master_course [note: 'view'] {
   has_formattype boolean
   isbn_count integer [note: 'SUM of section isbn_count']
   classified_count integer [note: 'SUM of section classified_count']
+  has_enrollment_sections integer [note: 'count of the course''s sections with own enrollment (of section_count)']
+  has_enrollment_sibling_sections integer [note: 'sections with a sibling carrying enrollment']
+  has_enrollment_own_seats_sections integer [note: 'sections with usable own seats_taken']
+  has_enrollment_sibling_seats_sections integer [note: 'sections with a sibling carrying usable seats_taken']
   required_cost_total_min decimal [note: 'MIN(min) across sections — cost rolls up MIN/MAX/AVG, NOT SUM (sections share materials)']
   required_cost_total_max decimal
   optional_cost_total_min decimal

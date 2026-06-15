@@ -221,6 +221,12 @@ FROM (
         COALESCE(BOOL_OR(has_formattype), FALSE) AS has_formattype,
         SUM(isbn_count)       AS isbn_count,
         SUM(classified_count) AS classified_count,
+        -- enrollment fill-potential rolled to section counts (of section_count) — how many
+        -- of the course's sections carry each signal (2026-06-04 notes).
+        COUNT(*) FILTER (WHERE has_enrollment)               AS has_enrollment_sections,
+        COUNT(*) FILTER (WHERE has_enrollment_sibling)       AS has_enrollment_sibling_sections,
+        COUNT(*) FILTER (WHERE has_enrollment_own_seats)     AS has_enrollment_own_seats_sections,
+        COUNT(*) FILTER (WHERE has_enrollment_sibling_seats) AS has_enrollment_sibling_seats_sections,
         LIST(publishers) FILTER (WHERE publishers IS NOT NULL) AS all_publishers,
         SUM(required_publisher_count) AS unique_required_publishers
     FROM master_section
