@@ -213,6 +213,8 @@ Table pricing_wide {
   price_rental_na_digital decimal
   price_rental_na_na decimal
   format_count integer [note: 'COUNT(DISTINCT option × condition × format) FILTERed to buy/rental — equals non-null pivot cells, max 18']
+  has_buy boolean [note: 'BOOL_OR(book_option = buy) — a buy listing is offered (option presence, independent of price validity)']
+  has_rent boolean [note: 'BOOL_OR(book_option = rental) — a rental listing is offered (≫ rental_days_min coverage, since many rentals lack a term)']
   price_min decimal
   price_max decimal
   price_avg decimal [note: 'LEGACY definition: (price_min + price_max) / 2 — NOT the arithmetic mean. See CLAUDE.md.']
@@ -372,12 +374,23 @@ Table section_cost {
   Note: 'TABLE. One row per section_id (2024+). Cost over DISTINCT priced (section_id, ISBN13) materials, required vs non-required via filter_include. owned = buy-only. Feeds master_section (join) and master_course (MIN/MAX/AVG rollup).'
 }
 
-Table master_section [note: 'view'] {
+Table master_section [note: 'table'] {
   section_id varchar
   course_id varchar
   period varchar
   period_sortable varchar
   period_date date
+  // -- institution enrichment (ANY_VALUE; constant per unit_id -> per section_id) --
+  unit_id bigint
+  state varchar
+  control varchar
+  level varchar
+  size varchar
+  sector varchar
+  institution_name varchar
+  institution_type varchar
+  enrollment_2024 integer
+  distance_enrollment_2024 integer
   school varchar
   department varchar
   course_number varchar
@@ -398,6 +411,16 @@ Table master_section [note: 'view'] {
   optional_publisher_count integer
   enrollments integer
   seats_taken integer
+  // -- coverage (2026-06-04 notes): ISBN presence + OER/IA classifiability --
+  has_isbn boolean [note: 'BOOL_OR(ISBN13 IS NOT NULL) over section materials']
+  has_formattype boolean [note: 'BOOL_OR(FormatType present) — the OER/IA classifiability flag (is_oer/is_ia are NULL exactly when FormatType is absent)']
+  isbn_count integer [note: 'materials with an ISBN']
+  classified_count integer [note: 'materials carrying a FormatType']
+  // -- enrollment fill-potential flags (diagnostic; enrollment is NOT imputed) --
+  has_enrollment boolean [note: 'section carries its own enrollment']
+  fill_sibling_enrollment boolean [note: 'missing, but another section of the same course+period has enrollment']
+  fill_own_seats boolean [note: 'missing, but this section has usable seats_taken (<9999)']
+  fill_sibling_seats boolean [note: 'missing, but a sibling section has usable seats_taken']
   required_cost_total_min decimal [note: 'SUM of per-material price_min over distinct required materials (from section_cost)']
   required_cost_total_max decimal
   optional_cost_total_min decimal
@@ -412,7 +435,7 @@ Table master_section [note: 'view'] {
   required_priced_count integer [note: 'distinct required materials with ANY price (total coverage; NOT owned-only — can be >0 while owned cost is NULL when priced materials are rental-only)']
   optional_priced_count integer
 
-  Note: 'One row per section-offering (2024+). Counts/OER from comprehensive_data; cost columns from section_cost (attached at section_id; repeats on the ~0.13% of section_ids that split into >1 row — read via the key). NOT strictly unique per section_id (descriptive cols can vary within a section_id from source noise).'
+  Note: 'TABLE (materialized — the course-sibling window + LIST aggregations are too expensive to recompute per query). One row per section_id (2024+). Counts/OER/coverage from comprehensive_data; institution enrichment via ANY_VALUE (0 divergence per unit); cost columns from section_cost. fill_* flags quantify enrollment fill-potential (values are NOT imputed) and overlap. unique per section_id (descriptive cols collapsed via mode()).'
 }
 
 Table master_course [note: 'view'] {
@@ -420,6 +443,17 @@ Table master_course [note: 'view'] {
   period varchar
   period_sortable varchar
   period_date date
+  // -- institution enrichment (ANY_VALUE; constant per unit_id -> per course) --
+  unit_id bigint
+  state varchar
+  control varchar
+  level varchar
+  size varchar
+  sector varchar
+  institution_name varchar
+  institution_type varchar
+  enrollment_2024 integer
+  distance_enrollment_2024 integer
   school varchar
   department varchar
   course_number varchar
@@ -436,6 +470,10 @@ Table master_course [note: 'view'] {
   is_ia boolean
   oer_count integer [note: 'SUM of section oer_count']
   ia_count integer
+  has_isbn boolean [note: 'BOOL_OR across course sections']
+  has_formattype boolean
+  isbn_count integer [note: 'SUM of section isbn_count']
+  classified_count integer [note: 'SUM of section classified_count']
   required_cost_total_min decimal [note: 'MIN(min) across sections — cost rolls up MIN/MAX/AVG, NOT SUM (sections share materials)']
   required_cost_total_max decimal
   optional_cost_total_min decimal

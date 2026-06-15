@@ -50,20 +50,15 @@ GROUP BY section_id;
 -- Create master_section: exactly one row per section_id (2024+). Collapsed by section_id;
 -- descriptive cols resolved via mode() (most-frequent) / ANY_VALUE (constant) / MAX (#24 —
 -- see the divergence DQ at the bottom). Cost columns (#2/#3/#4) join 1:1 on section_id.
-DROP VIEW IF EXISTS master_section;
-CREATE VIEW master_section AS
-SELECT
-    base.*,
-    sc.required_cost_total_min, sc.required_cost_total_max,
-    sc.optional_cost_total_min, sc.optional_cost_total_max,
-    sc.required_cost_owned_min, sc.required_cost_owned_max,
-    sc.optional_cost_owned_min, sc.optional_cost_owned_max,
-    -- price_avg convention: (min + max) / 2, NOT an arithmetic mean (see CLAUDE.md)
-    (sc.required_cost_total_min + sc.required_cost_total_max) / 2.0 AS required_cost_avg,
-    (sc.required_cost_owned_min + sc.required_cost_owned_max) / 2.0 AS required_cost_owned_avg,
-    (sc.optional_cost_total_min + sc.optional_cost_total_max) / 2.0 AS optional_cost_avg,
-    sc.required_priced_count, sc.optional_priced_count
-FROM (
+-- Materialized as a TABLE (not a VIEW): the course-sibling window + LIST(DISTINCT publisher)
+-- aggregations are far too expensive to recompute per query — a single Metabase SELECT *
+-- would re-derive the whole 23.5M-row window. Drop dependents first (they reference it).
+DROP VIEW  IF EXISTS master_course_material;
+DROP VIEW  IF EXISTS master_course;
+DROP VIEW  IF EXISTS master_section;
+DROP TABLE IF EXISTS master_section;
+CREATE TABLE master_section AS
+WITH per_section AS (
     SELECT
         section_id,
         -- course_id/period_sortable are substrings of section_id, and period/period_date
@@ -73,6 +68,20 @@ FROM (
         ANY_VALUE(period)          AS period,
         ANY_VALUE(period_sortable) AS period_sortable,
         ANY_VALUE(period_date)     AS period_date,
+        -- Institution enrichment (IPEDS + catalog state), keyed on unit_id -> constant per
+        -- section_id (0 divergence verified across 2,428 units), so ANY_VALUE is exact.
+        -- Carried through the collapse so master_section is the complete enriched section
+        -- record and downstream filters (state / control / size ...) need no re-join.
+        ANY_VALUE(unit_id)                  AS unit_id,
+        ANY_VALUE(state)                    AS state,
+        ANY_VALUE(control)                  AS control,
+        ANY_VALUE(level)                    AS level,
+        ANY_VALUE(size)                     AS size,
+        ANY_VALUE(sector)                   AS sector,
+        ANY_VALUE(institution_name)         AS institution_name,
+        ANY_VALUE(institution_type)         AS institution_type,
+        ANY_VALUE(enrollment_2024)          AS enrollment_2024,
+        ANY_VALUE(distance_enrollment_2024) AS distance_enrollment_2024,
         -- descriptive cols can diverge within a section_id (source-noise spelling /
         -- normalization variants, e.g. raw course_number "101" vs "0101" that normalize
         -- to one section_id); mode() keeps the most-frequent value. enrollments/seats_taken
@@ -104,7 +113,17 @@ FROM (
         COUNT(DISTINCT publisher) FILTER (WHERE filter_include)     AS required_publisher_count,
         COUNT(DISTINCT publisher) FILTER (WHERE NOT filter_include) AS optional_publisher_count,
         MAX(enrollments) AS enrollments,
-        MAX(seats_taken) AS seats_taken
+        MAX(seats_taken) AS seats_taken,
+        -- Coverage (2026-06-04 notes): ISBN presence + OER/IA classifiability per section.
+        -- is_oer/is_ia are NULL exactly when FormatType is absent, so has_formattype is the
+        -- classifiability flag; the counts give the per-section coverage numerator.
+        COALESCE(BOOL_OR(ISBN13 IS NOT NULL), FALSE)                              AS has_isbn,
+        COALESCE(BOOL_OR("FormatType" IS NOT NULL AND "FormatType" <> ''), FALSE) AS has_formattype,
+        COUNT(*) FILTER (WHERE ISBN13 IS NOT NULL)                                AS isbn_count,
+        COUNT(*) FILTER (WHERE "FormatType" IS NOT NULL AND "FormatType" <> '')   AS classified_count,
+        -- Enrollment fill-potential helpers (diagnostic only — values are NOT imputed).
+        (MAX(enrollments) IS NOT NULL)                             AS own_has_enrollment,
+        (MAX(seats_taken) IS NOT NULL AND MAX(seats_taken) < 9999) AS own_has_seats
     FROM comprehensive_data
     WHERE
         section_id IS NOT NULL AND
@@ -113,6 +132,37 @@ FROM (
         -- required_count (= filter_include count) is meaningful on every row.
         period_date >= '2024-01-01'
     GROUP BY section_id
+),
+with_course AS (
+    -- Sibling context within the same (course_id, period_sortable): how many sibling
+    -- sections carry enrollment / usable seats_taken, feeding the fill-potential flags.
+    SELECT *,
+        SUM(CASE WHEN own_has_enrollment THEN 1 ELSE 0 END) OVER w AS course_enroll_sections,
+        SUM(CASE WHEN own_has_seats      THEN 1 ELSE 0 END) OVER w AS course_seats_sections
+    FROM per_section
+    WINDOW w AS (PARTITION BY course_id, period_sortable)
+)
+SELECT
+    base.* EXCLUDE (own_has_enrollment, own_has_seats, course_enroll_sections, course_seats_sections),
+    sc.required_cost_total_min, sc.required_cost_total_max,
+    sc.optional_cost_total_min, sc.optional_cost_total_max,
+    sc.required_cost_owned_min, sc.required_cost_owned_max,
+    sc.optional_cost_owned_min, sc.optional_cost_owned_max,
+    -- price_avg convention: (min + max) / 2, NOT an arithmetic mean (see CLAUDE.md)
+    (sc.required_cost_total_min + sc.required_cost_total_max) / 2.0 AS required_cost_avg,
+    (sc.required_cost_owned_min + sc.required_cost_owned_max) / 2.0 AS required_cost_owned_avg,
+    (sc.optional_cost_total_min + sc.optional_cost_total_max) / 2.0 AS optional_cost_avg,
+    sc.required_priced_count, sc.optional_priced_count
+FROM (
+    SELECT *,
+        -- Four diagnostic flags (one section per row). fill_* are meaningful only when
+        -- enrollment is missing; each marks a distinct signal that COULD fill it.
+        own_has_enrollment                                      AS has_enrollment,
+        (NOT own_has_enrollment AND course_enroll_sections > 0) AS fill_sibling_enrollment,
+        (NOT own_has_enrollment AND own_has_seats)              AS fill_own_seats,
+        (NOT own_has_enrollment
+         AND (course_seats_sections - CASE WHEN own_has_seats THEN 1 ELSE 0 END) > 0) AS fill_sibling_seats
+    FROM with_course
 ) base
 LEFT JOIN section_cost sc ON base.section_id = sc.section_id;
 
@@ -135,6 +185,17 @@ FROM (
         period_sortable,
         ANY_VALUE(period)      AS period,
         ANY_VALUE(period_date) AS period_date,
+        -- institution enrichment (constant per unit -> per course), carried from master_section
+        ANY_VALUE(unit_id)                  AS unit_id,
+        ANY_VALUE(state)                    AS state,
+        ANY_VALUE(control)                  AS control,
+        ANY_VALUE(level)                    AS level,
+        ANY_VALUE(size)                     AS size,
+        ANY_VALUE(sector)                   AS sector,
+        ANY_VALUE(institution_name)         AS institution_name,
+        ANY_VALUE(institution_type)         AS institution_type,
+        ANY_VALUE(enrollment_2024)          AS enrollment_2024,
+        ANY_VALUE(distance_enrollment_2024) AS distance_enrollment_2024,
         mode(school)           AS school,
         mode(department)       AS department,
         mode(course_number)    AS course_number,
@@ -153,6 +214,11 @@ FROM (
         COALESCE(BOOL_OR(is_ia),  FALSE) AS is_ia,
         SUM(oer_count) AS oer_count,
         SUM(ia_count)  AS ia_count,
+        -- coverage rollup (2026-06-04 notes): any-section indicator + summed material counts
+        COALESCE(BOOL_OR(has_isbn), FALSE)       AS has_isbn,
+        COALESCE(BOOL_OR(has_formattype), FALSE) AS has_formattype,
+        SUM(isbn_count)       AS isbn_count,
+        SUM(classified_count) AS classified_count,
         LIST(publishers) FILTER (WHERE publishers IS NOT NULL) AS all_publishers,
         SUM(required_publisher_count) AS unique_required_publishers
     FROM master_section
@@ -274,3 +340,24 @@ FROM (
     WHERE period_date >= '2024-01-01' AND section_id IS NOT NULL AND period_sortable IS NOT NULL
     GROUP BY section_id
 );
+
+-- Coverage summary (informational, 2026-06-04 notes). Values are NOT imputed; these
+-- quantify how much of the missing-enrollment gap COULD be filled from each signal, and
+-- how many materials are ISBN'd / OER-IA-classifiable. fill_* flags overlap (a section can
+-- be fillable from more than one signal), so they do not sum to (missing - unfillable).
+SELECT 'enrollment fill-potential (sections)' AS note,
+       COUNT(*) FILTER (WHERE has_enrollment)          AS has_enrollment,
+       COUNT(*) FILTER (WHERE NOT has_enrollment)      AS missing,
+       COUNT(*) FILTER (WHERE fill_sibling_enrollment) AS fill_sibling_enroll,
+       COUNT(*) FILTER (WHERE fill_own_seats)          AS fill_own_seats,
+       COUNT(*) FILTER (WHERE fill_sibling_seats)      AS fill_sibling_seats,
+       COUNT(*) FILTER (WHERE NOT has_enrollment AND NOT fill_sibling_enrollment
+                          AND NOT fill_own_seats AND NOT fill_sibling_seats) AS unfillable
+FROM master_section;
+
+SELECT 'OER/IA + ISBN coverage' AS note,
+       COUNT(*) FILTER (WHERE has_isbn)       AS sections_with_isbn,
+       COUNT(*) FILTER (WHERE has_formattype) AS sections_with_classified,
+       SUM(isbn_count)       AS isbn_materials,
+       SUM(classified_count) AS classified_materials
+FROM master_section;

@@ -64,6 +64,11 @@ SELECT
     MAX(CASE WHEN book_option = 'rental' AND book_condition IS NULL AND book_format IS NULL      THEN price END) AS price_rental_na_na,
     -- Fact aggregations: <dimension>_<aggfunc>
     COUNT(DISTINCT (book_option, book_condition, book_format)) FILTER (WHERE book_option IN ('buy', 'rental')) AS format_count,
+    -- Option availability: is a buy / rental listing offered for this material?
+    -- (presence of the option, independent of price validity — price_buy_min /
+    -- rental_days_min indicate priced availability. book_option NULL counts as neither.)
+    BOOL_OR(book_option = 'buy')    AS has_buy,
+    BOOL_OR(book_option = 'rental') AS has_rent,
     MIN(price) AS price_min,
     MAX(price) AS price_max,
     -- LEGACY definition: price_avg = (min + max) / 2 — NOT the arithmetic mean. See CLAUDE.md.
@@ -93,6 +98,10 @@ UNION ALL
 SELECT 'Unique ISBNs', COUNT(DISTINCT isbn13)::VARCHAR FROM pricing_wide
 UNION ALL
 SELECT 'Required rows', COUNT(*)::VARCHAR FROM pricing_wide WHERE required = TRUE
+UNION ALL
+SELECT 'Materials with buy option', COUNT(*)::VARCHAR FROM pricing_wide WHERE has_buy
+UNION ALL
+SELECT 'Materials with rental option', COUNT(*)::VARCHAR FROM pricing_wide WHERE has_rent
 UNION ALL
 SELECT 'Avg format_count', ROUND(AVG(format_count), 2)::VARCHAR FROM pricing_wide;
 
