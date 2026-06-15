@@ -1,7 +1,7 @@
 -- name: Lineage 3 — Raw Cost (BMG pricing)
 -- display: table
--- description: Original BMG pricing rows (one per price option). Same school.
-SELECT section_id, isbn13, title, book_option, book_condition, book_format, rental_days, price
+-- description: Original BMG pricing rows (one per price option). Shows ALL columns for this stage so every field is traceable. Set the School (unit_id) filter.
+SELECT *
 FROM pricing_historical
 WHERE filter_include = TRUE
   [[ AND CAST(unit_id AS VARCHAR) = {{unit_id}} ]]

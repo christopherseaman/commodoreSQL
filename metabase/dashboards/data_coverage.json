@@ -1,0 +1,8 @@
+[
+  { "__meta__": {
+      "name": "Data Coverage & Fill-Potential",
+      "description": "Where values are missing and how much could be recovered. Enrollment is NOT imputed — the fill-potential flags only quantify recoverability (~28% of missing enrollment is fillable from some signal). OER/IA missingness is ISBN-structural: internal inference fills 0, so raising coverage needs an external ISBN→OER/IA source."
+  } },
+  { "question": "33_coverage_enrollment_fill", "row": 0, "col": 0,  "size_x": 12, "size_y": 7 },
+  { "question": "34_coverage_oer_ia_isbn",     "row": 0, "col": 12, "size_x": 12, "size_y": 7 }
+]

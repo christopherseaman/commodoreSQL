@@ -45,5 +45,9 @@
   "54_lineage_section_cost": 88,
   "55_lineage_master_section": 89,
   "56_lineage_master_course": 90,
-  "dashboard_data_lineage": 14
+  "dashboard_data_lineage": 14,
+  "33_coverage_enrollment_fill": 91,
+  "34_coverage_oer_ia_isbn": 92,
+  "dashboard_data_coverage": 15,
+  "35_sections_ca_public_fall2025": 93
 }
