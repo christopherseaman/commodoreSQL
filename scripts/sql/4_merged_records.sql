@@ -55,7 +55,6 @@ GROUP BY section_id;
 -- would re-derive the whole 23.5M-row window. Drop dependents first (they reference it).
 DROP VIEW  IF EXISTS master_course_material;
 DROP VIEW  IF EXISTS master_course;
-DROP VIEW  IF EXISTS master_section;
 DROP TABLE IF EXISTS master_section;
 CREATE TABLE master_section AS
 WITH per_section AS (
@@ -155,13 +154,16 @@ SELECT
     sc.required_priced_count, sc.optional_priced_count
 FROM (
     SELECT *,
-        -- Four diagnostic flags (one section per row). fill_* are meaningful only when
-        -- enrollment is missing; each marks a distinct signal that COULD fill it.
-        own_has_enrollment                                      AS has_enrollment,
-        (NOT own_has_enrollment AND course_enroll_sections > 0) AS fill_sibling_enrollment,
-        (NOT own_has_enrollment AND own_has_seats)              AS fill_own_seats,
-        (NOT own_has_enrollment
-         AND (course_seats_sections - CASE WHEN own_has_seats THEN 1 ELSE 0 END) > 0) AS fill_sibling_seats
+        -- Diagnostic availability flags (one section per row): which fill signals EXIST,
+        -- NOT that any value was imputed. enrollment_has_* are pure facts decoupled from
+        -- has_enrollment (a section with its own enrollment can still have a sibling with
+        -- enrollment); to assess a MISSING section, combine with NOT has_enrollment.
+        -- Sibling = a DIFFERENT section in the same (course_id, period_sortable).
+        -- TODO(#32): optionally expose the numeric fill candidate, not just availability.
+        own_has_enrollment AS has_enrollment,
+        ((course_enroll_sections - CASE WHEN own_has_enrollment THEN 1 ELSE 0 END) > 0) AS enrollment_has_sibling,
+        own_has_seats                                                                   AS enrollment_has_own_seats,
+        ((course_seats_sections  - CASE WHEN own_has_seats      THEN 1 ELSE 0 END) > 0) AS enrollment_has_sibling_seats
     FROM with_course
 ) base
 LEFT JOIN section_cost sc ON base.section_id = sc.section_id;
@@ -343,16 +345,17 @@ FROM (
 
 -- Coverage summary (informational, 2026-06-04 notes). Values are NOT imputed; these
 -- quantify how much of the missing-enrollment gap COULD be filled from each signal, and
--- how many materials are ISBN'd / OER-IA-classifiable. fill_* flags overlap (a section can
--- be fillable from more than one signal), so they do not sum to (missing - unfillable).
+-- how many materials are ISBN'd / OER-IA-classifiable. The fillable signals overlap (a
+-- section can be fillable from more than one), so they do not sum to (missing - unfillable).
 SELECT 'enrollment fill-potential (sections)' AS note,
-       COUNT(*) FILTER (WHERE has_enrollment)          AS has_enrollment,
-       COUNT(*) FILTER (WHERE NOT has_enrollment)      AS missing,
-       COUNT(*) FILTER (WHERE fill_sibling_enrollment) AS fill_sibling_enroll,
-       COUNT(*) FILTER (WHERE fill_own_seats)          AS fill_own_seats,
-       COUNT(*) FILTER (WHERE fill_sibling_seats)      AS fill_sibling_seats,
-       COUNT(*) FILTER (WHERE NOT has_enrollment AND NOT fill_sibling_enrollment
-                          AND NOT fill_own_seats AND NOT fill_sibling_seats) AS unfillable
+       COUNT(*) FILTER (WHERE has_enrollment)                                          AS has_enrollment,
+       COUNT(*) FILTER (WHERE NOT has_enrollment)                                      AS missing,
+       COUNT(*) FILTER (WHERE NOT has_enrollment AND enrollment_has_sibling)           AS missing_w_sibling_enroll,
+       COUNT(*) FILTER (WHERE NOT has_enrollment AND enrollment_has_own_seats)         AS missing_w_own_seats,
+       COUNT(*) FILTER (WHERE NOT has_enrollment AND enrollment_has_sibling_seats)     AS missing_w_sibling_seats,
+       COUNT(*) FILTER (WHERE NOT has_enrollment AND NOT enrollment_has_sibling
+                          AND NOT enrollment_has_own_seats
+                          AND NOT enrollment_has_sibling_seats)                        AS unfillable
 FROM master_section;
 
 SELECT 'OER/IA + ISBN coverage' AS note,
