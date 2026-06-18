@@ -1,18 +1,18 @@
--- name: Top-100 ISBN Cost Extract — Fall 2025 (institution × course × faculty)
+-- name: Top-125 ISBN Cost Extract — Fall 2025 (institution × course × faculty)
 -- display: table
--- description: One row per Fall-2025 (period 2025-4) section-adoption of the 100 most common ISBNs (ranked by distinct sections). Carries institution class (control, iclevel, instsize, sector), course, faculty, and the full pricing breakdown (buy/rental × new/used × physical/digital) from pricing_wide. Built for cost-difference analysis across institution classes (e.g. public 2-year vs private 4-year). ~166k rows; ~63% have a matched bookstore price (LEFT JOIN — NULL cost = no pricing row). Up to ~252 exact within-period source dupes (negligible).
+-- description: One row per Fall-2025 (period 2025-4) section-adoption of the 125 most common ISBNs (ranked by distinct sections). Carries institution class (control, iclevel, instsize, sector), the required flag (filter_include = inferred is_required, issue #1), course, faculty, and the full pricing breakdown (buy/rental × new/used × physical/digital) from pricing_wide. Built for cost-difference analysis across institution classes (e.g. public 2-year vs private 4-year). ~183k rows; ~63% have a matched bookstore price (LEFT JOIN — NULL cost = no pricing row); ~75% are required. A handful of exact within-period source dupes (negligible).
 WITH top_isbns AS (
     SELECT ISBN13
     FROM comprehensive_data
     WHERE period_sortable = '2025-4' AND ISBN13 IS NOT NULL
     GROUP BY ISBN13
     ORDER BY COUNT(DISTINCT section_id) DESC
-    LIMIT 100
+    LIMIT 125
 )
 SELECT
-    -- material identity
+    -- material identity (filter_include = inferred is_required, issue #1)
     c.ISBN13, c.Title AS book_title, c.Author, c.Publisher,
-    c.book_status, c.is_oer, c.is_ia,
+    c.book_status, c.filter_include, c.is_oer, c.is_ia,
     -- institution (class dimensions for the analysis)
     c.unit_id, c.institution_name, c.state, c.control,
     c.level AS iclevel, c.size AS instsize, c.sector, c.institution_type,
