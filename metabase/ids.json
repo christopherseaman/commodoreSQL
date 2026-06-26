@@ -52,5 +52,10 @@
   "35_sections_ca_public_fall2025": 93,
   "36_top125_isbn_cost_extract": 125,
   "37_fall2025_setA_has_required": 126,
-  "38_fall2025_setB_no_required": 127
+  "38_fall2025_setB_no_required": 127,
+  "39_fall2025_tally_counts_by_class": 128,
+  "40_fall2025_tally_enrollment_fillpotential": 129,
+  "41_fall2025_tally_enrollment_distribution": 130,
+  "42_fall2025_tally_cost_by_class": 131,
+  "43_fall2025_tally_oer_ia_materials_coverage": 132
 }
