@@ -50,5 +50,7 @@
   "34_coverage_oer_ia_isbn": 92,
   "dashboard_data_coverage": 15,
   "35_sections_ca_public_fall2025": 93,
-  "36_top125_isbn_cost_extract": 125
+  "36_top125_isbn_cost_extract": 125,
+  "37_fall2025_setA_has_required": 126,
+  "38_fall2025_setB_no_required": 127
 }
