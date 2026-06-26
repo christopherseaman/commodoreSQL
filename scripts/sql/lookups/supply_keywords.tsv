@@ -1,0 +1,111 @@
+kind	pattern	category	precision_est	notes
+include	lab notebook	science_lab	0.97	Physical carbonless/spiral student lab notebooks (chem/orgo/engineering). Multi-word, no collision with 'notebook' computers. One borderline 'Organic Chemistry I Lab Manual / Lab Notebook' but still a physical book.
+include	goggle	science_lab	0.97	Safety/chemical-splash goggles (Uvex, Encon, Pyramex, etc). 40 sampled all supplies. Tiny risk: children's book 'Goggles!' (Ezra Jack Keats) not observed among matches.
+include	lab coat	science_lab	0.99	Unisex/Dickies/Tyvek lab coats, rentals, vouchers, info-only lines. Space-delimited multi-word; no book collisions.
+include	glove	science_lab	0.98	Welding/nitrile/exam/cut-resistant/fire gloves. One collision: author 'Glover' (WebAssign for Glover's Power System), 1 title/8 rows — negligible.
+include	safety glass	science_lab	1	100% safety glasses/eyewear. 'safety glass' substring covers all 'safety glasses' matches identically (same 34/570/39). No chemistry-glassware collision.
+include	stethoscope	science_lab	0.96	Littmann/MDF stethoscopes, BP kits. One book collision: 'Other End of the Stethoscope' (15 rows). 24/25 sampled titles are supplies.
+include	nitrile	science_lab	1	100% nitrile exam/disposable gloves. Redundant with 'glove' (every nitrile title also contains glove) but clean; kept for robustness.
+include	dissecting kit	science_lab	1	McCoy/intermediate dissecting kits. Narrowed from bare 'dissecting' to avoid 'Dissecting the Hack' book.
+include	dissection kit	science_lab	1	Brain/heart/organ/precision dissection kits. Narrowed from bare 'dissection' which collides with anatomy lab manuals.
+include	apron	science_lab	0.95	Physical aprons (chemical-resistant, art/painting, culinary/bistro, Blick >supply<). Cross-category (also art/culinary) but all genuine supplies; no book collisions observed.
+include	lab jacket	science_lab	1	Physical lab jackets by size. Equivalent to lab coat; no collisions.
+include	dissecting set	science_lab	1	'DELUXE DISSECTING SET', 'Dissecting Set/ General Biology' — physical kits.
+include	face shield	science_lab	1	Coverall/CPR/forestry face shields — all PPE supplies.
+include	microscope slide	science_lab	1	Carolina prepared slides box, blank slides + cover glass. Multi-word; bare 'microscope' excluded (book + lab-kit collisions).
+include	x-acto	art_drafting	1	X-Acto hobby knives/blades/kits, all supplies. Use HYPHENATED form; bare 'xacto' catches 'Exacto!' (Spanish textbook).
+include	drawing pencil	art_drafting	0.99	Semi-hex/Ebony/General's/Staedtler/Tombow drawing pencils + sets. No book collisions.
+include	kneaded eraser	art_drafting	1	Art kneaded erasers + required-supply lists. Distinctive, no collisions.
+include	drawing pad	art_drafting	1	Strathmore/Blick drawing paper pads. No book collisions.
+include	sketch pad	art_drafting	0.98	Physical sketch pads (XL/Strathmore/Canson/Blick). Clean — unlike 'sketchbook' which hits the Fashion Sketchbook textbook family.
+include	canvas panel	art_drafting	1	Blick/Winsor canvas panels. No collisions.
+include	canvas pad	art_drafting	1	Blick Canvas Pad. Single title, clean.
+include	sharpie	art_drafting	0.89	Sharpie markers/highlighters (supplies). Collision: 'Stolen Sharpie Revolution' (DIY zine book), 2 title entries.
+include	graphite	art_drafting	0.95	Graphite pencils/sticks/crayons. Only non-art match is Samsung Galaxy Tab in graphite COLOR (still a physical supply, no textbook collision).
+include	charcoal	art_drafting	0.94	Art charcoal sticks/pencils/kits + apparel/uniform in charcoal color (all physical supplies). One book collision: 'Old Testament Handbook / Charcoal Cloth over Board' (binding-color descriptor) — watch journaling-Bible scaling risk.
+include	colored pencil	art_drafting	0.83	BORDERLINE 15/18 by title (~99.6% by rows; dominant 'Colored Pencil Erasers' = 2045 rows). Collides with 3 technique books: 'Colored Pencil Painting Bible', '101 Textures in Colored Pencil', 'Colored Pencil Explorations'.
+include	acrylic paint	art_drafting	0.9	Acrylic paint tubes/sets. Substring also matches 'acrylic painting' — caught 1 book ('Lee Hammond's Big Book of Acrylic Painting'); could scale with technique books.
+include	paint set	art_drafting	1	Liquitex/Pelikan/acrylic paint sets. Clean.
+include	watercolor set	art_drafting	1	Watercolor pan/pigment sets. Clean.
+include	watercolor pad	art_drafting	1	Watercolor paper pads + required-supply list. Clean.
+include	oil pastel	art_drafting	1	Sakura Cray-Pas oil pastel set. Single title, clean.
+include	conte crayon	art_drafting	1	Conte crayon boxes. Clean. (Use full phrase; bare 'conte' would collide with surnames/words.)
+include	gesso	art_drafting	1	Liquitex Gesso. Distinctive art-prep term, no collisions.
+include	blending stump	art_drafting	1	Pro Art/Richeson blending stumps. Clean.
+include	tortillon	art_drafting	1	Blending tortillons + required-supply list. Distinctive, no collisions.
+include	palette knife	art_drafting	1	Narrowed from bare 'palette' (which hits 'Mathematical Palette' textbook). Palette knives all supplies.
+include	marker set	art_drafting	1	Prismacolor art marker set. Bare 'marker' is unsafe; 'marker set' is clean (1 title here).
+include	newsprint	art_drafting	1	Newsprint art paper pads (Strathmore/Blick/Canson). Clean.
+include	bristol pad	art_drafting	1	Narrowed from bare 'bristol' (which hits Bristol Community College courseware, Jane Eyre/Bristol Old Vic, Bristol Bay). Bristol art-paper pads all supplies.
+include	matboard	art_drafting	1	Decorative/Crescent/Redimat matboard. Clean (one-word form).
+include	artbin	art_drafting	1	ArtBin storage boxes (brand, one word). Avoid spaced 'art bin'.
+include	drafting kit	art_drafting	1	Physical drafting tool kits. Narrowed from bare 'drafting' which is almost all textbooks (Drafting Contracts, Architectural Drafting & Design).
+include	drawing kit	art_drafting	0.97	Course-specific art drawing supply kits (ART 14 Intro to Drawing Kit, etc.) + General's pencil kit. All supplies.
+include	art kit	art_drafting	0.9	ARTT-course art supply kit vouchers (38/40). Substring risk: 'start kit'/'start kitchen' — caught 'START Kitchen ... Exam Voucher' and 'Jump Start Kit'. Watch 'quick start kit' courseware at scale.
+include	pottery tool	art_drafting	1	Kemper/Jack Richeson pottery tool kits. Narrowed from bare 'pottery' (technique books: Pottery Analysis, Complete Pottery Techniques).
+include	sculpting tool	art_drafting	1	Clay/pottery sculpting tool sets. Clean.
+include	stoneware	art_drafting	1	Stoneware clay material (Standard Stoneware Clay, Hi-Fire Stoneware). Captures clay-material supplies that bare 'clay' is too noisy to flag.
+include	calculator	math_tech_clickers	0.87	Workhorse keyword. ~98% precision by rows, ~87% by title. Dominated by TI-84/TI-30/scientific/financial calculators (genuine supplies). Title-level collisions (~18 titles / ~92 rows) are the 'Elementary Statistics Using the TI-83/84 Plus Calculator' textbook + MyLab/MyStatLab access-code family, 'Calculators and Cash' (a book), 'Ucentral...& Calculator' (nursing courseware), and 'Free Resource - Desmos Scientific Calculator'. Those are course materials, not supplies.
+include	flash drive	math_tech_clickers	0.96	Two-word pattern, near-clean. SanDisk/Kingston/PNY USB flash drives plus '4 Gb Or Larger Flash Drive Required' supply-requirement placeholders. Only collision: 'COLLABORATING FOR STUD...-W/FLASH DRIVE' (1 row, textbook bundled with drive).
+include	ti-nspire	math_tech_clickers	1	Hyphenated form REQUIRED. Catches 'TI-Nspire CX II CAS' (61 rows) which lacks the word 'calculator'. Bare 'nspire' is a trap: matches hundreds of 'Inspire'/'Inspired' book titles.
+include	ba ii plus	math_tech_clickers	1	TI BA II Plus financial calculator, 100% clean. 4 of 6 titles already contain 'calculator'; marginal new value ~10 rows ('Ba Ii Plus', 'TI BA II Plus'). Use full 'ba ii plus' rather than bare 'ba ii' to avoid obscure substring risk.
+include	ti-36	math_tech_clickers	1	Hyphenated. All matches are TI-36X PRO scientific/engineering calculators. Low volume but 100% precise.
+include	ti-89	math_tech_clickers	1	Hyphenated. TI-89 Titanium graphing calculators, 100% precise. Low volume.
+include	>supply<	paper_office_general	0.99	Explicit source-data supply tag appended to bookstore non-course items; ~100% genuine physical supplies in sample (paints, goggles, stethoscope, sketch pads, erasers, lab books, scantrons). Spans ALL supply categories, not just paper/office. Highest-precision general marker. Typo variant '>suppy<' exists separately (e.g. '...8.5 x 11>suppy<').
+include	composition book	paper_office_general	1	Office Depot / Roaring Spring / Universal composition books; all blank marble/quad notebooks. No collisions observed.
+include	composition notebook	paper_office_general	0.97	Blank marble/graph composition notebooks incl. blank Amazon grid-paper notebooks; several carry the >supply< tag. Distinct string from 'composition book'.
+include	graph paper	paper_office_general	0.97	Blank graph/grid paper notebooks, cross-section pads, engineering pads. No textbook collisions in sample.
+include	dividers	paper_office_general	1	Tab/insertable dividers; all 5 matched titles are office dividers.
+include	ring binder	paper_office_general	0.92	Ring / D-ring / round-ring view binders. One collision: 'Acret's...California Construction Law Manual 3 Ring Binder Ed' (textbook in binder format, 1 row). Critically avoids the 'binder ready/edition/version' loose-leaf-textbook trap that bare 'binder' hits.
+include	view binder	paper_office_general	1	Samsill/Cardinal pocket & round-ring view binders; all supplies.
+include	student planner	paper_office_general	1	'STUDENT PLANNER' physical academic planner. Bare 'planner' was rejected (Treatment/Platinum/Lesson Planner books); this narrow form is clean.
+include	scantron test	paper_office_general	1	'Scantron Test Form 5 Pack'. Narrowed from bare 'scantron' to dodge '(w/Scantron)' textbook bundles.
+include	scantron form	paper_office_general	1	'Scantron Form - Loose'. Companion narrow pattern to 'scantron test'.
+include	scantrons	paper_office_general	1	Plural 'Pack Of 6 Scantrons'; plural form cannot match the singular '(w/Scantron)' textbook bundles.
+include	post-it	paper_office_general	1	Post-it super sticky notes; preferred over bare 'sticky note' which matches a productivity book ('Visual Meetings...').
+include	file folder	paper_office_general	1	'Essentials File Folder Manila 3 Tabs'. Low volume but clean; bare 'folder' rejected ('ebook folder', QuickStudy folder).
+include	sphygmomanometer	health_nursing_music_pe	1	Aneroid BP devices. No book collisions; medically specific term.
+include	pocket nurse	health_nursing_music_pe	0.95	Pocket Nurse medical-supply brand (gloves, kits, totes, BP cuff). Slight risk of nursing 'pocket guide' books, but exact phrase 'pocket nurse' is the brand here.
+include	penlight	health_nursing_music_pe	1	Diagnostic penlights w/ pupil gauge. All supplies.
+include	goniometer	health_nursing_music_pe	1	PT range-of-motion measuring tools. All supplies.
+include	gait belt	health_nursing_music_pe	1	Transfer/gait belts (Norco, FabLife, Medline). All supplies.
+include	oximeter	health_nursing_music_pe	1	Fingertip pulse oximeters. 'oximeter' is more robust than 'pulse oximeter'. All supplies.
+include	bp cuff	health_nursing_music_pe	1	Blood pressure cuffs. All supplies.
+include	blood pressure cuff	health_nursing_music_pe	1	Distinct from 'bp cuff' matches. All supplies.
+include	reflex hammer	health_nursing_music_pe	1	Neuro reflex hammers. All supplies.
+include	scissors	health_nursing_music_pe	0.88	Bandage/medical/craft scissors. Collisions: 'Running with Scissors' (memoir), 'Rock/Paper/Scissors'. 15/17 titles, 34/37 rows supply.
+include	drumstick	health_nursing_music_pe	1	Vic Firth / Innovative drumsticks (music). All supplies; no culinary collisions in this data.
+include	reed trimmer	health_nursing_music_pe	1	MARCA Cordier Reed Trimmer (clarinet tool). High row count for one item.
+include	vandoren	health_nursing_music_pe	1	Vandoren reed brand (clarinet/sax reeds). Brand term avoids the bare-'reed' collision swamp.
+include	clarinet reed	health_nursing_music_pe	1	Juno Bb Clarinet Reeds. Instrument-qualified reed pattern; safe.
+include	saxophone reed	health_nursing_music_pe	1	Juno Alto Saxophone Reeds. Instrument-qualified; safe.
+include	oboe reed	health_nursing_music_pe	1	Jones / HB student oboe reeds. Instrument-qualified; safe.
+include	metronome	health_nursing_music_pe	0.95	Boss DB-90, Korg tuner+metronome devices. Slight risk of 'The Metronome' book titles, but both matches are devices.
+include	uniform patch	health_nursing_music_pe	1	Nursing/radiology/phlebotomy/MA student uniform patches. Multi-word form avoids the bare-'uniform' Bluebook collision.
+include	>suppy<	paper_office_general	0.99	Typo variant of >supply< source tag (e.g. '...8.5 x 11>suppy<').
+exclude	inclusive access	course_material_marker		
+exclude	access code	course_material_marker		
+exclude	access cd	course_material_marker		
+exclude	courseware	course_material_marker		
+exclude	etext	course_material_marker		
+exclude	e-text	course_material_marker		
+exclude	mylab	course_material_marker		
+exclude	mindtap	course_material_marker		
+exclude	webassign	course_material_marker		
+exclude	aleks	course_material_marker		
+exclude	loose leaf	course_material_marker		
+exclude	loose-leaf	course_material_marker		
+exclude	binder ready	course_material_marker		
+exclude	binder rdy	course_material_marker		
+exclude	using the ti	named_book_collision		
+exclude	statistics using	named_book_collision		
+exclude	by pasewark	named_book_collision		
+exclude	running with scissors	named_book_collision		
+exclude	rock/ paper	named_book_collision		
+exclude	stolen sharpie	named_book_collision		
+exclude	lab coats in hollywood	named_book_collision		
+exclude	collaborating for	named_book_collision		
+exclude	al-kitaab	named_book_collision		
+exclude	scikit	named_book_collision		
+exclude	kite runner	named_book_collision		
+exclude	 kitchen	named_book_collision		
