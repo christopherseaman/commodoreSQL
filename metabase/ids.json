@@ -57,5 +57,7 @@
   "40_fall2025_tally_enrollment_fillpotential": 129,
   "41_fall2025_tally_enrollment_distribution": 130,
   "42_fall2025_tally_cost_by_class": 131,
-  "43_fall2025_tally_oer_ia_materials_coverage": 132
+  "43_fall2025_tally_oer_ia_materials_coverage": 132,
+  "44_fall2025_enrollment_assigned": 133,
+  "45_fall2025_enrollment_assignment_summary": 134
 }
