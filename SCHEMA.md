@@ -1,154 +1,128 @@
 # CommodoreSQL Database Schema
 
-DuckDB pipeline integrating course catalog data (~103M rows) with institutional characteristics, pricing, and opt-out/panel lists. Supports targeted mailing lists and OER/IA adoption analysis.
+DuckDB pipeline integrating course-catalog data (~103M rows) with institutional
+characteristics (IPEDS), bookstore pricing, and opt-out/panel lists. Supports targeted
+mailing lists and analysis of course-materials cost and OER/Inclusive-Access adoption.
 
-For full column definitions, types, and indexes see [`schema.dbml`](schema.dbml).
+For full column definitions and types see [`schema.dbml`](schema.dbml) (load in dbdiagram.io).
+For naming standards and gotchas see [`CLAUDE.md`](CLAUDE.md). For current work status see
+[`HANDOFF.md`](HANDOFF.md).
 
-## Source Data
+## Source data
 
-| File | Target Table | Rows |
+| File | Target table | Rows |
 |------|-------------|------|
-| `DiscoveryExtract.20251215.csv` | `course_catalog_20251215` | ~103M |
+| `DiscoveryExtract.*.csv` | `course_catalog_<date>` | ~103M |
 | `IPEDS_2024.csv` | `ipeds_data` | ~7K |
-| `OptOut_20251215.csv` | `opt_out` | variable |
-| `panel_20260108.csv` | `panel` | variable |
-| `format_type_lookup.tsv` | `format_type_classification` | 69 |
-| `BookPricing.Historical_20260224.csv` | `pricing_historical` | ~11K |
+| `OptOut_*.csv` | `opt_out` | variable |
+| `panel_*.csv` | `panel` | variable |
+| `format_type_lookup.tsv` | `format_type_classification` | ~69 |
+| `supply_keywords.tsv` | (read by `scripts/classify_supplies.sh`) | 84 incl + 26 excl |
+| `BookPricing.Historical_*.csv` | `pricing_historical` | ~11K distinct |
 
 ## Pipeline
 
-Run via `scripts/run_sql.sh`. Three stages controlled by `NO_IMPORT`, `NO_EDA`, `NO_EXPORT` flags.
+Run via `scripts/run_sql.sh`. Three stages, each skippable by flag
+(`NO_IMPORT` / `NO_EDA` / `NO_EXPORT`). DROP-before-CREATE; re-runnable. Config in
+`scripts/dot.env`; SQL is envsubst-templated (`${CONFIG}`, `${LOOKUP_DIR}`, …).
 
 ### IMPORT stage
 
-| SQL File | Creates | Purpose |
+| SQL file | Creates | Purpose |
 |----------|---------|---------|
-| `0_setup.sql` | `course_catalog_20251215`, `ipeds_data`, `opt_out`, `panel`, `email_issues`, `comprehensive_data` | Load CSVs, normalize emails, derive composite keys, build master join |
-| `1_bookprices_import.sql` | `pricing_historical` | Load bookstore pricing, derive section_id/period keys |
-| `1b_section_filter.sql` | `section_book_status` | One row per section: `has_required` flag. Adds `filter_include` to pricing |
-| `1c_pricing_wide.sql` | `pricing_wide` (view) | Pivot pricing into 18 price columns (option x condition x format) |
-| `2_oer_classification.sql` | `format_type_classification`, recreates `comprehensive_data` | OER/IA lookup, add classification + filter_include to comprehensive_data |
+| `0_setup.sql` | `course_catalog_*`, `ipeds_data`, `opt_out`, `panel`, `email_issues` | Load CSVs, normalize emails, derive composite keys (`period_date` included) |
+| `0b_state_region.sql` | `state_region` | State → region lookup |
+| `1_bookprices_import.sql` | `pricing_historical` | Load bookstore pricing; derive `section_id`/period keys; set `required` from Book Status |
+| `1b_section_filter.sql` | `section_book_status` | One row per section: `has_required` flag; sets `filter_include` on pricing |
+| `2_oer_classification.sql` | `format_type_classification`, (re)builds `comprehensive_data` | OER/IA lookup on FormatType; the master join; adds `filter_include` |
+| `2b_pricing_oer_ia.sql` | (updates `pricing_historical`) | Writes `is_oer`/`is_ia` onto pricing per `(section_id, ISBN13)` via BOOL_OR |
+| `2c_pricing_wide.sql` | **`pricing_wide`** (TABLE), `pricing_wide_filtered` (view) | Pivot pricing into 18 price cols + `has_buy`/`has_rent` + fact aggs + institution enrichment |
+| `2d_data_quality.sql` | `__data_quality_*` tables | Materialized DQ snapshots |
 
 ### EDA stage
 
-| SQL File | Creates | Purpose |
+| SQL file | Creates | Purpose |
 |----------|---------|---------|
-| `3_mailing_lists.sql` | `master_mailing`, `current_mailing`, 5 state-specific views | Deduplicated instructor mailing lists |
-| `4_merged_records.sql` | `master_section`, `master_course`, `master_course_material` | Aggregated records by section, course, material |
+| `3_mailing_lists.sql` | `master_mailing`, `current_mailing`, 5 state views | Deduplicated instructor mailing lists |
+| `4_merged_records.sql` | **`section_cost`** (table), **`master_section`** (TABLE), `master_course` (view), `master_course_material` (view), `master_section_us_intro_fall2025` (view) | Aggregated records by section / course; per-section cost; BMG report view |
 
 ### EXPORT stage
 
-Auto-discovers `scripts/sql/exports/*.sql`. Each query is wrapped in a temp table and exported to CSV via `COPY`.
+Auto-discovers `scripts/sql/exports/*.sql`; wraps each in a temp table and `COPY`s to CSV in
+`output/`. (Analysis extracts like the A/B subsets and supply classification are separate
+re-runnable scripts — `scripts/export_fall2025_subsets.sh`, `scripts/classify_supplies.sh` —
+that write Parquet to `output/`.)
 
-Optional summary/crosstab exports in `exports/optional/` (require `5_univariate_summaries.sql` and `6_crosstab_summaries.sql` to be run first).
+## Key tables
 
-## Data Lineage
+- **`comprehensive_data`** — the master join (catalog × IPEDS × opt-out × panel × format-type ×
+  section status), ~103M rows. Carries `filter_include`, `is_oer`/`is_ia`, and all institution
+  attributes.
+- **`pricing_wide`** — one row per `(section_id, isbn13)`: 18 price columns (option × condition ×
+  format), `has_buy`/`has_rent`, `price_min/max`, `rental_days_min/max`, `format_count`, plus
+  institution enrichment. `pricing_wide_filtered` = the `filter_include` subset (view).
+- **`section_cost`** — per-section required/optional cost aggregates over distinct priced materials.
+- **`master_section`** — **materialized TABLE**, one row per `section_id` (2024+). Institution
+  enrichment (state/control/level/size/sector/…), material/required/optional counts, OER/IA
+  indicators + counts, coverage (`has_isbn`/`has_formattype`/…), enrollment fill-potential flags
+  (`has_enrollment*`), and cost columns (from `section_cost`). It is the analysis workhorse.
+- **`master_course`** — view: one row per `(course_id, period)`, rollups of the above.
+- **`master_section_us_intro_fall2025`** — view (BMG #38): filtered projection of `master_section`
+  (Fall 2025, `required_count>=1`, intro/intermediate course levels, US only). No new columns.
+
+## Data lineage
 
 ```mermaid
 flowchart TD
-    subgraph sources ["Source Files"]
-        csv_catalog["DiscoveryExtract CSV\n~103M rows"]
-        csv_ipeds["IPEDS_2024.csv\n~7K rows"]
-        csv_optout["OptOut CSV"]
-        csv_panel["panel CSV"]
-        csv_lookup["format_type_lookup.tsv\n69 rows"]
-        csv_pricing["BookPricing CSV\n~11K rows"]
-    end
-
-    subgraph import_tables ["IMPORT — Source Tables"]
-        catalog["course_catalog_20251215"]
-        ipeds["ipeds_data"]
-        optout["opt_out"]
-        panel["panel"]
-        ftc["format_type_classification"]
-        pricing["pricing_historical"]
-    end
-
-    subgraph import_derived ["IMPORT — Derived"]
-        sbs["section_book_status"]
-        pw["pricing_wide (view)"]
-        cd["comprehensive_data\n~103M rows, 42 columns"]
-    end
-
-    subgraph eda_mailing ["EDA — Mailing Lists"]
-        mm["master_mailing"]
-        cm["current_mailing"]
-        cm_states["current_mailing_ca/tx/fl/ny/other"]
-    end
-
-    subgraph eda_records ["EDA — Aggregated Records"]
-        ms["master_section"]
-        mc["master_course"]
-        mcm["master_course_material"]
-    end
-
-    csv_catalog --> catalog
-    csv_ipeds --> ipeds
-    csv_optout --> optout
-    csv_panel --> panel
-    csv_lookup --> ftc
-    csv_pricing --> pricing
-
-    catalog -->|"GROUP BY section_id"| sbs
-
-    catalog -->|"base rows"| cd
-    ipeds -->|"LEFT JOIN unit_id"| cd
-    optout -->|"LEFT JOIN email"| cd
-    panel -->|"LEFT JOIN email"| cd
-    ftc -->|"LEFT JOIN FormatType"| cd
-    sbs -->|"LEFT JOIN section_id"| cd
-
-    sbs -->|"filter_include"| pricing
-    pricing -->|"PIVOT"| pw
-
-    cd -->|"DISTINCT ON email"| mm
-    mm -->|"last 12 periods"| cm
-    cm --> cm_states
-
-    cd -->|"GROUP BY section_id, period"| ms
-    cd -->|"GROUP BY course_id, period,\npublisher, book_status"| mcm
-    ms -->|"GROUP BY course_id, period"| mc
+    catalog["course_catalog"] --> cd["comprehensive_data<br/>~103M rows"]
+    ipeds["ipeds_data"] --> cd
+    optout["opt_out"] --> cd
+    panel["panel"] --> cd
+    ftc["format_type_classification"] --> cd
+    sbs["section_book_status"] --> cd
+    pricing["pricing_historical"] --> pw["pricing_wide (table)"]
+    cd --> pw
+    cd --> ms["master_section (table)"]
+    pw --> sc["section_cost"]
+    cd --> sc
+    sc --> ms
+    ms --> mc["master_course (view)"]
+    ms --> usv["master_section_us_intro_fall2025 (view)"]
+    cd --> mm["master_mailing → current_mailing (+ state views)"]
 ```
 
-## Key Concepts
+## Key concepts
 
-### Composite Keys
-
-Derived via `::` delimiter (pipe `|` appears in source data):
-
+### Composite keys
 - `course_id` = `unit_id::dept_code::course_number`
-- `section_id` = `unit_id::dept_code::course_number::section::period_sortable`
-- `period_sortable` = `YYYY-N` (1=Winter, 2=Spring, 3=Summer, 4=Fall)
-- `period_date` = canonical DATE (01-01, 04-01, 07-01, 10-01) for time-series axes
+- `section_id` = `unit_id::dept_code::course_number::section::period_sortable` — **includes period**
+  (each section-offering is its own ID). `(section_id, isbn13)` is the natural catalog grain.
+- `period_sortable` = `YYYY-N` (1=Winter, 2=Spring, 3=Summer, **4=Fall**); `period_date` = canonical
+  DATE for time-series axes.
 
-**Note:** `section_id` includes period (each section-offering is its own ID). `course_id` does not. Aggregations grouped by `(section_id, isbn13)` are naturally period-specific.
+### filter_include (the "required code", issue #1)
+Inferred is_required. TRUE when `period_date >= 2024-01-01` AND
+`(has_required=TRUE AND book_status='required')` OR `(has_required=FALSE AND book_status IS NULL)`.
+Applied to `comprehensive_data` and `pricing_historical`. `master_section.required_count` =
+`COUNT(*) FILTER (WHERE filter_include)`. (Rename to `is_required_inferred` tracked in #34.)
 
-### filter_include
-
-Controls which materials appear in filtered analyses. A row is included when:
-- `period_date >= 2024-01-01`, AND
-- Section `has_required = TRUE` and `book_status = 'required'`, OR
-- Section `has_required = FALSE` and `book_status IS NULL`
-
-Applied to both `comprehensive_data` and `pricing_historical`.
-
-### OER/IA Classification
-
-Explicit lookup via `format_type_classification` (69 FormatType values mapped to `is_oer`/`is_ia` flags and categories). Publisher-based guessing was removed as unreliable.
+### OER/IA classification
+Explicit lookup via `format_type_classification` (FormatType → `is_oer`/`is_ia` + categories).
+NULL when FormatType is absent — so `has_formattype` is the classifiability flag.
 
 ### Pricing — rental term collapsing
+`pricing_historical` grain: `(section_id, isbn13, book_option, book_condition, book_format,
+rental_days)`. Buy = one price per (condition × format); rental = one price per `rental_days`
+(~95 values). `pricing_wide` collapses rentals via `MAX(price)` and exposes `rental_days_min/max`.
+Sentinel prices ≥ 9999 are nulled (#27).
 
-`pricing_historical` natural grain: `(section_id, isbn13, book_option, book_condition, book_format, rental_days)`. Buy options have exactly one price per (condition × format). Rentals have one price per `rental_days` (~95 distinct values: 30, 90, 180, 365, 1825, …). `pricing_wide` collapses all rental terms via `MAX(price)` into a single cell per (option × condition × format), and exposes `rental_days_min` / `rental_days_max` to preserve the term range. For per-term rental pricing, query `pricing_historical` directly.
-
-### Email Cleaning
-
-Emails normalized to lowercase/trimmed. Handles embedded text patterns, multiple addresses, interior spaces. Audit trail written to `output/email_issues.tsv` during import.
+### price_avg convention
+`price_avg` / `*_cost_avg` = `(min + max) / 2`, **NOT** an arithmetic mean (legacy). Label clearly.
 
 ## Metabase
 
-5 questions and 2 dashboards managed via `metabase/sync.py`. Questions are SQL files with frontmatter in `metabase/questions/`, dashboards are JSON layouts in `metabase/dashboards/`. IDs tracked in `metabase/ids.json`.
-
-| Dashboard | Questions | Focus |
-|-----------|-----------|-------|
-| filter_include_quality | 01, 02, 03 | Data quality after has_required filter |
-| oer_ia_status_filtered | 04, 05 | OER/IA status and trends (2024+) |
+Reporting is config-as-code: ~52 SQL questions (frontmatter: `-- name:`/`-- display:`/
+`-- description:`) in `metabase/questions/`, dashboard JSON in `metabase/dashboards/`, IDs in
+`metabase/ids.json` (keyed by filename stem), synced via `metabase/sync.py` (DB id 2). The local
+image is built/launched by `metabase.sh`; it connects to `duckdb/commodore.duckdb` and holds a
+read lock (DB writes require `docker stop metabase` — see `HANDOFF.md`).

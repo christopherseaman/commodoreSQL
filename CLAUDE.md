@@ -5,7 +5,8 @@
 - `SCHEMA.md` — current data model overview (tables, pipeline stages, lineage diagram)
 - `schema.dbml` — full column definitions, types, and relationships (load in dbdiagram.io)
 - `CLAUDE.md` (this file) — naming standards and conventions
-- `README.md` — **outdated**, do not trust until rewritten
+- `HANDOFF.md` — current work status, how to run things, gotchas (read first when picking up)
+- `README.md` — high-level project + pipeline overview
 
 ## Naming standards
 

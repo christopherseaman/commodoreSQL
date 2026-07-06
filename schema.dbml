@@ -526,6 +526,10 @@ Table master_course_material [note: 'view'] {
   Note: 'One row per (course_id × period × publisher × book_status). Material distribution.'
 }
 
+Table master_section_us_intro_fall2025 [note: 'view'] {
+  Note: 'BMG #38. Filtered projection of master_section (NO new columns, same schema): period_sortable=2025-4, required_count>=1, course_level in {Introductory or general undergraduate, Intermediate undergraduate}, US only (state excludes CAN + blank). ~2.12M sections. Enrichment stays on master_section; this view only projects/filters.'
+}
+
 // ---------------------------------------------------------------------------
 // RELATIONSHIPS — Join Keys
 // Only true many-to-one refs where the referenced column is unique/PK

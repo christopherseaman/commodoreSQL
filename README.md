@@ -4,9 +4,10 @@ A DuckDB pipeline that integrates course-catalog data (~103M rows) with institut
 characteristics (IPEDS), bookstore pricing, and opt-out/panel lists — to support targeted
 mailing lists and analysis of course-materials cost and OER/Inclusive-Access adoption.
 
-> **Where to look:** data model overview in [`SCHEMA.md`](SCHEMA.md) · full column
-> definitions in [`schema.dbml`](schema.dbml) (load in dbdiagram.io) · naming standards and
-> gotchas in [`CLAUDE.md`](CLAUDE.md) · recent design decisions in
+> **Where to look:** current work status, how to run things, and gotchas in
+> [`HANDOFF.md`](HANDOFF.md) · data model overview in [`SCHEMA.md`](SCHEMA.md) · full column
+> definitions in [`schema.dbml`](schema.dbml) (load in dbdiagram.io) · naming standards in
+> [`CLAUDE.md`](CLAUDE.md) · historical design decisions in
 > [`260529-DECISIONS.md`](260529-DECISIONS.md).
 
 ## Data sources
@@ -49,9 +50,10 @@ and is re-runnable.
 
 - **`comprehensive_data`** — the master join (catalog × IPEDS × opt-out × panel × format-type ×
   section status), with `filter_include` (2024+ required-material scope) and OER/IA flags.
-- **`master_section`** / **`master_course`** — one row per section-offering / course-offering
-  (2024+), with material counts, OER/IA indicators, and required/non-required cost columns
-  (min/max/owned/avg). Cost is computed in **`section_cost`**.
+- **`master_section`** (materialized TABLE) / **`master_course`** (view) — one row per
+  section-offering / course-offering (2024+): institution enrichment, material counts, OER/IA
+  indicators, coverage + enrollment fill-potential flags (`has_enrollment*`), and
+  required/non-required cost columns. Cost is computed in **`section_cost`**.
 - **`pricing_wide`** (all priced materials) / **`pricing_wide_filtered`** (required subset) —
   18 price columns pivoted per `(section_id, isbn13)`.
 - **Mailing lists** — `master_mailing`, `current_mailing`, and state-specific views.
