@@ -287,6 +287,19 @@ GROUP BY
     publisher,
     book_status;
 
+-- BMG #38: US, intro/intermediate, required-bearing sections (Fall 2025).
+-- A pure filtered VIEW of master_section — NO new columns, NO new table. Enrichment
+-- lives on master_section itself; downstream artifacts only project/filter it.
+-- US only = state excludes 'CAN' (Canada) and blank/unknown-country.
+DROP VIEW IF EXISTS master_section_us_intro_fall2025;
+CREATE VIEW master_section_us_intro_fall2025 AS
+SELECT *
+FROM master_section
+WHERE period_sortable = '2025-4'
+  AND required_count >= 1
+  AND course_level IN ('Introductory or general undergraduate', 'Intermediate undergraduate')
+  AND state NOT IN ('CAN', '');
+
 -- DQ: required_count + optional_count must reconcile to material_count on every
 -- row (the issue #1 invariant: filter_include partitions materials into
 -- required vs non-required). Both rows should report violations = 0; a nonzero
