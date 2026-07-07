@@ -33,8 +33,9 @@ Run via `scripts/run_sql.sh`. Three stages, each skippable by flag
 | `0_setup.sql` | `course_catalog_*`, `ipeds_data`, `opt_out`, `panel`, `email_issues` | Load CSVs, normalize emails, derive composite keys (`period_date` included) |
 | `0b_state_region.sql` | `state_region` | State → region lookup |
 | `1_bookprices_import.sql` | `pricing_historical` | Load bookstore pricing; derive `section_id`/period keys; set `required` from Book Status |
-| `1b_section_filter.sql` | `section_book_status` | One row per section: `has_required` flag; sets `filter_include` on pricing |
-| `2_oer_classification.sql` | `format_type_classification`, (re)builds `comprehensive_data` | OER/IA lookup on FormatType; the master join; adds `filter_include` |
+| `1a_supply_classification.sql` | `supply_isbn_classification` | ISBN-level supply flag from title keywords (#36); built here so `has_required` (1b_) can be supply-aware (#40) |
+| `1b_section_filter.sql` | `section_book_status` | One row per section: supply-aware `has_required` flag (#40); sets `filter_include` on pricing |
+| `2_oer_classification.sql` | `format_type_classification`, (re)builds `comprehensive_data` | OER/IA lookup on FormatType; the master join; adds `filter_include`, `is_supply` |
 | `2b_pricing_oer_ia.sql` | (updates `pricing_historical`) | Writes `is_oer`/`is_ia` onto pricing per `(section_id, ISBN13)` via BOOL_OR |
 | `2c_pricing_wide.sql` | **`pricing_wide`** (TABLE), `pricing_wide_filtered` (view) | Pivot pricing into 18 price cols + `has_buy`/`has_rent` + fact aggs + institution enrichment |
 | `2d_data_quality.sql` | `__data_quality_*` tables | Materialized DQ snapshots |
@@ -107,7 +108,14 @@ flowchart TD
 Inferred is_required. TRUE when `period_date >= 2024-01-01` AND
 `(has_required=TRUE AND book_status='required')` OR `(has_required=FALSE AND book_status IS NULL)`.
 Applied to `comprehensive_data` and `pricing_historical`. `master_section.required_count` =
-`COUNT(*) FILTER (WHERE filter_include)`. (Rename to `is_required_inferred` tracked in #34.)
+`COUNT(*) FILTER (WHERE filter_include AND NOT is_supply)`. (Rename to `is_required_inferred` tracked in #34.)
+
+`has_required` is **supply-aware** (#40): `BOOL_OR(book_status='required' AND NOT is_supply)`, built in
+`1a_`/`1b_`. A supply-only "required" item (e.g. safety goggles) no longer forces `has_required=TRUE`,
+so a co-listed blank-status **real** textbook correctly keeps the required fallback instead of being
+bucketed as optional. Caveat (#41): pseudo-SKU non-book items (access codes, unclassified supplies,
+placeholders) with non-978/979 ISBNs can still be counted as required — a mix of legitimate materials
+and noise, surfaced by a console DQ line, pending a precision audit.
 
 ### OER/IA classification
 Explicit lookup via `format_type_classification` (FormatType → `is_oer`/`is_ia` + categories).

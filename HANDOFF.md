@@ -32,9 +32,9 @@ Fixed initial-analysis scope: **Fall 2025** (`period_sortable='2025-4'`). Everyt
 Scope filter (Set A/B): `course_level IN` {intro/general undergrad, intermediate undergrad,
 non-degree credit, uncategorized} AND `sector` = the 6 real teaching sectors (IPEDS 1–6).
 "Required" = **`filter_include`** (inferred is_required, #1). Magnitudes **post-#36 supply
-exclusion**: A=**2,521,847** / B=**131,314** (4,044 supply-only-required sections moved A→B; total
-2,653,161 conserved). Enrollment fill reproduces cards 133/134 exactly (own=1,825,095; raw 52.8M →
-assigned 74.0M; 28.6% imputed; 0 unassigned in scope). All 6 `master_section` DQ invariants = 0.
+exclusion + #40 has_required fix**: A=**2,521,855** / B=**131,306** (total 2,653,161 conserved).
+Enrollment fill reproduces cards 133/134 exactly (own=1,825,095; raw 52.8M → assigned 74.0M; 28.6%
+imputed; 0 unassigned in scope). All 6 `master_section` DQ invariants = 0.
 
 ### Done in this pass (#32 / #36 integration / #39)
 
@@ -45,15 +45,26 @@ counts/costs with `is_supply`/`supply_count` audit columns; classification spans
 (2,481 supply ISBNs / 87.4k catalog rows). Adversarially reviewed before the write — 2 findings fixed
 (`enriched AS MATERIALIZED`; `master_course_material` supply exclusion), 1 filed as **#40**.
 
+### Done in a later pass (#40 fix + hypothesis test)
+
+- **#40 FIXED** — `has_required` is now **supply-aware** (`BOOL_OR(book_status='required' AND NOT
+  is_supply)`). Supply classification moved to a new upstream stage **`1a_supply_classification.sql`**
+  (so `1b_` can consult it); `1b_` idempotency fixed (`ADD COLUMN IF NOT EXISTS` + reset). Recovered
+  8 BMG-scope sections (B→A: Set A 2,521,855 / B 131,306; +6 to the #38 view); enrollment fill
+  unchanged; all `master_section` DQ invariants 0. Landed via `.temp/rebuild_40.sh` (1a→1b→2→
+  pricing_wide patch→4→2d; the patch avoids the heavy 2c_ pivot). Reviewed pre-write; surfaced **#41**.
+- **#41** (filed) — pseudo-SKU non-book items (access codes / unclassified supplies / placeholders
+  with non-978/979 ISBNs) can be counted as required; pre-existing, a mix of legit + noise, tracked by
+  a console DQ line. Needs a precision audit before acting. Not blocking.
+- **Cost hypothesis test** — RUN (cards 160/161, dashboard 16). Public 2yr ~$149/student vs Public
+  4yr ~$114 (+31%, robust); driven by course-mix, not same-item price (~$2). See Notion Step 6.
+
 ### Held / pending decisions (do NOT start without sign-off)
 
-- **#40** (filed this pass) — `has_required` contamination: a supply-only "required" item keeps
-  `has_required=TRUE`, misbucketing a co-listed real textbook as optional (59 Fall-2025 scope
-  sections). Pre-existing; a proper fix touches the required-inference core (issue #1/#34) on both
-  the catalog and pricing sides → its own issue + review. Not a regression from this pass.
-- **Hypothesis test** (enrollment-weighted / same-item cost across classes) — HELD; documented as
-  a proposal in Notion. **Now unblocked** (#32 + #36 landed): reads `master_section.enrollment_assigned`
-  directly. Awaiting go-ahead to run.
+- **#34** — rename `filter_include` → `is_required_inferred` model-wide. Kept separate from #40 (a
+  dedicated mechanical rename PR). Its own rebuild window when it lands.
+- **#41 precision audit** — decide whether pseudo-SKU required rows are legit (access codes) or noise
+  (supplies/placeholders), and whether to fold the signal into the classifier.
 
 **Enrichment principle (important):** derived/enriched columns belong **on `master_section`**,
 NOT in new downstream tables. Downstream artifacts (like the #38 view) only *project/filter*.

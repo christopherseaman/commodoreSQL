@@ -24,57 +24,10 @@ FROM read_csv('${LOOKUP_DIR}/format_type_lookup.tsv',
     }
 );
 
--- Supply (non-course-material) ISBN classification (#36): include-AND-NOT-exclude
--- title-keyword classifier. Canonical keyword list: sql/lookups/supply_keywords.tsv
--- (single source of truth; path relative to scripts/, both runners cd there first).
--- ISBN-level: an ISBN is a supply if ANY of its 2024+ title variants matches >=1
--- include pattern AND 0 exclude patterns. Matching is substring LIKE over lowered
--- text — deliberately no word boundaries (see TSV notes); longest matching include
--- pattern wins for attribution. Method + per-keyword precision (~0.98) were audited
--- on Fall 2025; titles are period-independent, so the flag applies to all periods.
-DROP TABLE IF EXISTS supply_isbn_classification;
-CREATE TABLE supply_isbn_classification AS
-WITH
-inc AS (
-    SELECT lower(pattern) AS p, category
-    FROM read_csv('sql/lookups/supply_keywords.tsv', delim='\t', header=true,
-        columns={'kind':'VARCHAR','pattern':'VARCHAR','category':'VARCHAR','precision_est':'VARCHAR','notes':'VARCHAR'})
-    WHERE kind='include'
-),
-exc AS (
-    SELECT lower(pattern) AS p
-    FROM read_csv('sql/lookups/supply_keywords.tsv', delim='\t', header=true,
-        columns={'kind':'VARCHAR','pattern':'VARCHAR','category':'VARCHAR','precision_est':'VARCHAR','notes':'VARCHAR'})
-    WHERE kind='exclude'
-),
-isbn_title AS (
-    SELECT "ISBN13" AS isbn13, lower("Title") AS title_l, ANY_VALUE("Title") AS title, COUNT(*) AS n_rows
-    FROM course_catalog_20251215
-    WHERE "ISBN13" IS NOT NULL AND "Title" IS NOT NULL AND period_date >= '2024-01-01'
-    GROUP BY "ISBN13", lower("Title")
-),
-classified AS (
-    SELECT it.isbn13, it.title, it.n_rows,
-        (SELECT inc.p FROM inc WHERE it.title_l LIKE '%' || inc.p || '%' ORDER BY length(inc.p) DESC LIMIT 1) AS matched_inc,
-        EXISTS (SELECT 1 FROM exc WHERE it.title_l LIKE '%' || exc.p || '%') AS hit_exc
-    FROM isbn_title it
-)
-SELECT
-    c.isbn13,
-    ANY_VALUE(c.title)       AS title,
-    SUM(c.n_rows)            AS n_rows,
-    ANY_VALUE(c.matched_inc) AS matched_pattern,
-    ANY_VALUE(i.category)    AS category
-FROM classified c
-LEFT JOIN inc i ON c.matched_inc = i.p
-WHERE c.matched_inc IS NOT NULL AND NOT c.hit_exc
-GROUP BY c.isbn13;
-
--- Single-line console summary: supply ISBN count + the title rows they cover
-SELECT 'supply ISBN classification (2024+)' AS metric,
-       COUNT(*) AS supply_isbns,
-       SUM(n_rows) AS catalog_rows_covered
-FROM supply_isbn_classification;
+-- Supply (non-course-material) ISBN classification (#36) is built upstream now, in
+-- 1a_supply_classification.sql (moved there for #40 so 1b_section_filter.sql's
+-- has_required can be supply-aware). This file only READS supply_isbn_classification
+-- (the LEFT JOIN in comprehensive_data below); it no longer rebuilds it.
 
 -- Validate FormatType coverage before processing
 -- Check for non-empty FormatTypes that aren't in the lookup table
@@ -161,5 +114,19 @@ SELECT
     ROUND(100.0 * COUNT(*) FILTER (WHERE is_supply) / COUNT(*), 2) AS pct_of_rows,
     COUNT(DISTINCT "ISBN13") FILTER (WHERE is_supply) AS supply_isbns
 FROM comprehensive_data;
+
+-- DQ (#41): required rows carrying a pseudo-SKU ISBN (non-978/979 EAN — internal
+-- bookstore codes). A MIX of legitimate non-book materials (access codes, digital
+-- bundles) and noise (supplies/placeholders the title classifier missed) — needs a
+-- precision audit before acting on it. The #40 fix's blank-status fallback can promote
+-- a small slice of the noise. Real book ISBNs are 978/979-prefixed; NULL-ISBN required
+-- rows are legitimate (book adopted, ISBN not entered) and excluded here.
+SELECT 'Required rows without a standard book ISBN (#41 audit)' AS validation_status,
+       COUNT(*) AS pseudo_required_rows,
+       COUNT(DISTINCT "ISBN13") AS pseudo_required_isbns
+FROM comprehensive_data
+WHERE filter_include AND NOT is_supply
+  AND "ISBN13" IS NOT NULL
+  AND NOT ("ISBN13" BETWEEN 9780000000000 AND 9799999999999);
 
 COMMIT;

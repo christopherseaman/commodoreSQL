@@ -164,13 +164,13 @@ Table pricing_historical {
 
 Table section_book_status {
   section_id varchar [pk]
-  has_required boolean [note: 'TRUE if section has any required-status material in catalog']
+  has_required boolean [note: '#40 supply-aware: TRUE if section has any required-status NON-SUPPLY material (BOOL_OR(book_status=required AND NOT is_supply)). A supply-only required item no longer forces TRUE, so a co-listed blank-status real textbook keeps the required fallback.']
 
   indexes {
     section_id [name: 'idx_sbs_section']
   }
 
-  Note: 'One row per section_id. Drives filter_include logic for pricing and comprehensive_data.'
+  Note: 'One row per section_id. Drives filter_include logic for pricing and comprehensive_data. has_required is supply-aware (#40); built in 1a_/1b_ after supply_isbn_classification.'
 }
 
 Table state_region {
