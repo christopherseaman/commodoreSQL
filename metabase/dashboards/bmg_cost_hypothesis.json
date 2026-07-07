@@ -2,9 +2,11 @@
   {
     "__meta__": {
       "name": "BMG · Cost Hypothesis",
-      "description": "Tests the hypothesis that 2-year (esp. public) students pay more for course materials. Top tile: per-section required/owned/optional cost medians by institution class (control x 2yr/4yr x A/B set) — directional, across each class's own course mix. Bottom tile: the Top-125 ISBN extract (one row per section-adoption of the 125 most-common ISBNs, with is_supply + full pricing) — the same-item cut that removes course-mix confounds. All *_cost columns are (min+max)/2 summaries, NOT arithmetic means. Supplies (#36) are excluded from the class cost medians; is_supply flags them in the Top-125 extract. Enrollment-weighted cost comparison is a held follow-up (uses master_section.enrollment_assigned)."
+      "description": "Tests whether 2-year (esp. public) students pay more for course materials. Enrollment-weighted cost (top): Public 2yr students face ~$149/student in required materials vs ~$114 for Public 4yr (+31%), robust to enrollment imputation (own-only) and cost outliers (winsorized). Same-item price (second): for the IDENTICAL book, Public 2yr pays only ~$2 above market — so the class gap is overwhelmingly course-mix (which/how many books), NOT same-item price discrimination. Section-level cost medians by class (third) and the Top-125 same-item extract (bottom) support the read. All *_cost columns are (min+max)/2 summaries, NOT arithmetic means; supplies (#36) excluded from cost aggregates; enrollment_assigned (#32) drives the weighting."
     }
   },
-  { "question": "42_fall2025_tally_cost_by_class", "row": 0, "col": 0, "size_x": 24, "size_y": 8 },
-  { "question": "36_top125_isbn_cost_extract",    "row": 8, "col": 0, "size_x": 24, "size_y": 9 }
+  { "question": "47_fall2025_hypothesis_enrollwt_cost",  "row": 0,  "col": 0, "size_x": 24, "size_y": 6 },
+  { "question": "48_fall2025_hypothesis_sameitem_price", "row": 6,  "col": 0, "size_x": 24, "size_y": 6 },
+  { "question": "42_fall2025_tally_cost_by_class",       "row": 12, "col": 0, "size_x": 24, "size_y": 8 },
+  { "question": "36_top125_isbn_cost_extract",          "row": 20, "col": 0, "size_x": 24, "size_y": 9 }
 ]
