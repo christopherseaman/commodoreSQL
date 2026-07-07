@@ -3,7 +3,7 @@
 ${CONFIG}
 
 -- section_cost: per-section cost aggregates over DISTINCT priced COURSE materials.
--- Required vs non-required uses the catalog classification (filter_include, #1).
+-- Required vs non-required uses the catalog classification (is_required_inferred, #1).
 -- Supplies (#36: is_supply, ISBN-level title-keyword classification) are excluded
 -- entirely — cost columns measure course materials only. Sums over distinct
 -- (section_id, ISBN13) materials that have a price; NULL-priced materials contribute
@@ -18,7 +18,7 @@ WITH materials AS (
         MAX(c.course_id)       AS course_id,
         MAX(c.period_sortable) AS period_sortable,
         c.ISBN13,
-        BOOL_OR(c.filter_include) AS is_required,
+        BOOL_OR(c.is_required_inferred) AS is_required,
         MAX(pw.price_min)     AS price_min,
         MAX(pw.price_max)     AS price_max,
         MAX(pw.price_buy_min) AS owned_min,
@@ -102,11 +102,11 @@ WITH per_section AS (
         -- excluded from every material-level aggregate below and surface separately
         -- as is_supply / supply_count.
         COUNT(*) FILTER (WHERE NOT is_supply) AS material_count,
-        -- required vs non-required reuses filter_include (the has_required fallback:
+        -- required vs non-required reuses is_required_inferred (the has_required fallback:
         -- 'required' rows, plus no-entry rows in sections with no required material).
-        -- filter_include is never NULL, so the two FILTERs partition material_count.
-        COUNT(*) FILTER (WHERE filter_include AND NOT is_supply)     AS required_count,
-        COUNT(*) FILTER (WHERE NOT filter_include AND NOT is_supply) AS optional_count,
+        -- is_required_inferred is never NULL, so the two FILTERs partition material_count.
+        COUNT(*) FILTER (WHERE is_required_inferred AND NOT is_supply)     AS required_count,
+        COUNT(*) FILTER (WHERE NOT is_required_inferred AND NOT is_supply) AS optional_count,
         -- Supply audit (#36): BOOL_OR definitive indicator (no suffix, per CLAUDE.md)
         -- + item count, over ALL section materials. is_supply <=> supply_count > 0.
         COALESCE(BOOL_OR(is_supply), FALSE) AS is_supply,
@@ -119,11 +119,11 @@ WITH per_section AS (
         COUNT(*) FILTER (WHERE is_oer AND NOT is_supply) AS oer_count,
         COUNT(*) FILTER (WHERE is_ia AND NOT is_supply)  AS ia_count,
         LIST(DISTINCT publisher) FILTER (WHERE publisher IS NOT NULL AND NOT is_supply) AS publishers,
-        -- required/optional publisher splits reuse filter_include (consistent with #1's
+        -- required/optional publisher splits reuse is_required_inferred (consistent with #1's
         -- required_count classification), not raw book_status='required'.
-        LIST(DISTINCT publisher) FILTER (WHERE publisher IS NOT NULL AND filter_include AND NOT is_supply) AS required_publishers,
-        COUNT(DISTINCT publisher) FILTER (WHERE filter_include AND NOT is_supply)     AS required_publisher_count,
-        COUNT(DISTINCT publisher) FILTER (WHERE NOT filter_include AND NOT is_supply) AS optional_publisher_count,
+        LIST(DISTINCT publisher) FILTER (WHERE publisher IS NOT NULL AND is_required_inferred AND NOT is_supply) AS required_publishers,
+        COUNT(DISTINCT publisher) FILTER (WHERE is_required_inferred AND NOT is_supply)     AS required_publisher_count,
+        COUNT(DISTINCT publisher) FILTER (WHERE NOT is_required_inferred AND NOT is_supply) AS optional_publisher_count,
         MAX(enrollments) AS enrollments,
         MAX(seats_taken) AS seats_taken,
         -- Coverage (2026-06-04 notes): ISBN presence + OER/IA classifiability per
@@ -141,8 +141,8 @@ WITH per_section AS (
     WHERE
         section_id IS NOT NULL AND
         period_sortable IS NOT NULL AND
-        -- filter_include is gated on period_date >= 2024; scope the view to match so
-        -- required_count (= filter_include count) is meaningful on every row.
+        -- is_required_inferred is gated on period_date >= 2024; scope the view to match so
+        -- required_count (= is_required_inferred count) is meaningful on every row.
         period_date >= '2024-01-01'
     GROUP BY section_id
 ),
@@ -370,7 +370,7 @@ WHERE period_sortable = '2025-4'
   AND state NOT IN ('CAN', '');
 
 -- DQ: required_count + optional_count must reconcile to material_count on every
--- row (the issue #1 invariant: filter_include partitions materials into
+-- row (the issue #1 invariant: is_required_inferred partitions materials into
 -- required vs non-required). Both rows should report violations = 0; a nonzero
 -- value signals a classification regression.
 SELECT 'master_section reconciliation' AS metric,

@@ -49,7 +49,7 @@ and is re-runnable.
 ## Key outputs
 
 - **`comprehensive_data`** — the master join (catalog × IPEDS × opt-out × panel × format-type ×
-  section status), with `filter_include` (2024+ required-material scope) and OER/IA flags.
+  section status), with `is_required_inferred` (2024+ required-material scope) and OER/IA flags.
 - **`master_section`** (materialized TABLE) / **`master_course`** (view) — one row per
   section-offering / course-offering (2024+): institution enrichment, material counts, OER/IA
   indicators, coverage + enrollment fill-potential flags (`has_enrollment*`), and

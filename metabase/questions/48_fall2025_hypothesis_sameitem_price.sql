@@ -15,7 +15,7 @@ adopt AS (
   FROM scope s
   JOIN comprehensive_data c
     ON c.section_id = s.section_id AND c.period_sortable = '2025-4'
-    AND c.filter_include AND NOT c.is_supply
+    AND c.is_required_inferred AND NOT c.is_supply
   JOIN pricing_wide pw ON pw.section_id = c.section_id AND pw.isbn13 = c."ISBN13"
   WHERE pw.price_min IS NOT NULL
 ),

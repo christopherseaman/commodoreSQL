@@ -47,7 +47,7 @@ SELECT
 FROM unmatched
 HAVING COUNT(*) > 0;
 
--- Add OER, IA, and filter_include fields to comprehensive_data table
+-- Add OER, IA, and is_required_inferred fields to comprehensive_data table
 -- Note: comprehensive_data was created as a table in 0_setup.sql, so we need to recreate it
 DROP TABLE IF EXISTS comprehensive_data;
 CREATE TABLE comprehensive_data AS
@@ -77,7 +77,7 @@ SELECT
     -- Opt-out data
     CASE WHEN oo.email IS NOT NULL THEN true ELSE false END AS is_opted_out,
     'opt_out' AS opt_out_source,
-    -- filter_include: period >= 2024 AND book_status matches has_required logic
+    -- is_required_inferred: period >= 2024 AND book_status matches has_required logic
     CASE
         WHEN c.period_date >= '2024-01-01'
          AND (
@@ -87,7 +87,7 @@ SELECT
          )
         THEN TRUE
         ELSE FALSE
-    END AS filter_include
+    END AS is_required_inferred
 FROM course_catalog_20251215 c
 LEFT JOIN format_type_classification f ON c.FormatType = f.FormatType
 LEFT JOIN supply_isbn_classification si ON c."ISBN13" = si.isbn13
@@ -125,7 +125,7 @@ SELECT 'Required rows without a standard book ISBN (#41 audit)' AS validation_st
        COUNT(*) AS pseudo_required_rows,
        COUNT(DISTINCT "ISBN13") AS pseudo_required_isbns
 FROM comprehensive_data
-WHERE filter_include AND NOT is_supply
+WHERE is_required_inferred AND NOT is_supply
   AND "ISBN13" IS NOT NULL
   AND NOT ("ISBN13" BETWEEN 9780000000000 AND 9799999999999);
 

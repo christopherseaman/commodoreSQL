@@ -31,17 +31,17 @@ SELECT section_id, has_required FROM section_book_status_calc;
 
 CREATE INDEX idx_sbs_section ON section_book_status (section_id);
 
--- Add filter_include to pricing_historical
--- (comprehensive_data gets filter_include in 2_oer_classification.sql where it is recreated)
+-- Add is_required_inferred to pricing_historical
+-- (comprehensive_data gets is_required_inferred in 2_oer_classification.sql where it is recreated)
 -- Idempotent: ADD COLUMN IF NOT EXISTS (not DROP+ADD — DuckDB refuses to DROP a column
 -- on a table that has dependents), then reset every row to FALSE so the conditional
 -- UPDATE below is a clean re-derivation that never retains a stale TRUE from a prior
 -- has_required definition.
-ALTER TABLE pricing_historical ADD COLUMN IF NOT EXISTS filter_include BOOLEAN DEFAULT FALSE;
-UPDATE pricing_historical SET filter_include = FALSE;
+ALTER TABLE pricing_historical ADD COLUMN IF NOT EXISTS is_required_inferred BOOLEAN DEFAULT FALSE;
+UPDATE pricing_historical SET is_required_inferred = FALSE;
 
 UPDATE pricing_historical p
-SET filter_include = TRUE
+SET is_required_inferred = TRUE
 FROM section_book_status s
 WHERE p.section_id = s.section_id
   AND p.period_date >= '2024-01-01'
@@ -72,8 +72,8 @@ FROM section_book_status_calc;
 
 DROP TABLE IF EXISTS section_book_status_calc;
 
-SELECT 'pricing_historical filter_include' AS table_name, filter_include, COUNT(*)::VARCHAR AS row_count
-FROM pricing_historical GROUP BY filter_include;
+SELECT 'pricing_historical is_required_inferred' AS table_name, is_required_inferred, COUNT(*)::VARCHAR AS row_count
+FROM pricing_historical GROUP BY is_required_inferred;
 
 -- DQ: section_book_status should cover every catalog section_id (built via GROUP BY catalog).
 -- Nonzero diff would indicate a code bug.

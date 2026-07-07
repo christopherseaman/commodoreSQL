@@ -14,6 +14,6 @@ SELECT
     COUNT(DISTINCT section_id)                AS sections,
     SUM(enrollments)                          AS total_enrollments
 FROM comprehensive_data
-WHERE filter_include = TRUE
+WHERE is_required_inferred = TRUE
 GROUP BY "FormatType", is_oer, is_ia, book_status
 ORDER BY format_type, book_status, is_oer DESC, is_ia DESC

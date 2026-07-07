@@ -15,6 +15,6 @@ SELECT
         1
     )                                                                                 AS formattype_pct
 FROM comprehensive_data c
-WHERE c.filter_include = TRUE
+WHERE c.is_required_inferred = TRUE
 GROUP BY c.course_level, c.period_sortable, c.period_date
 ORDER BY c.period_sortable DESC, c.course_level

@@ -6,7 +6,7 @@ Project CommodoreSQL {
   database_type: 'DuckDB'
   Note: '''
     ## Metabase Questions (26) — see metabase/questions/
-    - Analysis: 01-05 (filter_include counts + OER/IA), 24-26 (materials cost + OER/IA section adoption)
+    - Analysis: 01-05 (is_required_inferred counts + OER/IA), 24-26 (materials cost + OER/IA section adoption)
     - Data quality: 06-12 (pricing), 13-18 (catalog), 19-23 (rental + null-ISBN)
 
     ## Metabase Dashboards (6)
@@ -147,7 +147,7 @@ Table pricing_historical {
   section_id varchar [note: 'unit_id::dept_code::course_code::section_code::period_sortable']
   period_sortable varchar
   period_date date
-  filter_include boolean [note: 'added by 1b_section_filter; TRUE = period>=2024 AND status matches has_required logic']
+  is_required_inferred boolean [note: 'added by 1b_section_filter; TRUE = period>=2024 AND status matches has_required logic']
 
   indexes {
     section_id [name: 'idx_pricing_section']
@@ -170,7 +170,7 @@ Table section_book_status {
     section_id [name: 'idx_sbs_section']
   }
 
-  Note: 'One row per section_id. Drives filter_include logic for pricing and comprehensive_data. has_required is supply-aware (#40); built in 1a_/1b_ after supply_isbn_classification.'
+  Note: 'One row per section_id. Drives is_required_inferred logic for pricing and comprehensive_data. has_required is supply-aware (#40); built in 1a_/1b_ after supply_isbn_classification.'
 }
 
 Table state_region {
@@ -186,7 +186,7 @@ Table pricing_wide {
   isbn13 varchar
   unit_id bigint [note: 'MAX(unit_id) over the group (constant per section)']
   required boolean [note: 'BOOL_OR(required) over the (section, isbn) group']
-  filter_include boolean [note: 'BOOL_OR(filter_include); TRUE = required + in-scope (period>=2024). pricing_wide_filtered is this subset.']
+  is_required_inferred boolean [note: 'BOOL_OR(is_required_inferred); TRUE = required + in-scope (period>=2024). pricing_wide_filtered is this subset.']
   is_oer boolean [note: 'BOOL_OR(is_oer) over the group; sourced from pricing_historical.is_oer']
   is_ia boolean [note: 'BOOL_OR(is_ia) over the group; sourced from pricing_historical.is_ia']
   institute varchar
@@ -234,11 +234,11 @@ Table pricing_wide {
   enrollment_2024 integer
   distance_enrollment_2024 integer
 
-  Note: 'TABLE (materialized). One row per (section_id × isbn13) over ALL pricing_historical (no filter). 18 price columns = option × condition × format. price_buy_min/max feed the "owned" cost columns. is_oer/is_ia from comprehensive_data per (section,isbn) (2b_pricing_oer_ia); institution enrichment from comprehensive_data per unit_id (2c). pricing_wide_filtered is the filter_include=TRUE subset.'
+  Note: 'TABLE (materialized). One row per (section_id × isbn13) over ALL pricing_historical (no filter). 18 price columns = option × condition × format. price_buy_min/max feed the "owned" cost columns. is_oer/is_ia from comprehensive_data per (section,isbn) (2b_pricing_oer_ia); institution enrichment from comprehensive_data per unit_id (2c). pricing_wide_filtered is the is_required_inferred=TRUE subset.'
 }
 
 Table pricing_wide_filtered [note: 'view'] {
-  Note: 'View: SELECT * FROM pricing_wide WHERE filter_include — the required, in-scope (period>=2024) subset. Preserves the prior pricing_wide semantics for downstream consumers. Same columns as pricing_wide.'
+  Note: 'View: SELECT * FROM pricing_wide WHERE is_required_inferred — the required, in-scope (period>=2024) subset. Preserves the prior pricing_wide semantics for downstream consumers. Same columns as pricing_wide.'
 }
 
 Table comprehensive_data {
@@ -294,7 +294,7 @@ Table comprehensive_data {
   is_opted_out boolean
   opt_out_source varchar
   // -- Filter --
-  filter_include boolean [note: 'period>=2024 AND book_status matches has_required logic']
+  is_required_inferred boolean [note: 'period>=2024 AND book_status matches has_required logic']
 
   Note: '~103M rows. Master join: catalog × IPEDS × opt_out × panel × format_type × section_book_status. Recreated in 2_oer_classification.sql with OER/IA + supply (#36) fields.'
 }
@@ -384,7 +384,7 @@ Table section_cost {
   required_priced_count integer
   optional_priced_count integer
 
-  Note: 'TABLE. One row per section_id (2024+). Cost over DISTINCT priced (section_id, ISBN13) COURSE materials (#36 supplies excluded), required vs non-required via filter_include. owned = buy-only. Feeds master_section (join) and master_course (MIN/MAX/AVG rollup).'
+  Note: 'TABLE. One row per section_id (2024+). Cost over DISTINCT priced (section_id, ISBN13) COURSE materials (#36 supplies excluded), required vs non-required via is_required_inferred. owned = buy-only. Feeds master_section (join) and master_course (MIN/MAX/AVG rollup).'
 }
 
 Table master_section [note: 'table'] {
@@ -412,8 +412,8 @@ Table master_section [note: 'table'] {
   course_level varchar
   course_subject varchar
   material_count integer [note: '#36: COURSE materials only (supplies excluded)']
-  required_count integer [note: 'COUNT FILTER(filter_include AND NOT is_supply); 2024+ scope. A/B split key']
-  optional_count integer [note: 'COUNT FILTER(NOT filter_include AND NOT is_supply)']
+  required_count integer [note: 'COUNT FILTER(is_required_inferred AND NOT is_supply); 2024+ scope. A/B split key']
+  optional_count integer [note: 'COUNT FILTER(NOT is_required_inferred AND NOT is_supply)']
   is_supply boolean [note: '#36: COALESCE(BOOL_OR(is_supply), FALSE) — section carries >=1 supply item. is_supply <=> supply_count > 0']
   supply_count integer [note: '#36: COUNT FILTER(is_supply) — supply items on the section (excluded from material_count)']
   is_oer boolean [note: 'COALESCE(BOOL_OR(is_oer), FALSE) over course materials (supplies excluded)']
@@ -673,7 +673,7 @@ Table __data_quality_top_unmatched_pricing_sections {
   unmatched bigint
   unmatched_pct double
 
-  Note: 'Top 10 (unit_id, period) combos by unmatched pricing sections (filter_include=FALSE only).'
+  Note: 'Top 10 (unit_id, period) combos by unmatched pricing sections (is_required_inferred=FALSE only).'
 }
 
 Table __data_quality_format_count_distribution {

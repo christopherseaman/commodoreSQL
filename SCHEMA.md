@@ -17,7 +17,7 @@ For naming standards and gotchas see [`CLAUDE.md`](CLAUDE.md). For current work 
 | `OptOut_*.csv` | `opt_out` | variable |
 | `panel_*.csv` | `panel` | variable |
 | `format_type_lookup.tsv` | `format_type_classification` | ~69 |
-| `supply_keywords.tsv` | (read by `scripts/classify_supplies.sh`) | 84 incl + 26 excl |
+| `supply_keywords.tsv` | (read by `1a_supply_classification.sql` + `scripts/classify_supplies.sh`) | 97 incl + 26 excl |
 | `BookPricing.Historical_*.csv` | `pricing_historical` | ~11K distinct |
 
 ## Pipeline
@@ -34,8 +34,8 @@ Run via `scripts/run_sql.sh`. Three stages, each skippable by flag
 | `0b_state_region.sql` | `state_region` | State → region lookup |
 | `1_bookprices_import.sql` | `pricing_historical` | Load bookstore pricing; derive `section_id`/period keys; set `required` from Book Status |
 | `1a_supply_classification.sql` | `supply_isbn_classification` | ISBN-level supply flag from title keywords (#36); built here so `has_required` (1b_) can be supply-aware (#40) |
-| `1b_section_filter.sql` | `section_book_status` | One row per section: supply-aware `has_required` flag (#40); sets `filter_include` on pricing |
-| `2_oer_classification.sql` | `format_type_classification`, (re)builds `comprehensive_data` | OER/IA lookup on FormatType; the master join; adds `filter_include`, `is_supply` |
+| `1b_section_filter.sql` | `section_book_status` | One row per section: supply-aware `has_required` flag (#40); sets `is_required_inferred` on pricing |
+| `2_oer_classification.sql` | `format_type_classification`, (re)builds `comprehensive_data` | OER/IA lookup on FormatType; the master join; adds `is_required_inferred`, `is_supply` |
 | `2b_pricing_oer_ia.sql` | (updates `pricing_historical`) | Writes `is_oer`/`is_ia` onto pricing per `(section_id, ISBN13)` via BOOL_OR |
 | `2c_pricing_wide.sql` | **`pricing_wide`** (TABLE), `pricing_wide_filtered` (view) | Pivot pricing into 18 price cols + `has_buy`/`has_rent` + fact aggs + institution enrichment |
 | `2d_data_quality.sql` | `__data_quality_*` tables | Materialized DQ snapshots |
@@ -57,11 +57,11 @@ that write Parquet to `output/`.)
 ## Key tables
 
 - **`comprehensive_data`** — the master join (catalog × IPEDS × opt-out × panel × format-type ×
-  section status), ~103M rows. Carries `filter_include`, `is_oer`/`is_ia`, `is_supply` (#36), and
+  section status), ~103M rows. Carries `is_required_inferred`, `is_oer`/`is_ia`, `is_supply` (#36), and
   all institution attributes.
 - **`pricing_wide`** — one row per `(section_id, isbn13)`: 18 price columns (option × condition ×
   format), `has_buy`/`has_rent`, `price_min/max`, `rental_days_min/max`, `format_count`, plus
-  institution enrichment. `pricing_wide_filtered` = the `filter_include` subset (view).
+  institution enrichment. `pricing_wide_filtered` = the `is_required_inferred` subset (view).
 - **`section_cost`** — per-section required/optional cost aggregates over distinct priced course
   materials (#36 supplies excluded).
 - **`master_section`** — **materialized TABLE**, one row per `section_id` (2024+). Institution
@@ -104,18 +104,20 @@ flowchart TD
 - `period_sortable` = `YYYY-N` (1=Winter, 2=Spring, 3=Summer, **4=Fall**); `period_date` = canonical
   DATE for time-series axes.
 
-### filter_include (the "required code", issue #1)
+### is_required_inferred (the "required code", issue #1)
 Inferred is_required. TRUE when `period_date >= 2024-01-01` AND
 `(has_required=TRUE AND book_status='required')` OR `(has_required=FALSE AND book_status IS NULL)`.
 Applied to `comprehensive_data` and `pricing_historical`. `master_section.required_count` =
-`COUNT(*) FILTER (WHERE filter_include AND NOT is_supply)`. (Rename to `is_required_inferred` tracked in #34.)
+`COUNT(*) FILTER (WHERE is_required_inferred AND NOT is_supply)`. (Renamed from `filter_include`, #34.)
 
 `has_required` is **supply-aware** (#40): `BOOL_OR(book_status='required' AND NOT is_supply)`, built in
 `1a_`/`1b_`. A supply-only "required" item (e.g. safety goggles) no longer forces `has_required=TRUE`,
 so a co-listed blank-status **real** textbook correctly keeps the required fallback instead of being
-bucketed as optional. Caveat (#41): pseudo-SKU non-book items (access codes, unclassified supplies,
-placeholders) with non-978/979 ISBNs can still be counted as required — a mix of legitimate materials
-and noise, surfaced by a console DQ line, pending a precision audit.
+bucketed as optional. #41 (resolved): pseudo-SKU non-book items are overwhelmingly **legitimate**
+required digital-access materials (Cengage/Pearson/MyLab access codes) — kept. Two narrow, precision-
+verified gaps were folded into the supply classifier: `eyewear` supplies and explicit "no material
+required" placeholder rows (`supply_category='placeholder_no_material'`). A console DQ line tracks the
+remaining (legitimate) pseudo-SKU residual.
 
 ### OER/IA classification
 Explicit lookup via `format_type_classification` (FormatType → `is_oer`/`is_ia` + categories).
@@ -124,13 +126,14 @@ NULL when FormatType is absent — so `has_formattype` is the classifiability fl
 ### Supply classification (issue #36)
 Bookstore **supplies** (lab kits, goggles, calculators, clickers, …) are identified by an
 include-AND-NOT-exclude **title-keyword** classifier (`FormatType` does not encode supplies).
-Keyword list: `scripts/sql/lookups/supply_keywords.tsv` (84 include + 26 exclude, single source of
-truth). `2_oer_classification.sql` builds `supply_isbn_classification` (ISBN-level, over **all
-2024+** title variants) and joins `is_supply`/`supply_category` onto `comprehensive_data`.
-`master_section` **excludes supplies** from every material count/cost aggregate and surfaces
-`is_supply` (`BOOL_OR`) + `supply_count` for audit. Precision-over-recall (≈0.98); recall is
-keyword-bounded. Supplies are <1% of Fall-2025 ISBNs — excluding them barely moves class medians
-but removes the high-price tail.
+Keyword list: `scripts/sql/lookups/supply_keywords.tsv` (97 include + 26 exclude, single source of
+truth). `1a_supply_classification.sql` builds `supply_isbn_classification` (ISBN-level, over **all
+2024+** title variants) and `2_oer_classification.sql` joins `is_supply`/`supply_category` onto
+`comprehensive_data`. `master_section` **excludes supplies** from every material count/cost aggregate
+and surfaces `is_supply` (`BOOL_OR`) + `supply_count` for audit. Precision-over-recall (≈0.98); recall
+is keyword-bounded. The `placeholder_no_material` category (#41) reuses this mechanism to exclude
+explicit "no material required" placeholder rows. Supplies are <1% of Fall-2025 ISBNs — excluding them
+barely moves class medians but removes the high-price tail.
 
 ### Enrollment fill (issue #32)
 `enrollment_assigned` is the persisted per-section enrollment, filling missing values by a

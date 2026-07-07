@@ -1,6 +1,6 @@
 # HANDOFF — CommodoreSQL / BMG cost-data analysis
 
-Pickup context as of **2026-07-06**. Read this first, then `SCHEMA.md` (data model) and
+Pickup context as of **2026-07-07**. Read this first, then `SCHEMA.md` (data model) and
 `CLAUDE.md` (conventions). Work tracking is **GitHub Issues + Projects board**, not this file.
 
 ## What this repo is
@@ -16,7 +16,8 @@ A DuckDB pipeline (`duckdb/commodore.duckdb`, ~71 GB) that joins course-catalog 
 ## Current focus — BMG grant cost analysis (Bay View Analytics / Jeff Seaman)
 
 Fixed initial-analysis scope: **Fall 2025** (`period_sortable='2025-4'`). Everything is built
-**re-runnable** so it regenerates after the planned supply-ISBN exclusion.
+**re-runnable** — the supply exclusion (#36), enrollment fill (#32), `has_required` fix (#40), the
+`is_required_inferred` rename (#34), and the #41 fold-in have all landed on `master_section`.
 
 ### Done and in Review
 
@@ -25,14 +26,14 @@ Fixed initial-analysis scope: **Fall 2025** (`period_sortable='2025-4'`). Everyt
 | #35 | A/B subsets (Set A = ≥1 required, Set B = none), 5 tallies, enrollment assignment | Metabase cards **126/127**, **128–132**, **133/134**; questions `35`,`37`–`45`; `scripts/export_fall2025_subsets.sh` → Parquet |
 | #37 | Master ISBN dataset (one row per ISBN13×Title×Author×Format×FormatType) | card **157**, question `46_master_isbn_fall2025.sql` |
 | #38 | `master_section` US intro/intermediate required VIEW | DB view **`master_section_us_intro_fall2025`** (in `4_merged_records.sql`), GUI-queryable in Metabase |
-| #36 | Supply-vs-course-material ISBN classifier + **model integration** | `scripts/sql/lookups/supply_keywords.tsv` (84 incl + 26 excl), `scripts/classify_supplies.sh`; `is_supply`/`supply_category` on `comprehensive_data`, `is_supply`/`supply_count` on `master_section` |
+| #36 | Supply-vs-course-material ISBN classifier + **model integration** | `scripts/sql/lookups/supply_keywords.tsv` (97 incl + 26 excl), `1a_supply_classification.sql`; `is_supply`/`supply_category` on `comprehensive_data`, `is_supply`/`supply_count` on `master_section` |
 | #32 | **Persisted** `enrollment_assigned`/`enrollment_source` on `master_section` | `4_merged_records.sql` (per-period medians over the scope reference population); cards 133/134 now project the columns |
 | #39 | Metabase **Models** (`master_section` 158, US-intro-scope 159) + **3 dashboards** (Overview 18, Cost-hypothesis 16, Enrollment-DQ 17) | `metabase/models/*.sql`, `metabase/dashboards/bmg_*.json`, `sync.py` model support |
 
 Scope filter (Set A/B): `course_level IN` {intro/general undergrad, intermediate undergrad,
 non-degree credit, uncategorized} AND `sector` = the 6 real teaching sectors (IPEDS 1–6).
-"Required" = **`filter_include`** (inferred is_required, #1). Magnitudes **post-#36 supply
-exclusion + #40 has_required fix**: A=**2,521,855** / B=**131,306** (total 2,653,161 conserved).
+"Required" = **`is_required_inferred`** (inferred is_required, #1; renamed from `filter_include`, #34).
+Magnitudes **post-#36/#40/#41**: A=**2,520,108** / B=**133,053** (total 2,653,161 conserved).
 Enrollment fill reproduces cards 133/134 exactly (own=1,825,095; raw 52.8M → assigned 74.0M; 28.6%
 imputed; 0 unassigned in scope). All 6 `master_section` DQ invariants = 0.
 
@@ -53,18 +54,29 @@ counts/costs with `is_supply`/`supply_count` audit columns; classification spans
   8 BMG-scope sections (B→A: Set A 2,521,855 / B 131,306; +6 to the #38 view); enrollment fill
   unchanged; all `master_section` DQ invariants 0. Landed via `.temp/rebuild_40.sh` (1a→1b→2→
   pricing_wide patch→4→2d; the patch avoids the heavy 2c_ pivot). Reviewed pre-write; surfaced **#41**.
-- **#41** (filed) — pseudo-SKU non-book items (access codes / unclassified supplies / placeholders
-  with non-978/979 ISBNs) can be counted as required; pre-existing, a mix of legit + noise, tracked by
-  a console DQ line. Needs a precision audit before acting. Not blocking.
 - **Cost hypothesis test** — RUN (cards 160/161, dashboard 16). Public 2yr ~$149/student vs Public
   4yr ~$114 (+31%, robust); driven by course-mix, not same-item price (~$2). See Notion Step 6.
 
+### Done in the latest pass (#34 rename + #41 audit)
+
+- **#34 DONE** — renamed `filter_include` → `is_required_inferred` model-wide (6 pipeline SQL, 18
+  Metabase questions, 2 dashboards, docs; word-boundary swap, stems preserved). DB: `ALTER RENAME
+  COLUMN` on `pricing_historical`/`pricing_wide` (drop/recreate the 3 pricing indexes + the
+  `pricing_wide_filtered` view — DuckDB blocks structural ALTER while indexes exist);
+  `comprehensive_data` renamed via its `2_` rebuild. Semantics-preserving; `260529-DECISIONS.md` left
+  on the old name (frozen record).
+- **#41 RESOLVED** — audit: ~90% of pseudo-SKU required rows are **legitimate** access codes
+  (Cengage/MyLab) — kept. Two precision-verified gaps folded into the classifier via
+  `supply_keywords.tsv`: `eyewear` (science_lab) + 12 explicit "no material required" phrases
+  (`placeholder_no_material` category). Shifted ~1,747 scope sections A→B (Set A 2,521,855→**2,520,108**,
+  B→**133,053**). Both #34+#41 landed in one window (`.temp/rebuild_3441.sh`); adversarial review clean;
+  invariants 0; enrollment unchanged. The remaining #41 DQ residual (431,363 rows) is the legitimate
+  access-code floor.
+
 ### Held / pending decisions (do NOT start without sign-off)
 
-- **#34** — rename `filter_include` → `is_required_inferred` model-wide. Kept separate from #40 (a
-  dedicated mechanical rename PR). Its own rebuild window when it lands.
-- **#41 precision audit** — decide whether pseudo-SKU required rows are legit (access codes) or noise
-  (supplies/placeholders), and whether to fold the signal into the classifier.
+- _(none open — the BMG initial-analysis backlog #32/#34/#35/#36/#37/#38/#39/#40/#41 is complete and in
+  Review. The enrollment-weighted hypothesis test has been run. Next work is human-directed.)_
 
 **Enrichment principle (important):** derived/enriched columns belong **on `master_section`**,
 NOT in new downstream tables. Downstream artifacts (like the #38 view) only *project/filter*.
@@ -129,4 +141,4 @@ scripts/export_fall2025_subsets.sh    # -> output/fall2025_set{A,B}_*.parquet
 
 - `SCHEMA.md` — pipeline stages, tables, lineage diagram. `schema.dbml` — full column defs (dbdiagram.io).
 - `CLAUDE.md` — naming standards + gotchas. `260529-DECISIONS.md` — historical design decisions (May 2026).
-- GitHub Issues #1–#39 are the backlog/tracker (TODO.md was removed — its items are #19–#22).
+- GitHub Issues #1–#41 are the backlog/tracker (TODO.md was removed — its items are #19–#22).

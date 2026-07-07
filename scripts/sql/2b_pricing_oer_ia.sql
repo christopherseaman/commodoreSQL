@@ -61,36 +61,36 @@ FROM pricing_historical
 GROUP BY period_sortable
 ORDER BY period_sortable;
 
--- DQ: pricing section coverage by filter_include slice
--- Finding from 2026-05-05 investigation: filter_include=TRUE pricing sections are 100% matched in
--- catalog; the ~33% unmatched lives entirely in filter_include=FALSE rows (pre-2024 / non-required
+-- DQ: pricing section coverage by is_required_inferred slice
+-- Finding from 2026-05-05 investigation: is_required_inferred=TRUE pricing sections are 100% matched in
+-- catalog; the ~33% unmatched lives entirely in is_required_inferred=FALSE rows (pre-2024 / non-required
 -- materials). So unmatched sections don't affect filtered analysis but indicate older bookstore
 -- data without a corresponding catalog entry. See TODO.md for normalization plan.
 WITH pricing_secs AS (
-    SELECT DISTINCT filter_include, unit_id, period_sortable, section_id
+    SELECT DISTINCT is_required_inferred, unit_id, period_sortable, section_id
     FROM pricing_historical
 ),
 catalog_secs AS (SELECT DISTINCT section_id FROM comprehensive_data)
 SELECT
     'Pricing → catalog section coverage' AS metric,
-    p.filter_include,
+    p.is_required_inferred,
     COUNT(*) AS pricing_sections,
     SUM(CASE WHEN c.section_id IS NULL THEN 1 ELSE 0 END) AS unmatched,
     ROUND(100.0 * SUM(CASE WHEN c.section_id IS NULL THEN 1 ELSE 0 END) / COUNT(*), 2) AS unmatched_pct
 FROM pricing_secs p
 LEFT JOIN catalog_secs c USING (section_id)
-GROUP BY p.filter_include
-ORDER BY p.filter_include DESC;
+GROUP BY p.is_required_inferred
+ORDER BY p.is_required_inferred DESC;
 
--- Top (unit, period) for filter_include=FALSE unmatched sections — actionable for normalization
+-- Top (unit, period) for is_required_inferred=FALSE unmatched sections — actionable for normalization
 WITH pricing_secs AS (
     SELECT DISTINCT unit_id, period_sortable, section_id
     FROM pricing_historical
-    WHERE filter_include = FALSE
+    WHERE is_required_inferred = FALSE
 ),
 catalog_secs AS (SELECT DISTINCT section_id FROM comprehensive_data)
 SELECT
-    'Top (unit, period) by unmatched pricing sections (filter_include=FALSE)' AS check_name,
+    'Top (unit, period) by unmatched pricing sections (is_required_inferred=FALSE)' AS check_name,
     p.unit_id,
     p.period_sortable,
     COUNT(*) AS pricing_sections,

@@ -86,7 +86,7 @@ WITH scope AS (
 supply_req AS (
   SELECT DISTINCT s.section_id, c."ISBN13" AS isbn13, (pw.price_min + pw.price_max)/2.0 AS price_avg
   FROM scope s
-  JOIN comprehensive_data c ON c.section_id = s.section_id AND c.period_sortable='2025-4' AND c.filter_include
+  JOIN comprehensive_data c ON c.section_id = s.section_id AND c.period_sortable='2025-4' AND c.is_required_inferred
   JOIN read_parquet('${OUT}') sup ON c."ISBN13" = sup.isbn13
   JOIN pricing_wide pw ON pw.section_id = c.section_id AND pw.isbn13 = c."ISBN13"
 )

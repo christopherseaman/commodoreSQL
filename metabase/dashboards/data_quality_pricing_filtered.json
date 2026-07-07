@@ -2,7 +2,7 @@
   {
     "__meta__": {
       "name": "Data Quality — Pricing (Filtered)",
-      "description": "Pricing DQ over the required / filter_include subset. Duplicate of 'Data Quality — Pricing' with the format_count card sourced from pricing_wide_filtered (Q27) instead of the full pricing_wide base (Q11)."
+      "description": "Pricing DQ over the required / is_required_inferred subset. Duplicate of 'Data Quality — Pricing' with the format_count card sourced from pricing_wide_filtered (Q27) instead of the full pricing_wide base (Q11)."
     }
   },
   { "question": "18_dq_critical_should_be_zero",                   "row":  0, "col":  0, "size_x": 24, "size_y": 4 },

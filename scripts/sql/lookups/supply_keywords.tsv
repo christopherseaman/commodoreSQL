@@ -109,3 +109,16 @@ exclude	al-kitaab	named_book_collision
 exclude	scikit	named_book_collision		
 exclude	kite runner	named_book_collision		
 exclude	 kitchen	named_book_collision		
+include	eyewear	science_lab	0.99	#41: safety/protective eyewear (UVEX, 3M, MCR, Ward Pro). Sibling to 'goggle'/'safety glass'. Zero title collisions in the 2024+ catalog.
+include	no text required	placeholder_no_material	1.0	#41: explicit 'no material' placeholder entry, not a real material. Zero collisions.
+include	no textbook required	placeholder_no_material	1.0	#41 placeholder. Bare 'no textbook' rejected (collides with '(No Textbooks)' digital-access titles).
+include	no book required	placeholder_no_material	1.0	#41 placeholder. Bare 'no book' rejected (collides with 'Piano Book'/'Soprano Book' titles).
+include	no books required	placeholder_no_material	1.0	#41 placeholder. Zero collisions.
+include	no course materials required	placeholder_no_material	1.0	#41 placeholder. Zero collisions.
+include	no materials required	placeholder_no_material	1.0	#41 placeholder. Zero collisions.
+include	no material required	placeholder_no_material	1.0	#41 placeholder (singular). Zero collisions.
+include	no text to purchase	placeholder_no_material	1.0	#41 placeholder. Zero collisions.
+include	no text through bookstore	placeholder_no_material	1.0	#41 placeholder. Zero collisions.
+include	does not require a coursepack	placeholder_no_material	1.0	#41 placeholder. Zero collisions.
+include	no text sold	placeholder_no_material	1.0	#41 placeholder. Zero collisions.
+include	no text ordered	placeholder_no_material	1.0	#41 placeholder. Zero collisions.

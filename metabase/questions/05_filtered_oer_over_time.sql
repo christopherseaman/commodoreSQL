@@ -13,6 +13,6 @@ SELECT
     COUNT(DISTINCT unit_id)    AS institutions,
     SUM(enrollments)           AS total_enrollments
 FROM comprehensive_data
-WHERE filter_include = TRUE
+WHERE is_required_inferred = TRUE
 GROUP BY period_date, period_sortable, is_oer, is_ia
 ORDER BY period_date, is_oer DESC, is_ia DESC

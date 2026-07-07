@@ -1,13 +1,13 @@
 -- Wide pricing: one row per (section_id, isbn13).
--- 18 price columns (option × condition × format) plus required/filter_include flags,
+-- 18 price columns (option × condition × format) plus required/is_required_inferred flags,
 -- OER/IA classification, and fact aggregations: format_count, price_min/max/avg, rental_days_min/max.
 --
--- pricing_wide          : ALL priced materials (no filter_include filter), materialized as a
+-- pricing_wide          : ALL priced materials (no is_required_inferred filter), materialized as a
 --                         TABLE so downstream views (master_section cost columns) join it cheaply.
--- pricing_wide_filtered : the required, in-scope subset (filter_include), as a VIEW on the base.
+-- pricing_wide_filtered : the required, in-scope subset (is_required_inferred), as a VIEW on the base.
 --
--- filter_include is taken per (section_id, isbn13) via BOOL_OR. ~5k keys (0.08%) carry mixed
--- per-row filter_include (book_status varies within the material); BOOL_OR treats the material as
+-- is_required_inferred is taken per (section_id, isbn13) via BOOL_OR. ~5k keys (0.08%) carry mixed
+-- per-row is_required_inferred (book_status varies within the material); BOOL_OR treats the material as
 -- in-scope if any of its rows qualify.
 --
 -- Note on rentals: `book_option = 'rental'` is the only case with multiple price points per
@@ -47,7 +47,7 @@ SELECT
     isbn13,
     MAX(unit_id)::BIGINT    AS unit_id,
     BOOL_OR(required)       AS required,
-    BOOL_OR(filter_include) AS filter_include,
+    BOOL_OR(is_required_inferred) AS is_required_inferred,
     -- is_oer / is_ia stored on pricing_historical via 2b_pricing_oer_ia.sql
     BOOL_OR(is_oer) AS is_oer,
     BOOL_OR(is_ia)  AS is_ia,
@@ -113,7 +113,7 @@ FROM agg
 LEFT JOIN inst ON agg.unit_id = inst.unit_id;
 
 CREATE VIEW pricing_wide_filtered AS
-SELECT * FROM pricing_wide WHERE filter_include;
+SELECT * FROM pricing_wide WHERE is_required_inferred;
 
 -- Summary statistics
 SELECT 'Wide pricing rows (all)' AS metric, COUNT(*)::VARCHAR AS value FROM pricing_wide
