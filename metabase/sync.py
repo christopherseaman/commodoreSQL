@@ -48,6 +48,7 @@ from pathlib import Path
 
 SCRIPT_DIR = Path(__file__).parent
 QUESTIONS_DIR = SCRIPT_DIR / "questions"
+MODELS_DIR = SCRIPT_DIR / "models"
 DASHBOARDS_DIR = SCRIPT_DIR / "dashboards"
 IDS_FILE = SCRIPT_DIR / "ids.json"
 
@@ -241,6 +242,42 @@ def sync_question(path: Path, ids: dict, dry_run: bool) -> dict:
 
 
 # ---------------------------------------------------------------------------
+# Models (GUI-browsable datasets — cards with type='model')
+# ---------------------------------------------------------------------------
+
+def sync_model(path: Path, ids: dict, dry_run: bool) -> dict:
+    """Sync a metabase/models/*.sql file as a Metabase Model (type='model').
+
+    Same frontmatter as questions (-- name / -- description / -- collection_id).
+    Models are plain native SELECTs — no {{template-tags}} (Metabase forbids them
+    in models), so no .params.json sidecar. They let users slice the source in the
+    GUI notebook builder without writing SQL. Tracked under a model_<stem> id key.
+    """
+    meta = parse_question(path)
+    key = f"model_{path.stem}"
+    existing_id = ids.get(key)
+
+    if dry_run:
+        action = "UPDATE" if existing_id else "CREATE"
+        print(f"  [{action}] model: {meta['name']}")
+        return ids
+
+    payload = build_card_payload(meta)
+    payload["type"] = "model"     # the only API difference from a question card
+    payload["display"] = "table"  # models are always tables
+
+    if existing_id and card_exists(existing_id):
+        api("PUT", f"/card/{existing_id}", payload)
+        print(f"  updated  model {existing_id}: {meta['name']}")
+    else:
+        card = api("POST", "/card", payload)
+        ids[key] = card["id"]
+        print(f"  created  model {ids[key]}: {meta['name']}")
+
+    return ids
+
+
+# ---------------------------------------------------------------------------
 # Dashboards
 # ---------------------------------------------------------------------------
 
@@ -368,12 +405,18 @@ def main():
     ids = load_ids()
 
     if list_mode:
-        questions = {k: v for k, v in ids.items() if not k.startswith("dashboard_")}
+        models = {k: v for k, v in ids.items() if k.startswith("model_")}
         dashboards = {k: v for k, v in ids.items() if k.startswith("dashboard_")}
+        questions = {k: v for k, v in ids.items()
+                     if not k.startswith("dashboard_") and not k.startswith("model_")}
         if questions:
             print("Questions:")
             for key, card_id in questions.items():
                 print(f"  {key} → card {card_id}  ({METABASE_URL}/question/{card_id})")
+        if models:
+            print("Models:")
+            for key, card_id in models.items():
+                print(f"  {key} → model {card_id}  ({METABASE_URL}/model/{card_id})")
         if dashboards:
             print("Dashboards:")
             for key, dash_id in dashboards.items():
@@ -383,18 +426,24 @@ def main():
         return
 
     sql_files = sorted(QUESTIONS_DIR.glob("*.sql"))
+    model_files = sorted(MODELS_DIR.glob("*.sql")) if MODELS_DIR.exists() else []
     dash_files = sorted(DASHBOARDS_DIR.glob("*.json")) if DASHBOARDS_DIR.exists() else []
 
-    total = len(sql_files) + len(dash_files)
+    total = len(sql_files) + len(model_files) + len(dash_files)
     if not total:
         print("No files found to sync.")
         return
 
     label = "  [dry run]" if dry_run else ""
-    print(f"Syncing {len(sql_files)} question(s) and {len(dash_files)} dashboard(s) to {METABASE_URL}{label}...")
+    print(f"Syncing {len(sql_files)} question(s), {len(model_files)} model(s) and "
+          f"{len(dash_files)} dashboard(s) to {METABASE_URL}{label}...")
 
     for path in sql_files:
         ids = sync_question(path, ids, dry_run)
+
+    # Models before dashboards: GUI cards may source from them.
+    for path in model_files:
+        ids = sync_model(path, ids, dry_run)
 
     for path in dash_files:
         ids = sync_dashboard(path, ids, dry_run)

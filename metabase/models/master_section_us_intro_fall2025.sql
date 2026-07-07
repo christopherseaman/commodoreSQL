@@ -1,0 +1,3 @@
+-- name: Master Section — US Intro/Intermediate, Fall 2025 (BMG scope)
+-- description: The BMG grant analysis surface (#38): master_section filtered to Fall 2025 (period_sortable=2025-4), US institutions only (state excludes Canada + blank), intro/intermediate undergraduate course levels, and required-bearing sections (required_count>=1, course materials only — #36 supplies excluded). Same columns as Master Section. Pre-scoped so Jeff can slice the grant population directly in the GUI notebook builder (group by control x level, sector, state; filter on cost or enrollment_assigned) without re-specifying the scope. Backed by a filter view over the materialized master_section table — cheap to browse.
+SELECT * FROM master_section_us_intro_fall2025

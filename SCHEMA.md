@@ -56,16 +56,19 @@ that write Parquet to `output/`.)
 ## Key tables
 
 - **`comprehensive_data`** — the master join (catalog × IPEDS × opt-out × panel × format-type ×
-  section status), ~103M rows. Carries `filter_include`, `is_oer`/`is_ia`, and all institution
-  attributes.
+  section status), ~103M rows. Carries `filter_include`, `is_oer`/`is_ia`, `is_supply` (#36), and
+  all institution attributes.
 - **`pricing_wide`** — one row per `(section_id, isbn13)`: 18 price columns (option × condition ×
   format), `has_buy`/`has_rent`, `price_min/max`, `rental_days_min/max`, `format_count`, plus
   institution enrichment. `pricing_wide_filtered` = the `filter_include` subset (view).
-- **`section_cost`** — per-section required/optional cost aggregates over distinct priced materials.
+- **`section_cost`** — per-section required/optional cost aggregates over distinct priced course
+  materials (#36 supplies excluded).
 - **`master_section`** — **materialized TABLE**, one row per `section_id` (2024+). Institution
-  enrichment (state/control/level/size/sector/…), material/required/optional counts, OER/IA
+  enrichment (state/control/level/size/sector/…), material/required/optional counts (course
+  materials only; #36 supplies excluded, audited by `is_supply`/`supply_count`), OER/IA
   indicators + counts, coverage (`has_isbn`/`has_formattype`/…), enrollment fill-potential flags
-  (`has_enrollment*`), and cost columns (from `section_cost`). It is the analysis workhorse.
+  (`has_enrollment*`) plus the persisted numeric fill `enrollment_assigned`/`enrollment_source`
+  (#32), and cost columns (from `section_cost`). It is the analysis workhorse.
 - **`master_course`** — view: one row per `(course_id, period)`, rollups of the above.
 - **`master_section_us_intro_fall2025`** — view (BMG #38): filtered projection of `master_section`
   (Fall 2025, `required_count>=1`, intro/intermediate course levels, US only). No new columns.
@@ -109,6 +112,26 @@ Applied to `comprehensive_data` and `pricing_historical`. `master_section.requir
 ### OER/IA classification
 Explicit lookup via `format_type_classification` (FormatType → `is_oer`/`is_ia` + categories).
 NULL when FormatType is absent — so `has_formattype` is the classifiability flag.
+
+### Supply classification (issue #36)
+Bookstore **supplies** (lab kits, goggles, calculators, clickers, …) are identified by an
+include-AND-NOT-exclude **title-keyword** classifier (`FormatType` does not encode supplies).
+Keyword list: `scripts/sql/lookups/supply_keywords.tsv` (84 include + 26 exclude, single source of
+truth). `2_oer_classification.sql` builds `supply_isbn_classification` (ISBN-level, over **all
+2024+** title variants) and joins `is_supply`/`supply_category` onto `comprehensive_data`.
+`master_section` **excludes supplies** from every material count/cost aggregate and surfaces
+`is_supply` (`BOOL_OR`) + `supply_count` for audit. Precision-over-recall (≈0.98); recall is
+keyword-bounded. Supplies are <1% of Fall-2025 ISBNs — excluding them barely moves class medians
+but removes the high-price tail.
+
+### Enrollment fill (issue #32)
+`enrollment_assigned` is the persisted per-section enrollment, filling missing values by a
+documented hierarchy; `enrollment_source` records the rung used:
+`own → own_seats (<9999) → sibling_enroll → sibling_seats → class_median (control×level) →
+level_median`. Medians are computed **per period** over the **reference population** (the 4 BMG
+course levels × 6 real teaching sectors), so Fall-2025 in-scope rows reproduce the reviewed
+analysis (cards 133/134) exactly. Raw `enrollments` is never overwritten; `enrollment_source='none'`
+(NULL value) only for rows with no reachable signal.
 
 ### Pricing — rental term collapsing
 `pricing_historical` grain: `(section_id, isbn13, book_option, book_condition, book_format,

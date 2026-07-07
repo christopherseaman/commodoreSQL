@@ -1,0 +1,12 @@
+[
+  {
+    "__meta__": {
+      "name": "BMG · Fall 2025 Overview",
+      "description": "The Fall 2025 grant-analysis landscape: section + enrollment counts and OER/IA + material coverage by institution class (control x 2yr/4yr) x A/B set, with the Set A (>=1 required) and Set B (no required) subsets. Scope: 4 undergrad course levels x 6 real teaching sectors; counts are course materials only (#36 supplies excluded). For interactive slicing by any dimension, use the 'Master Section' Model in the GUI notebook builder."
+    }
+  },
+  { "question": "39_fall2025_tally_counts_by_class",           "row": 0,  "col": 0,  "size_x": 24, "size_y": 7 },
+  { "question": "43_fall2025_tally_oer_ia_materials_coverage",  "row": 7,  "col": 0,  "size_x": 24, "size_y": 6 },
+  { "question": "37_fall2025_setA_has_required",               "row": 13, "col": 0,  "size_x": 12, "size_y": 8 },
+  { "question": "38_fall2025_setB_no_required",                "row": 13, "col": 12, "size_x": 12, "size_y": 8 }
+]

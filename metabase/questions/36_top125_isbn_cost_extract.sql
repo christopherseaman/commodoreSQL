@@ -12,7 +12,7 @@ WITH top_isbns AS (
 SELECT
     -- material identity (filter_include = inferred is_required, issue #1)
     c.ISBN13, c.Title AS book_title, c.Author, c.Publisher,
-    c.book_status, c.filter_include, c.is_oer, c.is_ia,
+    c.book_status, c.filter_include, c.is_oer, c.is_ia, c.is_supply,
     -- institution (class dimensions for the analysis)
     c.unit_id, c.institution_name, c.state, c.control,
     c.level AS iclevel, c.size AS instsize, c.sector, c.institution_type,

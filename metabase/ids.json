@@ -60,5 +60,10 @@
   "43_fall2025_tally_oer_ia_materials_coverage": 132,
   "44_fall2025_enrollment_assigned": 133,
   "45_fall2025_enrollment_assignment_summary": 134,
-  "46_master_isbn_fall2025": 157
+  "46_master_isbn_fall2025": 157,
+  "model_master_section": 158,
+  "model_master_section_us_intro_fall2025": 159,
+  "dashboard_bmg_cost_hypothesis": 16,
+  "dashboard_bmg_enrollment_dq": 17,
+  "dashboard_bmg_overview": 18
 }

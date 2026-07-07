@@ -2,11 +2,13 @@
 
 ${CONFIG}
 
--- section_cost: per-section cost aggregates over DISTINCT priced materials.
+-- section_cost: per-section cost aggregates over DISTINCT priced COURSE materials.
 -- Required vs non-required uses the catalog classification (filter_include, #1).
--- Sums over distinct (section_id, ISBN13) materials that have a price; NULL-priced
--- materials contribute nothing (*_priced_count shows coverage). "owned" = buy-only
--- (rentals omitted), from pricing_wide.price_buy_min/max. Materialized as a TABLE so
+-- Supplies (#36: is_supply, ISBN-level title-keyword classification) are excluded
+-- entirely — cost columns measure course materials only. Sums over distinct
+-- (section_id, ISBN13) materials that have a price; NULL-priced materials contribute
+-- nothing (*_priced_count shows coverage). "owned" = buy-only (rentals omitted),
+-- from pricing_wide.price_buy_min/max. Materialized as a TABLE so
 -- master_section / master_course join it cheaply.
 DROP TABLE IF EXISTS section_cost;
 CREATE TABLE section_cost AS
@@ -28,6 +30,7 @@ WITH materials AS (
         AND c.section_id IS NOT NULL
         AND c.period_sortable IS NOT NULL
         AND c.ISBN13 IS NOT NULL
+        AND NOT c.is_supply
     GROUP BY c.section_id, c.ISBN13
 )
 SELECT
@@ -50,6 +53,9 @@ GROUP BY section_id;
 -- Create master_section: exactly one row per section_id (2024+). Collapsed by section_id;
 -- descriptive cols resolved via mode() (most-frequent) / ANY_VALUE (constant) / MAX (#24 —
 -- see the divergence DQ at the bottom). Cost columns (#2/#3/#4) join 1:1 on section_id.
+-- Enrichment columns live HERE, not in downstream tables: supply audit (#36:
+-- is_supply / supply_count; material counts exclude supplies) and enrollment fill
+-- (#32: enrollment_assigned / enrollment_source — see the CTE comment below).
 -- Materialized as a TABLE (not a VIEW): the course-sibling window + LIST(DISTINCT publisher)
 -- aggregations are far too expensive to recompute per query — a single Metabase SELECT *
 -- would re-derive the whole 23.5M-row window. Drop dependents first (they reference it).
@@ -92,34 +98,42 @@ WITH per_section AS (
         mode(course_title)         AS course_title,
         mode(course_level)         AS course_level,
         mode(course_subject)       AS course_subject,
-        COUNT(*) AS material_count,
+        -- Material aggregates count COURSE MATERIALS only — supplies (#36) are
+        -- excluded from every material-level aggregate below and surface separately
+        -- as is_supply / supply_count.
+        COUNT(*) FILTER (WHERE NOT is_supply) AS material_count,
         -- required vs non-required reuses filter_include (the has_required fallback:
         -- 'required' rows, plus no-entry rows in sections with no required material).
         -- filter_include is never NULL, so the two FILTERs partition material_count.
-        COUNT(*) FILTER (WHERE filter_include)     AS required_count,
-        COUNT(*) FILTER (WHERE NOT filter_include) AS optional_count,
-        -- OER / Inclusive-Access: indicator (any item) + item count, over ALL section
-        -- materials. is_oer/is_ia come from comprehensive_data (FormatType lookup).
+        COUNT(*) FILTER (WHERE filter_include AND NOT is_supply)     AS required_count,
+        COUNT(*) FILTER (WHERE NOT filter_include AND NOT is_supply) AS optional_count,
+        -- Supply audit (#36): BOOL_OR definitive indicator (no suffix, per CLAUDE.md)
+        -- + item count, over ALL section materials. is_supply <=> supply_count > 0.
+        COALESCE(BOOL_OR(is_supply), FALSE) AS is_supply,
+        COUNT(*) FILTER (WHERE is_supply)   AS supply_count,
+        -- OER / Inclusive-Access: indicator (any item) + item count, over the section's
+        -- course materials. is_oer/is_ia come from comprehensive_data (FormatType lookup).
         -- COALESCE keeps the indicator boolean so is_oer <=> oer_count > 0.
-        COALESCE(BOOL_OR(is_oer), FALSE) AS is_oer,
-        COALESCE(BOOL_OR(is_ia),  FALSE) AS is_ia,
-        COUNT(*) FILTER (WHERE is_oer) AS oer_count,
-        COUNT(*) FILTER (WHERE is_ia)  AS ia_count,
-        LIST(DISTINCT publisher) FILTER (WHERE publisher IS NOT NULL) AS publishers,
+        COALESCE(BOOL_OR(is_oer) FILTER (WHERE NOT is_supply), FALSE) AS is_oer,
+        COALESCE(BOOL_OR(is_ia)  FILTER (WHERE NOT is_supply), FALSE) AS is_ia,
+        COUNT(*) FILTER (WHERE is_oer AND NOT is_supply) AS oer_count,
+        COUNT(*) FILTER (WHERE is_ia AND NOT is_supply)  AS ia_count,
+        LIST(DISTINCT publisher) FILTER (WHERE publisher IS NOT NULL AND NOT is_supply) AS publishers,
         -- required/optional publisher splits reuse filter_include (consistent with #1's
         -- required_count classification), not raw book_status='required'.
-        LIST(DISTINCT publisher) FILTER (WHERE publisher IS NOT NULL AND filter_include) AS required_publishers,
-        COUNT(DISTINCT publisher) FILTER (WHERE filter_include)     AS required_publisher_count,
-        COUNT(DISTINCT publisher) FILTER (WHERE NOT filter_include) AS optional_publisher_count,
+        LIST(DISTINCT publisher) FILTER (WHERE publisher IS NOT NULL AND filter_include AND NOT is_supply) AS required_publishers,
+        COUNT(DISTINCT publisher) FILTER (WHERE filter_include AND NOT is_supply)     AS required_publisher_count,
+        COUNT(DISTINCT publisher) FILTER (WHERE NOT filter_include AND NOT is_supply) AS optional_publisher_count,
         MAX(enrollments) AS enrollments,
         MAX(seats_taken) AS seats_taken,
-        -- Coverage (2026-06-04 notes): ISBN presence + OER/IA classifiability per section.
-        -- is_oer/is_ia are NULL exactly when FormatType is absent, so has_formattype is the
-        -- classifiability flag; the counts give the per-section coverage numerator.
-        COALESCE(BOOL_OR(ISBN13 IS NOT NULL), FALSE)                              AS has_isbn,
-        COALESCE(BOOL_OR("FormatType" IS NOT NULL AND "FormatType" <> ''), FALSE) AS has_formattype,
-        COUNT(*) FILTER (WHERE ISBN13 IS NOT NULL)                                AS isbn_count,
-        COUNT(*) FILTER (WHERE "FormatType" IS NOT NULL AND "FormatType" <> '')   AS classified_count,
+        -- Coverage (2026-06-04 notes): ISBN presence + OER/IA classifiability per
+        -- section, over course materials only. is_oer/is_ia are NULL exactly when
+        -- FormatType is absent, so has_formattype is the classifiability flag; the
+        -- counts give the per-section coverage numerator.
+        COALESCE(BOOL_OR(ISBN13 IS NOT NULL) FILTER (WHERE NOT is_supply), FALSE)     AS has_isbn,
+        COALESCE(BOOL_OR("FormatType" IS NOT NULL AND "FormatType" <> '') FILTER (WHERE NOT is_supply), FALSE) AS has_formattype,
+        COUNT(*) FILTER (WHERE ISBN13 IS NOT NULL AND NOT is_supply)                              AS isbn_count,
+        COUNT(*) FILTER (WHERE "FormatType" IS NOT NULL AND "FormatType" <> '' AND NOT is_supply) AS classified_count,
         -- Enrollment fill-potential helpers (diagnostic only — values are NOT imputed).
         (MAX(enrollments) IS NOT NULL)                             AS own_has_enrollment,
         (MAX(seats_taken) IS NOT NULL AND MAX(seats_taken) < 9999) AS own_has_seats
@@ -140,9 +154,71 @@ with_course AS (
         SUM(CASE WHEN own_has_seats      THEN 1 ELSE 0 END) OVER w AS course_seats_sections
     FROM per_section
     WINDOW w AS (PARTITION BY course_id, period_sortable)
+),
+-- MATERIALIZED: enriched is referenced by ref_pop AND the final SELECT, and ref_pop
+-- feeds three median CTEs. Without this hint DuckDB inlines enriched, re-running the
+-- ~23.6M-row GROUP BY section_id + course-sibling WINDOW four times. Materializing it
+-- collapses that to one pass (byte-identical output) — critical since this is the
+-- heaviest step and config.sql leaves memory_limit unset.
+enriched AS MATERIALIZED (
+    SELECT *,
+        -- Diagnostic availability flags (one section per row): which fill signals EXIST,
+        -- NOT that any value was imputed. has_enrollment_* are pure facts decoupled from
+        -- has_enrollment (a section with its own enrollment can still have a sibling with
+        -- enrollment); to assess a MISSING section, combine with NOT has_enrollment.
+        -- Sibling = a DIFFERENT section in the same (course_id, period_sortable).
+        own_has_enrollment AS has_enrollment,
+        ((course_enroll_sections - CASE WHEN own_has_enrollment THEN 1 ELSE 0 END) > 0) AS has_enrollment_sibling,
+        own_has_seats                                                                   AS has_enrollment_own_seats,
+        ((course_seats_sections  - CASE WHEN own_has_seats      THEN 1 ELSE 0 END) > 0) AS has_enrollment_sibling_seats
+    FROM with_course
+),
+-- Enrollment assignment (#32): persisted numeric fill + provenance, porting the
+-- question-44 hierarchy: own -> own_seats (< 9999 sentinel) -> sibling_enroll ->
+-- sibling_seats -> class_median -> level_median. Medians are computed PER PERIOD
+-- from the REFERENCE POPULATION: the 4 BMG course levels x the 6 real teaching
+-- sectors (IPEDS 1-6) — keeps unknown-sector / admin-unit noise out of the
+-- imputation references. For Fall-2025 scope rows this reproduces cards 133/134
+-- exactly. Rows outside the reference population still fill through the same
+-- rungs; a row with no reachable signal gets enrollment_source = 'none' (NULL
+-- value). Raw enrollments / seats_taken are never overwritten.
+ref_pop AS (
+    SELECT course_id, period_sortable, control, level, enrollments, seats_taken
+    FROM enriched
+    WHERE course_level IN ('Introductory or general undergraduate', 'Intermediate undergraduate',
+                           'Non-degree credit', 'Uncategorized')
+      AND sector IN ('Public, 4-year or above', 'Public, 2-year',
+                     'Private not-for-profit, 4-year or above', 'Private not-for-profit, 2-year',
+                     'Private for-profit, 4-year or above', 'Private for-profit, 2-year')
+),
+course_agg AS (
+    SELECT course_id, period_sortable,
+        quantile_cont(enrollments, 0.5) AS ce_med,
+        quantile_cont(CASE WHEN seats_taken < 9999 THEN seats_taken END, 0.5) AS cs_med
+    FROM ref_pop GROUP BY course_id, period_sortable
+),
+class_agg AS (
+    SELECT control, level, period_sortable, quantile_cont(enrollments, 0.5) AS cl_med
+    FROM ref_pop GROUP BY control, level, period_sortable
+),
+level_agg AS (
+    SELECT level, period_sortable, quantile_cont(enrollments, 0.5) AS lv_med
+    FROM ref_pop GROUP BY level, period_sortable
 )
 SELECT
     base.* EXCLUDE (own_has_enrollment, own_has_seats, course_enroll_sections, course_seats_sections),
+    ROUND(COALESCE(base.enrollments,
+                   CASE WHEN base.seats_taken < 9999 THEN base.seats_taken END,
+                   ca.ce_med, ca.cs_med, cl.cl_med, lv.lv_med))::INT AS enrollment_assigned,
+    CASE
+        WHEN base.enrollments IS NOT NULL THEN 'own'
+        WHEN base.seats_taken < 9999      THEN 'own_seats'
+        WHEN ca.ce_med IS NOT NULL        THEN 'sibling_enroll'
+        WHEN ca.cs_med IS NOT NULL        THEN 'sibling_seats'
+        WHEN cl.cl_med IS NOT NULL        THEN 'class_median'
+        WHEN lv.lv_med IS NOT NULL        THEN 'level_median'
+        ELSE 'none'
+    END AS enrollment_source,
     sc.required_cost_total_min, sc.required_cost_total_max,
     sc.optional_cost_total_min, sc.optional_cost_total_max,
     sc.required_cost_owned_min, sc.required_cost_owned_max,
@@ -152,20 +228,10 @@ SELECT
     (sc.required_cost_owned_min + sc.required_cost_owned_max) / 2.0 AS required_cost_owned_avg,
     (sc.optional_cost_total_min + sc.optional_cost_total_max) / 2.0 AS optional_cost_avg,
     sc.required_priced_count, sc.optional_priced_count
-FROM (
-    SELECT *,
-        -- Diagnostic availability flags (one section per row): which fill signals EXIST,
-        -- NOT that any value was imputed. has_enrollment_* are pure facts decoupled from
-        -- has_enrollment (a section with its own enrollment can still have a sibling with
-        -- enrollment); to assess a MISSING section, combine with NOT has_enrollment.
-        -- Sibling = a DIFFERENT section in the same (course_id, period_sortable).
-        -- TODO(#32): optionally expose the numeric fill candidate, not just availability.
-        own_has_enrollment AS has_enrollment,
-        ((course_enroll_sections - CASE WHEN own_has_enrollment THEN 1 ELSE 0 END) > 0) AS has_enrollment_sibling,
-        own_has_seats                                                                   AS has_enrollment_own_seats,
-        ((course_seats_sections  - CASE WHEN own_has_seats      THEN 1 ELSE 0 END) > 0) AS has_enrollment_sibling_seats
-    FROM with_course
-) base
+FROM enriched base
+LEFT JOIN course_agg ca ON base.course_id = ca.course_id AND base.period_sortable = ca.period_sortable
+LEFT JOIN class_agg  cl ON base.control = cl.control AND base.level = cl.level AND base.period_sortable = cl.period_sortable
+LEFT JOIN level_agg  lv ON base.level = lv.level AND base.period_sortable = lv.period_sortable
 LEFT JOIN section_cost sc ON base.section_id = sc.section_id;
 
 -- Create master_course: one row per course per period.
@@ -274,7 +340,10 @@ WHERE
     publisher IS NOT NULL AND
     period_sortable IS NOT NULL AND
     -- 2024+ scope, consistent with master_section / master_course (#24)
-    period_date >= '2024-01-01'
+    period_date >= '2024-01-01' AND
+    -- #36: course materials only, consistent with master_section's supply-excluded
+    -- counts (so course-level material tallies reconcile across the master_* views).
+    NOT is_supply
 GROUP BY
     course_id,
     period,
@@ -325,6 +394,17 @@ SELECT 'master_section cost min<=max' AS metric,
                            OR optional_cost_total_min > optional_cost_total_max
                            OR required_cost_owned_min > required_cost_owned_max
                            OR optional_cost_owned_min > optional_cost_owned_max) AS violations
+FROM master_section
+UNION ALL
+SELECT 'master_section supply invariant (#36)' AS metric,
+       COUNT(*) AS rows,
+       COUNT(*) FILTER (WHERE is_supply <> (supply_count > 0)) AS violations
+FROM master_section
+UNION ALL
+SELECT 'master_section enrollment_assigned invariant (#32)' AS metric,
+       COUNT(*) AS rows,
+       COUNT(*) FILTER (WHERE ((enrollment_source = 'own') <> has_enrollment)
+                           OR ((enrollment_assigned IS NULL) <> (enrollment_source = 'none'))) AS violations
 FROM master_section
 UNION ALL
 SELECT 'master_section unique per section_id' AS metric,
@@ -382,4 +462,23 @@ SELECT 'OER/IA + ISBN coverage' AS note,
        COUNT(*) FILTER (WHERE has_formattype) AS sections_with_classified,
        SUM(isbn_count)       AS isbn_materials,
        SUM(classified_count) AS classified_materials
+FROM master_section;
+
+-- Supply exclusion summary (informational, #36): how many sections carry supplies,
+-- and how many carry ONLY supplies (material_count = 0 -> they land in Set B).
+SELECT 'supply exclusion (sections)' AS note,
+       COUNT(*) FILTER (WHERE is_supply) AS sections_with_supply,
+       SUM(supply_count)                 AS supply_materials,
+       COUNT(*) FILTER (WHERE is_supply AND material_count = 0) AS supply_only_sections
+FROM master_section;
+
+-- Enrollment assignment source mix (informational, #32): sections per fill rung.
+SELECT 'enrollment_assigned source mix (sections)' AS note,
+       COUNT(*) FILTER (WHERE enrollment_source = 'own')            AS own,
+       COUNT(*) FILTER (WHERE enrollment_source = 'own_seats')      AS own_seats,
+       COUNT(*) FILTER (WHERE enrollment_source = 'sibling_enroll') AS sibling_enroll,
+       COUNT(*) FILTER (WHERE enrollment_source = 'sibling_seats')  AS sibling_seats,
+       COUNT(*) FILTER (WHERE enrollment_source = 'class_median')   AS class_median,
+       COUNT(*) FILTER (WHERE enrollment_source = 'level_median')   AS level_median,
+       COUNT(*) FILTER (WHERE enrollment_source = 'none')           AS unassigned
 FROM master_section;

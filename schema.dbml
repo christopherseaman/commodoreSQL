@@ -278,6 +278,8 @@ Table comprehensive_data {
   oer_category varchar [note: 'defaults to "unknown" if no lookup match']
   is_ia boolean
   ia_category varchar [note: 'defaults to "unknown" if no lookup match']
+  is_supply boolean [note: '#36: ISBN-level title-keyword supply flag (supply_isbn_classification); never NULL — unmatched/NULL-ISBN rows are FALSE']
+  supply_category varchar [note: '#36: supply category of the matched keyword (science_lab, math_tech_clickers, ...); NULL when not a supply']
   // -- IPEDS institutional --
   institution_name varchar
   sector varchar [note: 'string descriptor — see ipeds_data']
@@ -294,7 +296,7 @@ Table comprehensive_data {
   // -- Filter --
   filter_include boolean [note: 'period>=2024 AND book_status matches has_required logic']
 
-  Note: '~103M rows. Master join: catalog × IPEDS × opt_out × panel × format_type × section_book_status. Recreated in 2_oer_classification.sql with OER/IA fields.'
+  Note: '~103M rows. Master join: catalog × IPEDS × opt_out × panel × format_type × section_book_status. Recreated in 2_oer_classification.sql with OER/IA + supply (#36) fields.'
 }
 
 // ---------------------------------------------------------------------------
@@ -382,7 +384,7 @@ Table section_cost {
   required_priced_count integer
   optional_priced_count integer
 
-  Note: 'TABLE. One row per section_id (2024+). Cost over DISTINCT priced (section_id, ISBN13) materials, required vs non-required via filter_include. owned = buy-only. Feeds master_section (join) and master_course (MIN/MAX/AVG rollup).'
+  Note: 'TABLE. One row per section_id (2024+). Cost over DISTINCT priced (section_id, ISBN13) COURSE materials (#36 supplies excluded), required vs non-required via filter_include. owned = buy-only. Feeds master_section (join) and master_course (MIN/MAX/AVG rollup).'
 }
 
 Table master_section [note: 'table'] {
@@ -409,10 +411,12 @@ Table master_section [note: 'table'] {
   course_title varchar
   course_level varchar
   course_subject varchar
-  material_count integer
-  required_count integer [note: 'COUNT FILTER(filter_include); 2024+ scope']
-  optional_count integer [note: 'COUNT FILTER(NOT filter_include)']
-  is_oer boolean [note: 'COALESCE(BOOL_OR(is_oer), FALSE) over section materials']
+  material_count integer [note: '#36: COURSE materials only (supplies excluded)']
+  required_count integer [note: 'COUNT FILTER(filter_include AND NOT is_supply); 2024+ scope. A/B split key']
+  optional_count integer [note: 'COUNT FILTER(NOT filter_include AND NOT is_supply)']
+  is_supply boolean [note: '#36: COALESCE(BOOL_OR(is_supply), FALSE) — section carries >=1 supply item. is_supply <=> supply_count > 0']
+  supply_count integer [note: '#36: COUNT FILTER(is_supply) — supply items on the section (excluded from material_count)']
+  is_oer boolean [note: 'COALESCE(BOOL_OR(is_oer), FALSE) over course materials (supplies excluded)']
   is_ia boolean
   oer_count integer
   ia_count integer
@@ -427,13 +431,18 @@ Table master_section [note: 'table'] {
   has_formattype boolean [note: 'BOOL_OR(FormatType present) — the OER/IA classifiability flag (is_oer/is_ia are NULL exactly when FormatType is absent)']
   isbn_count integer [note: 'materials with an ISBN']
   classified_count integer [note: 'materials carrying a FormatType']
-  // -- enrollment fill-potential flags (diagnostic availability; enrollment is NOT imputed).
+  // -- enrollment fill-potential flags (diagnostic availability; raw enrollment is NOT imputed).
   //    has_enrollment_* are pure facts (decoupled from has_enrollment); assess a missing
-  //    section via NOT has_enrollment AND has_enrollment_*. TODO(#32): numeric fill value. --
+  //    section via NOT has_enrollment AND has_enrollment_*. #32 adds the numeric fill below. --
   has_enrollment boolean [note: 'section carries its own enrollment']
   has_enrollment_sibling boolean [note: 'another section of the same course+period has enrollment']
   has_enrollment_own_seats boolean [note: 'this section has usable seats_taken (<9999)']
   has_enrollment_sibling_seats boolean [note: 'a sibling section has usable seats_taken']
+  // -- enrollment fill (#32): persisted numeric imputation + provenance. Raw enrollments
+  //    is never overwritten; enrollment_assigned is the filled value. Medians per period
+  //    over the reference population (4 BMG course levels x 6 teaching sectors). --
+  enrollment_assigned integer [note: '#32: filled enrollment. own -> own_seats(<9999) -> sibling_enroll -> sibling_seats -> class_median(control x level) -> level_median. NULL only when enrollment_source=none']
+  enrollment_source varchar [note: '#32: which fill rung supplied enrollment_assigned: own | own_seats | sibling_enroll | sibling_seats | class_median | level_median | none']
   required_cost_total_min decimal [note: 'SUM of per-material price_min over distinct required materials (from section_cost)']
   required_cost_total_max decimal
   optional_cost_total_min decimal
@@ -448,7 +457,7 @@ Table master_section [note: 'table'] {
   required_priced_count integer [note: 'distinct required materials with ANY price (total coverage; NOT owned-only — can be >0 while owned cost is NULL when priced materials are rental-only)']
   optional_priced_count integer
 
-  Note: 'TABLE (materialized — the course-sibling window + LIST aggregations are too expensive to recompute per query). One row per section_id (2024+). Counts/OER/coverage from comprehensive_data; institution enrichment via ANY_VALUE (0 divergence per unit); cost columns from section_cost. fill_* flags quantify enrollment fill-potential (values are NOT imputed) and overlap. unique per section_id (descriptive cols collapsed via mode()).'
+  Note: 'TABLE (materialized — the course-sibling window + LIST aggregations are too expensive to recompute per query). One row per section_id (2024+). Counts/OER/coverage from comprehensive_data over COURSE materials (#36 supplies excluded; is_supply/supply_count audit them); institution enrichment via ANY_VALUE (0 divergence per unit); cost columns from section_cost. has_enrollment_* flags quantify fill-potential and overlap; enrollment_assigned/enrollment_source (#32) are the persisted numeric fill. unique per section_id (descriptive cols collapsed via mode()).'
 }
 
 Table master_course [note: 'view'] {
@@ -523,7 +532,7 @@ Table master_course_material [note: 'view'] {
   sections_using integer
   total_seats_affected integer
 
-  Note: 'One row per (course_id × period × publisher × book_status). Material distribution.'
+  Note: 'One row per (course_id × period × publisher × book_status). Material distribution over course materials only (#36 supplies excluded, consistent with master_section counts).'
 }
 
 Table master_section_us_intro_fall2025 [note: 'view'] {
