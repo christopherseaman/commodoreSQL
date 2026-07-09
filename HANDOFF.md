@@ -143,5 +143,6 @@ scripts/export_fall2025_subsets.sh    # -> output/fall2025_set{A,B}_*.parquet
 
 - `SCHEMA.md` — pipeline stages, tables, lineage diagram. `schema.dbml` — full column defs (dbdiagram.io).
 - `BMG-SUMMARY.md` — decisions / outputs (grouped) / review notes for the BMG analysis (the reference).
+- `BMG-2026-07-09-CALL.md` — same format for the 2026-07-09 call round (#42–#49: analyses + index fix).
 - `CLAUDE.md` — naming standards + gotchas. `260529-DECISIONS.md` — historical design decisions (May 2026).
 - GitHub Issues #1–#41 are the backlog/tracker (TODO.md was removed — its items are #19–#22).
