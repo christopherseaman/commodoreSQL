@@ -30,6 +30,18 @@ FROM oer_ia_per_section_isbn o
 WHERE p.section_id = o.section_id
   AND p.isbn13     = o.isbn13;
 
+-- Build pricing_historical indexes HERE (#49), after the LAST write to the table
+-- (this UPDATE plus 1b_section_filter.sql's UPDATEs). A DuckDB ART index created
+-- earlier (1_bookprices_import.sql) then UPDATE'd gets corrupted for '=' point
+-- lookups — WHERE period_sortable = 'x' silently returns 0 rows. DROP+CREATE here,
+-- post-write, keeps '=' correct. Re-runnable via DROP IF EXISTS.
+DROP INDEX IF EXISTS idx_pricing_section;
+DROP INDEX IF EXISTS idx_pricing_isbn;
+DROP INDEX IF EXISTS idx_pricing_period;
+CREATE INDEX idx_pricing_section ON pricing_historical (section_id);
+CREATE INDEX idx_pricing_isbn    ON pricing_historical (isbn13);
+CREATE INDEX idx_pricing_period  ON pricing_historical (period_sortable);
+
 COMMIT;
 
 -- DQ check: BOOL_OR should equal BOOL_AND for every (section, isbn) — flags inconsistent classification

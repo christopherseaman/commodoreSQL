@@ -126,10 +126,11 @@ FROM (
 )
 WHERE _snapshot_rank = 1;
 
--- Index for joins and lookups
-CREATE INDEX idx_pricing_section ON pricing_historical (section_id);
-CREATE INDEX idx_pricing_isbn ON pricing_historical (isbn13);
-CREATE INDEX idx_pricing_period ON pricing_historical (period_sortable);
+-- Indexes are NOT created here (#49): pricing_historical is UPDATE'd later by
+-- 1b_section_filter.sql and 2b_pricing_oer_ia.sql, and a DuckDB ART index created
+-- before those UPDATEs gets corrupted for '=' point lookups (e.g. WHERE
+-- period_sortable = 'x' returns 0 rows). They are built at the END of
+-- 2b_pricing_oer_ia.sql, after the last write to the table.
 
 COMMIT;
 
