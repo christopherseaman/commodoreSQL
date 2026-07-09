@@ -1,5 +1,7 @@
 # HANDOFF — CommodoreSQL / BMG cost-data analysis
 
+> 🔗 **Living Notion build-log:** https://app.notion.com/p/38bd9fdd1a1a81f9b094c13ba9cfbedf
+
 Pickup context as of **2026-07-07**. Read this first, then `SCHEMA.md` (data model) and
 `CLAUDE.md` (conventions). Work tracking is **GitHub Issues + Projects board**, not this file.
 

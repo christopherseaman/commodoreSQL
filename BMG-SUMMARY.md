@@ -1,5 +1,7 @@
 # BMG Fall 2025 Cost Analysis — Decisions, Outputs & Review Notes
 
+> 🔗 **In Notion (this doc mirrors that page):** https://app.notion.com/p/396d9fdd1a1a8183a35deb3117511e51
+
 Reference summary of the Bay View Analytics (Jeff Seaman) grant course-materials cost
 analysis. Organized by **decisions**, **outputs** (grouped conceptually), and **points of
 note & review**. For the chronological build log see the Notion page *"26.06.26 · Fall 2025

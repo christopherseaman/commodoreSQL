@@ -1,6 +1,9 @@
 ---
 notion-id: f04f0103-b3d1-409a-94f1-adf673830593
 ---
+
+> 🔗 **Notion:** https://app.notion.com/p/f04f0103b3d1409a94f1adf673830593
+
 # Setup
 ## Description
 Basic data base is flat file, 29 columns, 78+ million records.  A sample of N=250 records is attached.

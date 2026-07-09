@@ -1,6 +1,9 @@
 ---
 notion-id: 23ad9fdd-1a1a-814a-92ba-eb9a37832af1
 ---
+
+> 🔗 **Notion:** https://app.notion.com/p/23ad9fdd1a1a814a92baeb9a37832af1
+
 # Setup
 ## Attachments
 !Work/Commodore/media/Sample_N250.csv
