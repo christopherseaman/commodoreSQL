@@ -539,6 +539,96 @@ Table master_section_us_intro_fall2025 [note: 'view'] {
   Note: 'BMG #38. Filtered projection of master_section (NO new columns, same schema): period_sortable=2025-4, required_count>=1, course_level in {Introductory or general undergraduate, Intermediate undergraduate}, US only (state excludes CAN + blank). ~2.12M sections. Enrichment stays on master_section; this view only projects/filters.'
 }
 
+Table master_institution {
+  period_sortable varchar [note: 'YYYY-N; part of canonical key']
+  unit_id bigint [note: 'IPEDS institution identifier; NULL is one explicit unknown-institution bucket per term']
+  state varchar
+  control varchar
+  level varchar
+  size varchar
+  institution_name varchar
+  institution_type varchar
+  enrollment_2024 integer
+  distance_enrollment_2024 integer
+  bookstore_url varchar [note: 'Most frequent nonblank URL on same-term priced section-material rows; lexical tie-break']
+  section_count bigint
+  advanced_graduate_section_count bigint
+  advanced_graduate_directed_study_and_research_section_count bigint
+  advanced_undergraduate_section_count bigint
+  advanced_undergraduate_graduate_section_count bigint
+  general_graduate_section_count bigint
+  intermediate_undergraduate_section_count bigint
+  introductory_or_general_undergraduate_section_count bigint
+  non_degree_credit_section_count bigint
+  uncategorized_section_count bigint
+  course_count bigint
+  material_section_count bigint [note: 'Sections with at least one non-supply material']
+  required_section_count bigint [note: 'Sections with supply-aware raw has_required']
+  inferred_required_section_count bigint [note: 'Sections with master_section.required_count > 0']
+  optional_section_count bigint
+  supply_section_count bigint
+  oer_section_count bigint
+  ia_section_count bigint
+  required_priced_section_count bigint
+  optional_priced_section_count bigint
+  isbn_section_count bigint
+  enrollment_section_count bigint [note: 'Sections with enrollment_assigned']
+  seats_taken_section_count bigint [note: 'Sections with non-NULL seats_taken below sentinel 9999']
+  enrollments_tot hugeint [note: 'SUM(enrollment_assigned)']
+  seats_taken_tot hugeint [note: 'SUM(valid seats_taken)']
+
+  Note: 'Issue #54. Materialized by run_sql.sh from scripts/sql/models/master_institution.sql. One row per term × institution key; 2024+ master_section population.'
+}
+
+Table master_isbn {
+  period_sortable varchar [note: 'YYYY-N; part of canonical key']
+  isbn13 bigint [note: 'Non-NULL ISBN; part of canonical key']
+  book_title varchar [note: 'Lexical MIN of trimmed nonblank catalog values']
+  author varchar [note: 'Lexical MIN of trimmed nonblank catalog values']
+  publisher varchar [note: 'Lexical MIN of trimmed nonblank catalog values']
+  is_oer boolean [note: 'Definitive BOOL_OR across catalog rows']
+  is_ia boolean [note: 'Definitive BOOL_OR across catalog rows']
+  is_supply boolean [note: 'Always false in this non-supply release population']
+  unit_id_count bigint
+  section_id_count bigint
+  course_id_count bigint
+  has_enrollment boolean
+  enroll_cnt bigint [note: 'Distinct sections with enrollment_assigned']
+  enroll_tot hugeint [note: 'SUM(enrollment_assigned) over the distinct section × ISBN spine']
+  title_variant_count bigint
+  author_variant_count bigint
+  publisher_variant_count bigint
+  metadata_conflict boolean [note: 'True when any metadata variant count exceeds one']
+  price_buy_new_physical_count bigint
+  price_buy_new_digital_count bigint
+  price_buy_new_na_count bigint
+  price_buy_used_physical_count bigint
+  price_buy_used_digital_count bigint
+  price_buy_used_na_count bigint
+  price_buy_na_physical_count bigint
+  price_buy_na_digital_count bigint
+  price_buy_na_na_count bigint
+  price_rental_new_physical_count bigint
+  price_rental_new_digital_count bigint
+  price_rental_new_na_count bigint
+  price_rental_used_physical_count bigint
+  price_rental_used_digital_count bigint
+  price_rental_used_na_count bigint
+  price_rental_na_physical_count bigint
+  price_rental_na_digital_count bigint
+  price_rental_na_na_count bigint
+  institution_type_2_year_private_profit_count bigint
+  institution_type_2_year_private_count bigint
+  institution_type_2_year_public_count bigint
+  institution_type_4_year_private_profit_count bigint
+  institution_type_4_year_private_count bigint
+  institution_type_4_year_public_count bigint
+  institution_type_under_2_year_public_count bigint
+  institution_type_unknown_count bigint
+
+  Note: 'Issue #55. Materialized by run_sql.sh from scripts/sql/models/master_isbn.sql. One row per term × ISBN for 2024+ nonblank, non-supply catalog materials; price counts are distinct sections with non-NULL pricing_wide cells.'
+}
+
 // ---------------------------------------------------------------------------
 // RELATIONSHIPS — Join Keys
 // Only true many-to-one refs where the referenced column is unique/PK
@@ -611,6 +701,8 @@ TableGroup eda_records {
   master_section
   master_course
   master_course_material
+  master_institution
+  master_isbn
 }
 
 // ---------------------------------------------------------------------------

@@ -74,5 +74,7 @@
   "60_sameisbn_price_by_book_status": 166,
   "61_master_isbn_variability": 167,
   "62_master_isbn_title_cluster_candidates": 168,
-  "63_no_price_choice_by_class": 169
+  "63_no_price_choice_by_class": 169,
+  "model_master_institution": 170,
+  "model_master_isbn": 171
 }

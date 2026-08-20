@@ -36,7 +36,7 @@ The runner loads `scripts/dot.env`, templates each `scripts/sql/*.sql` file (env
 | Stage | Flag to skip | What it does |
 |-------|--------------|--------------|
 | IMPORT | `NO_IMPORT` | Load CSVs; derive composite keys; build `comprehensive_data`; classify OER/IA; pivot pricing |
-| EDA | `NO_EDA` | Build mailing lists and the `master_section` / `master_course` / `section_cost` records |
+| EDA | `NO_EDA` | Build mailing lists, section/course records, and materialize canonical `scripts/sql/models/*.sql` rollups |
 | EXPORT | `NO_EXPORT` | Auto-discover `scripts/sql/exports/*.sql`, wrap each in a temp table, `COPY` to CSV in `output/` |
 
 ```bash
@@ -56,7 +56,17 @@ and is re-runnable.
   required/non-required cost columns. Cost is computed in **`section_cost`**.
 - **`pricing_wide`** (all priced materials) / **`pricing_wide_filtered`** (required subset) —
   18 price columns pivoted per `(section_id, isbn13)`.
+- **`master_institution`** / **`master_isbn`** (materialized TABLEs) — reusable per-term
+  institution and strict term×ISBN rollups. Their canonical queries live in
+  `scripts/sql/models/`; combined exports live in `output/`.
 - **Mailing lists** — `master_mailing`, `current_mailing`, and state-specific views.
+
+To create separate release-dated files for every priced term, or only Fall 2025:
+
+```bash
+scripts/export_cmm_masters.sh
+scripts/export_cmm_masters.sh 2025-4
+```
 
 ## Metabase
 

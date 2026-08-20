@@ -40,6 +40,16 @@ EDA_SQL=(
     "4_merged_records.sql"
 )
 
+# Canonical analysis-model queries are bare SELECTs. Materialize them after EDA
+# so exports and Metabase reuse the same definition without recomputing heavy
+# rollups for every read.
+MODEL_SQL=()
+if [ -d "sql/models" ]; then
+    while IFS= read -r model_file; do
+        MODEL_SQL+=("models/$(basename "$model_file")")
+    done < <(find sql/models -maxdepth 1 -name "*.sql" -type f | sort)
+fi
+
 # Populate EXPORT_SQL from exports directory
 EXPORT_SQL=()
 if [ -d "sql/exports" ]; then
@@ -61,6 +71,7 @@ fi
 # Add EDA stage unless NO_EDA is set
 if [ -z "${NO_EDA+x}" ]; then
     SQL_FILES+=("${EDA_SQL[@]}")
+    SQL_FILES+=("${MODEL_SQL[@]}")
 else
     echo "Skipping EDA stage (NO_EDA set)"
 fi
@@ -114,6 +125,7 @@ echo "=== Pipeline Configuration ==="
 echo "Database: ${MAIN_DB}"
 echo "IMPORT stage: $([ -z "${NO_IMPORT+x}" ] && echo "ENABLED" || echo "SKIPPED")"
 echo "EDA stage: $([ -z "${NO_EDA+x}" ] && echo "ENABLED" || echo "SKIPPED")"
+echo "Analysis models: ${#MODEL_SQL[@]} discovered"
 echo "EXPORT stage: $([ -z "${NO_EXPORT+x}" ] && echo "ENABLED" || echo "SKIPPED")"
 echo "SQL files to process: ${#SQL_FILES[@]}"
 if [ ${#SQL_FILES[@]} -gt 0 ]; then
@@ -159,6 +171,26 @@ EOF
     time nice -n 19 ${DUCKDB} "${MAIN_DB}" < "${TMP_DIR}/${export_name}.sql"
 }
 
+process_model() {
+    local sql_file=$1
+    local model_name
+    model_name=$(basename "$sql_file" .sql)
+
+    if [[ ! "$model_name" =~ ^[a-z][a-z0-9_]*$ ]]; then
+        echo "Error: invalid model filename: ${sql_file}"
+        exit 1
+    fi
+
+    echo "[MODEL] Materializing ${model_name} from ${sql_file}..."
+    {
+        printf '%s\n' "${CONFIG}"
+        printf 'CREATE OR REPLACE TABLE %s AS\n' "$model_name"
+        envsubst < "sql/${sql_file}"
+    } > "${TMP_DIR}/${model_name}.sql"
+
+    time nice -n 19 ${DUCKDB} "${MAIN_DB}" < "${TMP_DIR}/${model_name}.sql"
+}
+
 # Process and run SQL files
 for sql_file in "${SQL_FILES[@]}"; do
     # Determine stage for logging
@@ -167,6 +199,9 @@ for sql_file in "${SQL_FILES[@]}"; do
         stage="IMPORT"
     elif [[ " ${EDA_SQL[@]} " =~ " ${sql_file} " ]]; then
         stage="EDA"
+    elif [[ " ${MODEL_SQL[@]} " =~ " ${sql_file} " ]]; then
+        process_model "$sql_file"
+        continue
     elif [[ " ${EXPORT_SQL[@]} " =~ " ${sql_file} " ]]; then
         # Handle export files specially
         process_export "$sql_file"

@@ -46,13 +46,15 @@ Run via `scripts/run_sql.sh`. Three stages, each skippable by flag
 |----------|---------|---------|
 | `3_mailing_lists.sql` | `master_mailing`, `current_mailing`, 5 state views | Deduplicated instructor mailing lists |
 | `4_merged_records.sql` | **`section_cost`** (table), **`master_section`** (TABLE), `master_course` (view), `master_course_material` (view), `master_section_us_intro_fall2025` (view) | Aggregated records by section / course; per-section cost; BMG report view |
+| `models/master_institution.sql`, `models/master_isbn.sql` | **`master_institution`**, **`master_isbn`** (TABLEs) | Canonical reusable term×institution and term×ISBN rollups; auto-discovered and materialized by `run_sql.sh` after the EDA SQL files |
 
 ### EXPORT stage
 
 Auto-discovers `scripts/sql/exports/*.sql`; wraps each in a temp table and `COPY`s to CSV in
 `output/`. (Analysis extracts like the A/B subsets and supply classification are separate
 re-runnable scripts — `scripts/export_fall2025_subsets.sh`, `scripts/classify_supplies.sh` —
-that write Parquet to `output/`.)
+that write Parquet to `output/`.) `scripts/export_cmm_masters.sh` writes one release-dated CSV
+per priced term from the materialized Master Institution and Master ISBN tables.
 
 ## Key tables
 
@@ -71,6 +73,12 @@ that write Parquet to `output/`.)
   (`has_enrollment*`) plus the persisted numeric fill `enrollment_assigned`/`enrollment_source`
   (#32), and cost columns (from `section_cost`). It is the analysis workhorse.
 - **`master_course`** — view: one row per `(course_id, period)`, rollups of the above.
+- **`master_institution`** — table: one row per `(period_sortable, unit_id)`, including an
+  explicit NULL-unit unknown bucket so section totals reconcile; institution attributes,
+  deterministic bookstore URL, and section-level coverage/totals (#54).
+- **`master_isbn`** — table: one row per `(period_sortable, isbn13)` for nonblank, non-supply
+  2024+ materials; canonical metadata with conflict DQ, section-level coverage, all 18 price-cell
+  counts, enrollment, and institution-type counts (#55).
 - **`master_section_us_intro_fall2025`** — view (BMG #38): filtered projection of `master_section`
   (Fall 2025, `required_count>=1`, intro/intermediate course levels, US only). No new columns.
 
@@ -91,6 +99,11 @@ flowchart TD
     cd --> sc
     sc --> ms
     ms --> mc["master_course (view)"]
+    ms --> mi["master_institution (table)"]
+    cd --> misbn["master_isbn (table)"]
+    pw --> mi
+    pw --> misbn
+    ms --> misbn
     ms --> usv["master_section_us_intro_fall2025 (view)"]
     cd --> mm["master_mailing → current_mailing (+ state views)"]
 ```

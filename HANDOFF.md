@@ -11,11 +11,23 @@ A DuckDB pipeline (`duckdb/commodore.duckdb`, ~71 GB) that joins course-catalog 
 (~103M rows) with IPEDS, bookstore pricing, and opt-out/panel lists, plus a
 **Metabase config-as-code** reporting layer (`metabase/`) and a GitHub Projects board.
 
-- Branch: **`data-model-derived-columns`** (push to it, **no PR** — team convention).
+- Branch: **`cmm-spring-2026`** (push to it, **no PR** — team convention).
 - Board lifecycle: Todo → On Deck → In Progress → **Review** → Done. **Review = human
   review**; Claude sets Review only after self-validating, the human owns Review → Done.
 
-## Current focus — BMG grant cost analysis (Bay View Analytics / Jeff Seaman)
+## Current focus — August 2026 CMM refresh
+
+- Source communications and extracted XLSX/DOCX/image content are under `comms/`; the
+  release-facing pipeline contract is `CMM-ETL.md`.
+- `master_institution` and `master_isbn` are canonical materialized per-term tables. Their
+  single-source queries are in `scripts/sql/models/`, combined export wrappers in
+  `scripts/sql/exports/`, release split via `scripts/export_cmm_masters.sh`, and Metabase Models
+  170/171. Fall 2025 outputs were validated at 2,373 institution rows and 347,159 ISBN rows.
+- The current local source/DB ends at `2025-4`. Spring 2026 catalog/pricing, `cmm_discipline`,
+  updated mailing history, 25 IPEDS IDs/sample pricing, updated IPEDS, external pricing, and
+  campus IA inputs are not present locally; do not invent schemas or substitute old snapshots.
+
+## Prior focus — BMG grant cost analysis (Bay View Analytics / Jeff Seaman)
 
 Fixed initial-analysis scope: **Fall 2025** (`period_sortable='2025-4'`). Everything is built
 **re-runnable** — the supply exclusion (#36), enrollment fill (#32), `has_required` fix (#40), the
@@ -120,16 +132,18 @@ python3 metabase/sync.py --dry-run  # preview
 ```
 DB id = **2**. Questions = SQL + `-- name:`/`-- display:`/`-- description:` frontmatter.
 
-**Supply classifier / subset exports** (re-runnable, read-only, output to gitignored `output/`):
+**Supply classifier / analysis exports** (re-runnable, read-only, output to gitignored `output/`):
 ```bash
 scripts/classify_supplies.sh          # -> output/fall2025_supply_isbns.parquet + prevalence/impact
 scripts/export_fall2025_subsets.sh    # -> output/fall2025_set{A,B}_*.parquet
+scripts/export_cmm_masters.sh 2025-4  # -> output/cmm/master_{institution,isbn}_2025_4_<date>.csv
 ```
 
 ## Gotchas (bite people)
 
 - `DUCKDB` in `dot.env` is `"duckdb -bail"` (binary + flag) — expand **unquoted** so it word-splits.
-- Blank `ISBN13` is empty-string `''`, not NULL (~54% of catalog). Canada = **`state='CAN'`**
+- Blank `ISBN13` is imported as NULL (~54% of catalog; zero empty strings in the current DB).
+  Canada = **`state='CAN'`**
   (single code, blank-institution; IPEDS is US-only).
 - `period_sortable='2025-4'` = Fall 2025 (N: 1=Winter 2=Spring 3=Summer 4=Fall).
 - `price_avg` / `*_cost_avg` = **`(min+max)/2`**, NOT an arithmetic mean (legacy). Label wherever surfaced.
