@@ -23,6 +23,12 @@ A DuckDB pipeline (`duckdb/commodore.duckdb`, ~71 GB) that joins course-catalog 
   single-source queries are in `scripts/sql/models/`, combined export wrappers in
   `scripts/sql/exports/`, release split via `scripts/export_cmm_masters.sh`, and Metabase Models
   170/171. Fall 2025 outputs were validated at 2,373 institution rows and 347,159 ISBN rows.
+- Deterministic 10% work uses `sample10_section_ids` and rule
+  `md5-prefix64-mod10-v1`; join this membership table at every stage. Do not reintroduce
+  independent `hash()`/Bernoulli predicates or multiply distinct institution/ISBN domains by ten.
+  `37_sample10_reconciliation.sql` currently reports 96/96 additive checks inside the 99.9%
+  section-cluster reference band; 16 institution/ISBN domain metrics are coverage-only. The
+  25-institution fixture remains blocked on the promised ID list.
 - The current local source/DB ends at `2025-4`. Spring 2026 catalog/pricing, `cmm_discipline`,
   updated mailing history, 25 IPEDS IDs/sample pricing, updated IPEDS, external pricing, and
   campus IA inputs are not present locally; do not invent schemas or substitute old snapshots.

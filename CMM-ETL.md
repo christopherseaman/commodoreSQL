@@ -76,9 +76,10 @@ see [`SCHEMA.md`](SCHEMA.md#pipeline) and [`scripts/sql/config.sql`](scripts/sql
    `master_section`, and views `master_course`, `master_course_material`, and the
    Fall 2025 BMG scope projection. Enrichment belongs on `master_section`; downstream
    views filter/project it rather than re-deriving columns.
-9. **Release rollups (`scripts/sql/models/`).** The runner materializes the canonical bare
-   SELECTs as `master_institution` and `master_isbn`. Export wrappers and Metabase Models
-   select these tables rather than carrying independent copies of their aggregation logic.
+9. **Release rollups and sample membership (`scripts/sql/models/`).** The runner materializes
+   the canonical bare SELECTs as `master_institution`, `master_isbn`, and
+   `sample10_section_ids`. Export wrappers and Metabase Models select these tables rather
+   than carrying independent copies of their aggregation or sampling logic.
 
 ## 3. Table/data dictionary (contract grains)
 
@@ -105,6 +106,7 @@ values used by current SQL.
 | `master_section_us_intro_fall2025` | one selected `section_id` | Fall 2025, required-bearing, US intro/intermediate sections | Filtered `master_section`; BMG initial-analysis surface |
 | `master_institution` | one `(period_sortable, unit_id)` | 36 institution/section-coverage fields; NULL unit is an explicit unknown bucket | `master_section` × `section_book_status` plus `pricing_wide` URL; institution-term release and Metabase model |
 | `master_isbn` | one `(period_sortable, isbn13)` | 44 metadata, DQ, coverage, price-cell, and institution-type fields | Distinct catalog section×ISBN spine × `master_section` × `pricing_wide`; ISBN-term release and Metabase model |
+| `sample10_section_ids` | one selected `section_id` | period, stable 64-bit MD5 prefix, bucket 0 | `master_section`; canonical membership joined back to every sampled pipeline stage (#53) |
 | `master_mailing`, `recent_periods`, `current_mailing`, state views | unique cleaned email / latest-period selector / filtered views | most recent period; state views include CA/TX/FL/NY/other | Catalog + opt-out/panel; mailing outputs |
 | `__data_quality_metrics` and six `__data_quality_*` drill-down tables | metric row or named top-N/distribution grain | counts for catalog, pricing, joins, ISBN, and wide-pivot checks | Snapshot DQ surfaces created by `2d_data_quality.sql`; diagnostic, not analysis facts |
 
@@ -211,12 +213,23 @@ Always state the denominator and grain with every percentage or crosstab:
    so rental terms and repeated catalog listings cannot multiply it. Institution-type counts
    likewise count distinct sections, not raw catalog or pricing rows.
 
-The full release uses all rows meeting the stated scope. The reproducible sample export
-is not a random per-query draw: [`scripts/sql/exports/34_master_section_sample10pct.sql`](scripts/sql/exports/34_master_section_sample10pct.sql)
-selects one row per `section_id` where `hash(section_id) % 10 = 0`, giving an approximately
-10% deterministic partition. It must not be expected to equal exactly one tenth in
-every subgroup; compare sample results to the same denominator definitions before
-extrapolating.
+The full release uses all rows meeting the stated scope. The reproducible sample is not a
+random per-query draw. Rule `md5-prefix64-mod10-v1` interprets the first 64 bits of
+`MD5(section_id)` as an unsigned integer and retains modulo-10 bucket zero in
+`sample10_section_ids`. MD5 is used because DuckDB does not promise `hash()` stability across
+versions. Sampling occurs after the canonical section key/grain is established; joining that
+same membership table back to catalog, cost, institution, and ISBN stages preserves whole
+section clusters and prevents stage-specific samples. Approximately 10%, rather than exactly
+10%, is expected overall and within subgroups.
+
+Only additive section-cluster totals can be estimated by multiplying the sample by ten.
+Distinct institution and ISBN domain sizes cannot: high-frequency domains have a much higher
+chance of appearing at least once. [`scripts/sql/exports/37_sample10_reconciliation.sql`](scripts/sql/exports/37_sample10_reconciliation.sql)
+reports both cases explicitly. For each additive metric it estimates Horvitz-Thompson variance
+from squared per-section contributions and applies a two-sided 99.9% normal-reference alarm
+(`|z| <= 3.2905`). This represents whole-section clustering and unequal section weights; because
+membership is a deterministic hash partition, treat the band as a pipeline-drift reference,
+not a formal repeated-sampling confidence interval.
 
 The combined canonical tables retain `period_sortable`; `scripts/export_cmm_masters.sh`
 splits them without changing filters or calculations into one release-dated CSV per priced

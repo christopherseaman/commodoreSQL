@@ -46,7 +46,7 @@ Run via `scripts/run_sql.sh`. Three stages, each skippable by flag
 |----------|---------|---------|
 | `3_mailing_lists.sql` | `master_mailing`, `current_mailing`, 5 state views | Deduplicated instructor mailing lists |
 | `4_merged_records.sql` | **`section_cost`** (table), **`master_section`** (TABLE), `master_course` (view), `master_course_material` (view), `master_section_us_intro_fall2025` (view) | Aggregated records by section / course; per-section cost; BMG report view |
-| `models/master_institution.sql`, `models/master_isbn.sql` | **`master_institution`**, **`master_isbn`** (TABLEs) | Canonical reusable term×institution and term×ISBN rollups; auto-discovered and materialized by `run_sql.sh` after the EDA SQL files |
+| `models/*.sql` | **`master_institution`**, **`master_isbn`**, **`sample10_section_ids`** (TABLEs) | Canonical term rollups and deterministic section-sample membership; auto-discovered and materialized by `run_sql.sh` after the EDA SQL files |
 
 ### EXPORT stage
 
@@ -79,6 +79,8 @@ per priced term from the materialized Master Institution and Master ISBN tables.
 - **`master_isbn`** — table: one row per `(period_sortable, isbn13)` for nonblank, non-supply
   2024+ materials; canonical metadata with conflict DQ, section-level coverage, all 18 price-cell
   counts, enrollment, and institution-type counts (#55).
+- **`sample10_section_ids`** — table: one row per selected section, using the version-stable
+  `md5-prefix64-mod10-v1` bucket-zero rule. All sampled stages join this one membership table (#53).
 - **`master_section_us_intro_fall2025`** — view (BMG #38): filtered projection of `master_section`
   (Fall 2025, `required_count>=1`, intro/intermediate course levels, US only). No new columns.
 
@@ -104,6 +106,7 @@ flowchart TD
     pw --> mi
     pw --> misbn
     ms --> misbn
+    ms --> sample10["sample10_section_ids (table)"]
     ms --> usv["master_section_us_intro_fall2025 (view)"]
     cd --> mm["master_mailing → current_mailing (+ state views)"]
 ```

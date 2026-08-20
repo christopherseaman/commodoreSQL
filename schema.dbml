@@ -629,6 +629,15 @@ Table master_isbn {
   Note: 'Issue #55. Materialized by run_sql.sh from scripts/sql/models/master_isbn.sql. One row per term × ISBN for 2024+ nonblank, non-supply catalog materials; price counts are distinct sections with non-NULL pricing_wide cells.'
 }
 
+Table sample10_section_ids {
+  section_id varchar [note: 'Canonical sampling unit; one selected row per master_section key']
+  period_sortable varchar
+  section_hash ubigint [note: 'First 64 bits of MD5(section_id), interpreted unsigned']
+  sample_bucket utinyint [note: 'section_hash modulo 10; always 0 in this membership table']
+
+  Note: 'Issue #53. Deterministic md5-prefix64-mod10-v1 membership table. All sampled stages join this table so whole section clusters and identical membership are preserved.'
+}
+
 // ---------------------------------------------------------------------------
 // RELATIONSHIPS — Join Keys
 // Only true many-to-one refs where the referenced column is unique/PK
@@ -703,6 +712,7 @@ TableGroup eda_records {
   master_course_material
   master_institution
   master_isbn
+  sample10_section_ids
 }
 
 // ---------------------------------------------------------------------------

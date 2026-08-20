@@ -59,6 +59,8 @@ and is re-runnable.
 - **`master_institution`** / **`master_isbn`** (materialized TABLEs) — reusable per-term
   institution and strict term×ISBN rollups. Their canonical queries live in
   `scripts/sql/models/`; combined exports live in `output/`.
+- **`sample10_section_ids`** — canonical deterministic section-level sample membership;
+  sampled exports and reconciliation reuse this table rather than drawing independently.
 - **Mailing lists** — `master_mailing`, `current_mailing`, and state-specific views.
 
 To create separate release-dated files for every priced term, or only Fall 2025:
