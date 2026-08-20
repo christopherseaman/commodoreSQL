@@ -149,6 +149,10 @@ in `run_sql.sh` and therefore are not part of the canonical pipeline above.
   supplies. Canada and unknown-state rows remain because this request did not specify a
   geography exclusion. Catalog duplicates collapse before price and enrollment joins;
   canonical metadata is lexical `MIN`, while variant counts and `metadata_conflict` retain DQ.
+- The per-term Master Section release is a direct filter of materialized `master_section`;
+  it does not apply a separate rollup or population rule. It therefore retains the current
+  2024+ section population described above. This release surface is provisional pending the
+  denominator and input decisions tracked in #58 and #51.
 - Mailing outputs deduplicate by cleaned email, exclude opt-outs, choose the most
   recent period, and have state-specific views. Tie-breaking and mailing-history
   updates require confirmation when a source has multiple equally eligible rows.
@@ -231,10 +235,13 @@ from squared per-section contributions and applies a two-sided 99.9% normal-refe
 membership is a deterministic hash partition, treat the band as a pipeline-drift reference,
 not a formal repeated-sampling confidence interval.
 
-The combined canonical tables retain `period_sortable`; `scripts/export_cmm_masters.sh`
-splits them without changing filters or calculations into one release-dated CSV per priced
-term. `scripts/sql/exports/35_master_institution_by_term.sql` and
-`36_master_isbn_by_term.sql` provide combined all-term exports from those same tables.
+The three canonical materialized tables retain `period_sortable`;
+`scripts/export_cmm_masters.sh` splits `master_section`, `master_institution`, and
+`master_isbn` without changing filters or calculations into three release-dated CSVs per
+priced term. Its default term discovery remains based on 2024+ `pricing_historical` terms.
+`scripts/sql/exports/35_master_institution_by_term.sql` and
+`36_master_isbn_by_term.sql` provide combined all-term exports from the two rollup tables.
+All three per-term files describe the current population and are provisional pending #58/#51.
 
 ## 7. Known pending Spring 2026 inputs and unresolved decisions
 

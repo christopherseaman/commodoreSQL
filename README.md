@@ -56,9 +56,9 @@ and is re-runnable.
   required/non-required cost columns. Cost is computed in **`section_cost`**.
 - **`pricing_wide`** (all priced materials) / **`pricing_wide_filtered`** (required subset) —
   18 price columns pivoted per `(section_id, isbn13)`.
-- **`master_institution`** / **`master_isbn`** (materialized TABLEs) — reusable per-term
-  institution and strict term×ISBN rollups. Their canonical queries live in
-  `scripts/sql/models/`; combined exports live in `output/`.
+- **`master_section`** / **`master_institution`** / **`master_isbn`** (materialized TABLEs) —
+  the three per-term CMM release masters. Institution and strict term×ISBN canonical
+  rollups live in `scripts/sql/models/`; combined exports live in `output/`.
 - **`sample10_section_ids`** — canonical deterministic section-level sample membership;
   sampled exports and reconciliation reuse this table rather than drawing independently.
 - **Mailing lists** — `master_mailing`, `current_mailing`, and state-specific views.
@@ -69,6 +69,10 @@ To create separate release-dated files for every priced term, or only Fall 2025:
 scripts/export_cmm_masters.sh
 scripts/export_cmm_masters.sh 2025-4
 ```
+
+Each selected term emits `master_section`, `master_institution`, and `master_isbn` CSVs
+under `output/cmm/`. These are the current 2024+ pipeline population and remain a
+provisional release surface pending the denominator/input decisions tracked in #58 and #51.
 
 ## Metabase
 

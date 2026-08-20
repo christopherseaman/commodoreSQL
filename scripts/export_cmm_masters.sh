@@ -2,8 +2,8 @@
 set -euo pipefail
 
 # Export one release-dated CSV per priced term from the canonical materialized
-# Master Institution and Master ISBN models. Pass terms explicitly to limit the
-# run, for example: scripts/export_cmm_masters.sh 2025-4
+# Master Section, Master Institution, and Master ISBN models. Pass terms explicitly
+# to limit the run, for example: scripts/export_cmm_masters.sh 2025-4
 
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 REPO_ROOT="$(cd "$SCRIPT_DIR/.." && pwd)"
@@ -31,7 +31,8 @@ else
         $DUCKDB -readonly -list -noheader "$DB" -c "
             SELECT DISTINCT period_sortable
             FROM pricing_historical
-            WHERE period_sortable >= '2024-1'
+            WHERE period_sortable IS NOT NULL
+              AND period_sortable >= '2024-1'
             ORDER BY period_sortable;
         "
     )
@@ -51,42 +52,57 @@ for term in "${TERMS[@]}"; do
     fi
 
     term_slug=${term/-/_}
+    section_file="$OUT_DIR/master_section_${term_slug}_${EXPORT_DATE}.csv"
     institution_file="$OUT_DIR/master_institution_${term_slug}_${EXPORT_DATE}.csv"
     isbn_file="$OUT_DIR/master_isbn_${term_slug}_${EXPORT_DATE}.csv"
+    # COPY paths are SQL string literals. Double embedded apostrophes so a valid
+    # output directory such as /tmp/team's-release remains data, not SQL syntax.
+    section_file_sql=${section_file//\'/\'\'}
+    institution_file_sql=${institution_file//\'/\'\'}
+    isbn_file_sql=${isbn_file//\'/\'\'}
 
     model_counts=$(
         $DUCKDB -readonly -list -noheader -separator ' ' "$DB" -c "
             SELECT
+                (SELECT COUNT(*) FROM master_section WHERE period_sortable = '${term}'),
                 (SELECT COUNT(*) FROM master_institution WHERE period_sortable = '${term}'),
                 (SELECT COUNT(*) FROM master_isbn WHERE period_sortable = '${term}');
         "
     )
-    read -r institution_rows isbn_rows <<< "$model_counts"
-    if [ "$institution_rows" -eq 0 ] || [ "$isbn_rows" -eq 0 ]; then
+    read -r section_rows institution_rows isbn_rows <<< "$model_counts"
+    if [ "$section_rows" -eq 0 ] || [ "$institution_rows" -eq 0 ] || [ "$isbn_rows" -eq 0 ]; then
         echo "Error: canonical models have no complete output for ${term}; rebuild them after importing that term" >&2
         exit 1
     fi
 
-    echo "[EXPORT] Master Institution ${term} -> ${institution_file#$REPO_ROOT/}"
-    echo "[EXPORT] Master ISBN ${term} -> ${isbn_file#$REPO_ROOT/}"
+    echo "[EXPORT] Master Section ${term} -> ${section_file#$REPO_ROOT/} (${section_rows} rows)"
+    echo "[EXPORT] Master Institution ${term} -> ${institution_file#$REPO_ROOT/} (${institution_rows} rows)"
+    echo "[EXPORT] Master ISBN ${term} -> ${isbn_file#$REPO_ROOT/} (${isbn_rows} rows)"
     $DUCKDB -readonly "$DB" <<SQL
 SET memory_limit='8GB';
 SET threads=4;
 
 COPY (
+    SELECT * FROM master_section
+    WHERE period_sortable = '${term}'
+    ORDER BY section_id
+) TO '${section_file_sql}' (HEADER, DELIMITER ',');
+
+COPY (
     SELECT * FROM master_institution
     WHERE period_sortable = '${term}'
     ORDER BY unit_id
-) TO '${institution_file}' (HEADER, DELIMITER ',');
+) TO '${institution_file_sql}' (HEADER, DELIMITER ',');
 
 COPY (
     SELECT * FROM master_isbn
     WHERE period_sortable = '${term}'
     ORDER BY isbn13
-) TO '${isbn_file}' (HEADER, DELIMITER ',');
+) TO '${isbn_file_sql}' (HEADER, DELIMITER ',');
 
 SELECT
     '${term}' AS period_sortable,
+    ${section_rows} AS section_rows,
     ${institution_rows} AS institution_rows,
     ${isbn_rows} AS isbn_rows;
 SQL

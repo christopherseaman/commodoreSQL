@@ -19,10 +19,12 @@ A DuckDB pipeline (`duckdb/commodore.duckdb`, ~71 GB) that joins course-catalog 
 
 - Source communications and extracted XLSX/DOCX/image content are under `comms/`; the
   release-facing pipeline contract is `CMM-ETL.md`.
-- `master_institution` and `master_isbn` are canonical materialized per-term tables. Their
-  single-source queries are in `scripts/sql/models/`, combined export wrappers in
-  `scripts/sql/exports/`, release split via `scripts/export_cmm_masters.sh`, and Metabase Models
-  170/171. Fall 2025 outputs were validated at 2,373 institution rows and 347,159 ISBN rows.
+- `master_section`, `master_institution`, and `master_isbn` are the three canonical materialized
+  per-term release tables. The two rollup queries are in `scripts/sql/models/`, combined export
+  wrappers in `scripts/sql/exports/`, and all three are release-split by
+  `scripts/export_cmm_masters.sh`; institution/ISBN are Metabase Models 170/171. Fall 2025
+  rollups were validated at 2,373 institution rows and 347,159 ISBN rows. The release remains
+  current-population/provisional pending #58/#51.
 - Deterministic 10% work uses `sample10_section_ids` and rule
   `md5-prefix64-mod10-v1`; join this membership table at every stage. Do not reintroduce
   independent `hash()`/Bernoulli predicates or multiply distinct institution/ISBN domains by ten.
@@ -142,7 +144,7 @@ DB id = **2**. Questions = SQL + `-- name:`/`-- display:`/`-- description:` fron
 ```bash
 scripts/classify_supplies.sh          # -> output/fall2025_supply_isbns.parquet + prevalence/impact
 scripts/export_fall2025_subsets.sh    # -> output/fall2025_set{A,B}_*.parquet
-scripts/export_cmm_masters.sh 2025-4  # -> output/cmm/master_{institution,isbn}_2025_4_<date>.csv
+scripts/export_cmm_masters.sh 2025-4  # -> output/cmm/master_{section,institution,isbn}_2025_4_<date>.csv
 ```
 
 ## Gotchas (bite people)

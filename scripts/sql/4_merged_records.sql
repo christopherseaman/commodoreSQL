@@ -417,6 +417,42 @@ SELECT 'master_course unique per (course_id, period_sortable)' AS metric,
        COUNT(*) - COUNT(DISTINCT (course_id, period_sortable)) AS violations
 FROM master_course;
 
+-- DQ: per-term master_section grain and row-count conservation. source_rows uses
+-- the exact population predicate from per_section above; encoded_term_violations
+-- confirms that the period carried on each materialized row agrees with the period
+-- suffix embedded in section_id. All three violation columns should be zero.
+WITH source_by_term AS (
+    SELECT period_sortable, COUNT(DISTINCT section_id) AS source_rows
+    FROM comprehensive_data
+    WHERE section_id IS NOT NULL
+      AND period_sortable IS NOT NULL
+      AND period_date >= '2024-01-01'
+    GROUP BY period_sortable
+),
+master_by_term AS (
+    SELECT
+        period_sortable,
+        COUNT(*) AS master_rows,
+        COUNT(DISTINCT section_id) AS unique_section_ids,
+        COUNT(*) FILTER (
+            WHERE REGEXP_EXTRACT(section_id, '::([0-9]{4}-[1-4])$', 1)
+                  IS DISTINCT FROM period_sortable
+        ) AS encoded_term_violations
+    FROM master_section
+    GROUP BY period_sortable
+)
+SELECT
+    'master_section term grain/count conservation' AS metric,
+    COALESCE(m.period_sortable, s.period_sortable) AS period_sortable,
+    COALESCE(m.master_rows, 0) AS master_rows,
+    COALESCE(s.source_rows, 0) AS source_rows,
+    COALESCE(m.master_rows - m.unique_section_ids, 0) AS uniqueness_violations,
+    COALESCE(m.encoded_term_violations, 0) AS encoded_term_violations,
+    ABS(COALESCE(m.master_rows, 0) - COALESCE(s.source_rows, 0)) AS conservation_violations
+FROM master_by_term m
+FULL OUTER JOIN source_by_term s USING (period_sortable)
+ORDER BY period_sortable;
+
 -- DQ (informational, #24): descriptive-column divergence flattened by the section
 -- collapse — mode() keeps the most-frequent value per section_id. Nonzero is expected
 -- source noise, not an error; this surfaces which field is noisy and how many sections.
