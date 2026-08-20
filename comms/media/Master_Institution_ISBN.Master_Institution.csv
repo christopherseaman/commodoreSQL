@@ -1,0 +1,42 @@
+,One record per institution for 2025-4,
+,Eventually to create fie for each time period beginning in 2024,
+,Can be created from master section records (with exception of bookstore URL),
+,,
+,Variable,Source
+,,
+,period_sortable,Select only 2025-4
+,unit_id,Instituion value
+,state,Instituion value
+,control,Instituion value
+,level,Instituion value
+,size,Instituion value
+,institution_name,Instituion value
+,institution_type,Instituion value
+,enrollment_2024,Instituion value
+,distance_enrollment_2024,Instituion value
+,bookstore_URL,Value for institution from pricing data
+,section_id,Count of unique sections
+,Advanced graduate,Count of sections with this course level
+,Advanced graduate/ directed study and research,Count of sections with this course level
+,Advanced undergraduate,Count of sections with this course level
+,Advanced undergraduate/ graduate,Count of sections with this course level
+,General graduate,Count of sections with this course level
+,Intermediate undergraduate,Count of sections with this course level
+,Introductory or general undergraduate,Count of sections with this course level
+,Non-degree credit,Count of sections with this course level
+,Uncategorized,Count of sections with this course level
+,course_id,Count of unique courses
+,material_count,Count of sections with material
+,required_count,Count of sections with required material
+,Inferred_required_count,Count of sections with inferred required material
+,optional_count,Count of sections with optional material
+,supply_count,Count of sections with supplies
+,oer_count,Count of sections with OER
+,ia_count,Count of sections with IA
+,Req_priced_count,Count of sections with optional prices
+,Opt_priced_count,Count of sections with required prices
+,isbn_count,Count of section with ISBN
+,enrollments,Count of section with enrollments
+,seats_taken,Count of section with seats taken
+,enrollments_tot,Total of enrollments (sum over all section records for this institution)
+,seats_taken_tot,Total of seats taken (sum over all section records for this institution)

@@ -16,6 +16,8 @@ commodore.db.tmp/
 docker/pgadmin/
 *.gz
 *.csv
+!comms/media/Master_Institution_ISBN.Master_Institution.csv
+!comms/media/Master_Institution_ISBN.Master_ISBN.csv
 *.duckdb
 *.zip
 .cache/

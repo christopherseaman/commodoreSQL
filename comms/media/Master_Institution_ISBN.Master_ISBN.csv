@@ -1,0 +1,34 @@
+,,
+,One record per ISBN for 2025-4,
+,Eventually to create fie for each time period beginning in 2024,
+,,
+,,
+,Variable,Source
+,,
+,period_sortable,Select only 2025-4
+,ISBN13,Value for ISBN
+,book_title,Value for ISBN
+,Author,Value for ISBN
+,Publisher,Value for ISBN
+,is_oer,Value for ISBN
+,is_ia,Value for ISBN
+,unit_id,Count of unique institutions
+,section_id,Count of unique sections
+,course_id,Count of unique courses
+,price_buy_new_physical,Count of records containing a value for this
+,price_buy_na_physical,Count of records containing a value for this
+,price_buy_used_physical,Count of records containing a value for this
+,price_buy_new_digital,Count of records containing a value for this
+,price_buy_na_digital,Count of records containing a value for this
+,price_rental_new_physical,Count of records containing a value for this
+,price_rental_used_physical,Count of records containing a value for this
+,price_rental_new_digital,Count of records containing a value for this
+,price_rental_new_na,Count of records containing a value for this
+,price_rental_na_physical,Count of records containing a value for this
+,price_rental_na_digital,Count of records containing a value for this
+,2 Year Priavte Profit,Count of records with this institution_type
+,2 Year Private,Count of records with this institution_type
+,2 Year Public,Count of records with this institution_type
+,4 Year Priavte Profit,Count of records with this institution_type
+,4 Year Private,Count of records with this institution_type
+,4 Year Public,Count of records with this institution_type

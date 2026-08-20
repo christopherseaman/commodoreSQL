@@ -21,3 +21,9 @@ notion-id: 23ad9fdd-1a1a-8176-8f4e-c604dfc5639f
 [[Quarterly Survey SQL]]
 
 [[Quarterly Survey]]
+
+## 2026.08 updates
+
+- [2026-08-05 · Master Institution and Master ISBN request](26-08-05.md)
+- [2026-08-14 · Data prep and release timeline](26-08-14.md)
+- [2026-08-17 · Data-flow and update notes](26-08-17.md)
