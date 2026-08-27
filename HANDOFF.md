@@ -50,8 +50,9 @@ A DuckDB pipeline (`duckdb/commodore.duckdb`, ~71 GB) that joins course-catalog 
 - Current gitignored release artifacts were regenerated from the rebuilt database on 2026-08-27:
   Fall 2025 Set A/B Parquets, the 2,359,278-row deterministic sample CSV.gz, and the 2025-4
   Master Section (5,007,488 rows), Master Institution (2,373), and Master ISBN (335,157) CSVs.
-  Metabase config was synced afterward and the local service reports healthy. The audit/migration
-  of older Metabase questions that reconstruct pre-#58 predicates is tracked separately in #61.
+  Metabase config was synced afterward and the local service reports healthy. The #61 migration
+  now routes release-facing cards through canonical Use/full-spine models, labels raw/DQ
+  exceptions explicitly, and binds both report cards directly to `master_section` dimensions.
 - The actionable current-data portion of #59 now has a complete 66-column Master Section release
   dictionary (`MASTER-SECTION-DICTIONARY.md`) and an exact cross-model reconciliation export
   (`38_cmm_release_reconciliation.sql`) plus a separately bounded exact-key audit (`39_...`);

@@ -262,6 +262,34 @@ population/material-cost spines through Master Section, Master Institution, and 
 key sets so the two large reconciliation states do not coexist. Every `is_match` value is required
 to be true.
 
+### Metabase population routing (#61)
+
+Metabase is a presentation layer over the population contract above; a question must not
+silently create a competing material or section denominator. Release-facing material and
+pricing analyses use `course_materials_use` (or the equivalent
+`is_course_material_use` predicate). Section and enrollment denominators use the complete
+`master_section` spine, including no-adoption and NoUse sections. A `master_section` report
+with a dashboard material filter may apply that filter through a canonical distinct
+`section_id` subquery over `course_materials_use`/`comprehensive_data`, then aggregate the
+selected sections from `master_section`. This keeps section-level counts at one row per
+section while allowing the material filter to remain useful.
+
+The grouped inventory below covers every tracked Metabase question, model, and dashboard.
+
+| Artifact group | Tracked artifacts | Population contract |
+|---|---|---|
+| Canonical material-row questions | **02, 04–05, 31–32, 36, 48, 59–60, 63** | Use `course_materials_use`/`is_course_material_use`; explicitly named required-status or literal-status cuts are subsets of Use, not replacement population rules. |
+| Canonical rollup/full-spine questions | **24–26, 30, 33–35, 37–45, 47, 54–56** | Read one-row-per-section denominators and Use-derived measures from `master_section`, `section_cost`, or their canonical rollups. Question 30 and question 40's report card preserve the distinct canonical-material section subquery only when the material dashboard filter is supplied. |
+| Intentional raw catalog/listing/DQ questions | **01, 03, 13–18, 23, 46, 50–52, 57–58, 61–62** | May retain NoUse, Canada, supplies, and/or missing ISBNs as each diagnostic requires; descriptions must state the raw scope and that it is not a release denominator. |
+| Intentional pricing-only DQ/lineage questions | **06–12, 19–22, 27, 53** | May use broad `pricing_historical`/`pricing_wide` rows to inspect dedupe, rental terms, matching, pivots, and outliers; these are not material or section denominators. |
+| Models | `master_section`, `master_institution`, `master_isbn`, `master_section_us_intro_fall2025` | Master Section and Institution retain the complete valid section spine with Use-derived material measures; Master ISBN is Use-only; the BMG model is the documented Fall-2025 required-Use subset. |
+| Canonical/full-spine dashboards | `bmg_cost_hypothesis`, `bmg_enrollment_dq`, `bmg_overview`, `course_materials_cost`, `data_coverage`, `oer_ia_adoption`, `oer_ia_status_filtered`, `report` | Compose the canonical material questions and/or full-spine section questions above; dashboard descriptions state any narrower analytical subset. |
+| Intentional DQ/lineage dashboards | `data_lineage`, `data_quality_catalog`, `data_quality_pricing`, `data_quality_pricing_filtered`, `filter_include_quality` | Present the explicitly labeled raw, pricing-only, lineage, or required-inference diagnostics above and do not define release populations. |
+
+When an older question reconstructs a pre-#58 material predicate, migrate its presentation
+logic to this routing contract (#61); do not treat the legacy predicate as an alternative
+release definition.
+
 ## 7. Known pending Spring 2026 inputs and unresolved decisions
 
 The August update notes say that two additional terms of course data are available,
@@ -278,9 +306,9 @@ availability. The `no_details`/`no_materials` and Use/NoUse population rules are
 in the authoritative row flags. `#26` (whether “owned cost” covers all
 required materials or only the buy-priced subset and how to label it) remains a PI
 decision, as recorded in [`BMG-SUMMARY.md`](BMG-SUMMARY.md). Do not present #26 as
-resolved until the authoritative SQL and schema are updated. Older Metabase questions that
-reconstruct pre-#58 predicates are an explicitly tracked presentation-layer migration (#61),
-not alternative definitions of the release population.
+resolved until the authoritative SQL and schema are updated. The #61 presentation-layer
+migration is complete; intentionally broad legacy/DQ cards are the explicit exceptions in the
+routing inventory above, not alternative definitions of the release population.
 
 ## Evidence and change control
 

@@ -1,6 +1,6 @@
 -- name: FormatType Coverage by Course Level and Period (Filtered)
 -- display: table
--- description: FormatType null coverage grouped by course level and period (filtered materials only)
+-- description: FormatType null coverage grouped by course level and period (canonical Use materials, inferred-required only)
 
 SELECT
     c.course_level,
@@ -15,6 +15,7 @@ SELECT
         1
     )                                                                                 AS formattype_pct
 FROM comprehensive_data c
-WHERE c.is_required_inferred = TRUE
+WHERE c.is_course_material_use
+  AND c.is_required_inferred = TRUE
 GROUP BY c.course_level, c.period_sortable, c.period_date
 ORDER BY c.period_sortable DESC, c.course_level

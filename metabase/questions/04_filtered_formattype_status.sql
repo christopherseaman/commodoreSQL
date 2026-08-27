@@ -1,6 +1,6 @@
 -- name: FormatType x OER x IA x Status (Filtered, 2024+)
 -- display: table
--- description: FormatType cross-tabulated with OER/IA flags and book_status — filtered materials only (has_required logic, period >= 2024)
+-- description: FormatType cross-tabulated with OER/IA flags and book_status — canonical Use materials, inferred-required only (period >= 2024)
 
 SELECT
     COALESCE("FormatType", '(empty/NULL)')   AS format_type,
@@ -14,6 +14,7 @@ SELECT
     COUNT(DISTINCT section_id)                AS sections,
     SUM(enrollments)                          AS total_enrollments
 FROM comprehensive_data
-WHERE is_required_inferred = TRUE
+WHERE is_course_material_use
+  AND is_required_inferred = TRUE
 GROUP BY "FormatType", is_oer, is_ia, book_status
 ORDER BY format_type, book_status, is_oer DESC, is_ia DESC

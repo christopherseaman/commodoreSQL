@@ -1,6 +1,6 @@
 -- name: Fall 2025 — Sections with no price choice, by institution class (#46)
 -- display: table
--- description: BMG grant Fall-2025 scope (period_sortable=2025-4, 4 BMG course levels, 6 real teaching sectors; 2,653,161 sections). For each in-scope section, required (is_required_inferred) non-supply materials are joined to pricing_wide on (section_id, ISBN13) and restricted to those with a non-null price_min ('priced'). NO-PRICE-CHOICE definition (per 2026-07-09 refinement): a priced required material offers no price choice when pricing_wide.price_min = price_max — every acquisition option (buy/rent x new/used x format) costs the same, so there is no cheaper option to choose (regardless of format). A section has NO price choice if it has >=1 priced required material AND ALL of them have price_min = price_max. Sections with ZERO priced required materials are broken out separately as no_priced_required_material ('can't even see a price' — Set B sections plus Set A sections whose required item(s) never matched a priced pricing_wide row), since 'no visible price' and 'one fixed price' are different situations. Secondary comparison columns: alt_single_format (all required priced materials have format_count<=1 — the earlier format-based cut) and ia_only (all are inclusive-access, is_ia). pct_*_of_scope divides by all scope sections in the class cell; pct_*_of_priced divides by sections_with_priced_required. One row per (control, level 4yr/2yr) plus a TOTAL row. Small-n caution: Private for-profit 2yr. price_min/price_max/format_count/is_ia from pricing_wide (sentinel prices >=9999 nulled, #27); is_required_inferred/is_supply from comprehensive_data.
+-- description: BMG grant Fall-2025 scope (period_sortable=2025-4, 4 BMG course levels, 6 real teaching sectors; 2,653,161 sections). For each in-scope section, required canonical Use materials (is_required_inferred and comprehensive_data.is_course_material_use) are joined to pricing_wide on (section_id, ISBN13) and restricted to those with a non-null price_min ('priced'). NO-PRICE-CHOICE definition (per 2026-07-09 refinement): a priced required material offers no price choice when pricing_wide.price_min = price_max — every acquisition option (buy/rent x new/used x format) costs the same, so there is no cheaper option to choose (regardless of format). A section has NO price choice if it has >=1 priced required material AND ALL of them have price_min = price_max. Sections with ZERO priced required materials are broken out separately as no_priced_required_material ('can't even see a price' — Set B sections plus Set A sections whose required item(s) never matched a priced pricing_wide row), since 'no visible price' and 'one fixed price' are different situations. Secondary comparison columns: alt_single_format (all required priced materials have format_count<=1 — the earlier format-based cut) and ia_only (all are inclusive-access, is_ia). pct_*_of_scope divides by all scope sections in the class cell; pct_*_of_priced divides by sections_with_priced_required. One row per (control, level 4yr/2yr) plus a TOTAL row. Small-n caution: Private for-profit 2yr. price_min/price_max/format_count/is_ia from pricing_wide (sentinel prices >=9999 nulled, #27); is_required_inferred/is_course_material_use from comprehensive_data.
 WITH scope AS (
   SELECT section_id, control, level
   FROM master_section
@@ -20,9 +20,8 @@ required_priced AS (
   JOIN scope s ON c.section_id = s.section_id
   LEFT JOIN pricing_wide pw
     ON c.section_id = pw.section_id AND c.ISBN13 = pw.isbn13
-  WHERE c.ISBN13 IS NOT NULL
-    AND c.is_required_inferred
-    AND NOT c.is_supply
+  WHERE c.is_required_inferred
+    AND c.is_course_material_use
   GROUP BY c.section_id, c.ISBN13
 ),
 priced_only AS (

@@ -1,8 +1,8 @@
 [
   {
     "__meta__": {
-      "name": "Filter Include — Data Quality (2024+)",
-      "description": "Included/excluded material counts, FormatType coverage, and sections with no materials — grouped by course level and period"
+      "name": "Required Inference — Raw Data Quality (2024+)",
+      "description": "Legacy raw inferred-required versus not-inferred-required diagnostics and FormatType coverage by course level and period. FALSE is not synonymous with optional: it also retains literal-required, NULL-status, supply, placeholder, Canada, and other NoUse rows. These are not canonical Use release metrics."
     }
   },
   {
