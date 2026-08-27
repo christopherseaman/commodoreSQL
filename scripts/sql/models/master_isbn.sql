@@ -1,7 +1,7 @@
 -- Canonical Master ISBN model query (issue #55).
 --
 -- Grain: exactly one row per (period_sortable, isbn13), for 2024+ catalog
--- materials with a nonblank ISBN and no supply classification.  The Fall-2025
+-- rows in the canonical issue-#58 Use population. The Fall-2025
 -- row set is therefore period_sortable = '2025-4'; no term literal is baked in.
 --
 -- The section_isbn spine is distinct before any joins.  pricing_wide is already
@@ -27,9 +27,7 @@ WITH raw_materials AS (
     WHERE c.period_date >= DATE '2024-01-01'
       AND c.period_sortable IS NOT NULL
       AND c.section_id IS NOT NULL
-      AND c."ISBN13" IS NOT NULL
-      AND CAST(c."ISBN13" AS VARCHAR) <> ''
-      AND NOT COALESCE(c.is_supply, FALSE)
+      AND c.is_course_material_use
 ),
 -- One catalog material instance per section/ISBN.  All section-level counts
 -- below are derived from this spine, not from repeated catalog listings.

@@ -6,25 +6,27 @@
 -- run_sql.sh materializes this bare SELECT as table master_institution.
 --
 -- Source decisions (the supplied workbook and processing notes disagree in places):
--- * section_book_status.has_required is the supply-aware, source required flag. It is
---   used for required_section_count. master_section.required_count is the count of
---   inferred-required COURSE MATERIAL items, so inferred_required_section_count uses
---   required_count > 0. Both exclude supplies consistently with master_section.
+-- * The section/enrollment spine, raw required flag, and supply audit retain every
+--   valid 2024+ section. Material, inferred-required/optional, OER/IA, ISBN, and
+--   pricing measures are derived from master_section's canonical Use-filtered fields
+--   (#58). Keeping raw required separate from inferred required preserves the source
+--   contract and exposes the effect of the inference rule.
 -- * required_priced_section_count and optional_priced_section_count follow the actual
 --   required/optional status. The source labels Req_priced_count/Opt_priced_count
 --   describe the opposite status in their prose; status-aligned names avoid that trap.
 -- * assigned enrollment is authoritative for enrollment_section_count and its total;
 --   raw enrollments is not re-imputed here. seats_taken=9999 is the documented invalid
 --   sentinel, so it is excluded from seat counts and totals.
--- * bookstore_url is selected from pricing_wide rows for the same period. For each
+-- * bookstore_url is a metadata exception to the Use-derived pricing measures: it is
+--   selected from all pricing_wide rows for the same period. For each
 --   unit, the URL occurring on the most priced-material rows wins; lexical ordering is
 --   the deterministic tie-break. URLs are not inferred for NULL unit_id.
 WITH section_flags AS (
     SELECT
         ms.*,
         COALESCE(sbs.has_required, FALSE) AS has_required,
-        -- The section_book_status table is section-grain and already applies the
-        -- supply-aware required rule from 1b_section_filter.sql.
+        -- section_book_status is section-grain and applies the supply-aware raw
+        -- required rule from 1b_section_filter.sql.
         (ms.material_count > 0) AS has_material,
         (ms.required_count > 0) AS has_inferred_required,
         (ms.optional_count > 0) AS has_optional,

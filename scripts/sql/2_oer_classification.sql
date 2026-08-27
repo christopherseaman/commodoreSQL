@@ -47,10 +47,17 @@ SELECT
 FROM unmatched
 HAVING COUNT(*) > 0;
 
--- Add OER, IA, and is_required_inferred fields to comprehensive_data table
+-- Add OER, IA, population-contract, and is_required_inferred fields to
+-- comprehensive_data.  The row flags are authoritative: downstream material
+-- models filter is_course_material_use instead of rebuilding the exclusions.
 -- Note: comprehensive_data was created as a table in 0_setup.sql, so we need to recreate it
+DROP VIEW IF EXISTS course_materials_canada;
+DROP VIEW IF EXISTS course_materials_no_use;
+DROP VIEW IF EXISTS course_materials_use;
+DROP VIEW IF EXISTS course_materials_post_2024;
 DROP TABLE IF EXISTS comprehensive_data;
 CREATE TABLE comprehensive_data AS
+WITH joined AS (
 SELECT
     c.*,
     -- Add OER classification from lookup table (NULL if no match)
@@ -94,7 +101,57 @@ LEFT JOIN supply_isbn_classification si ON c."ISBN13" = si.isbn13
 LEFT JOIN ipeds_data i ON c.unit_id = i.unitid
 LEFT JOIN panel p ON c.email = p.email
 LEFT JOIN opt_out oo ON c.email = oo.email
-LEFT JOIN section_book_status s ON c.section_id = s.section_id;
+LEFT JOIN section_book_status s ON c.section_id = s.section_id
+),
+row_flags AS (
+    SELECT
+        joined.*,
+        COALESCE(period_date >= DATE '2024-01-01', FALSE) AS is_post_2024,
+        ("ISBN13" IS NOT NULL) AS has_isbn,
+        ("FormatType" IS NOT NULL AND TRIM("FormatType") <> '') AS has_formattype,
+        (enrollments IS NOT NULL) AS has_enrollment,
+        (seats_taken IS NOT NULL AND seats_taken < 9999) AS has_enrollment_own_seats,
+        COALESCE("Title" = '*No Book Details*', FALSE) AS no_details,
+        (COALESCE("Title" = '*No Books Required*', FALSE)
+            OR COALESCE(supply_category = 'placeholder_no_material', FALSE)) AS no_materials,
+        COALESCE(state = 'CAN', FALSE) AS is_canada
+    FROM joined
+)
+SELECT
+    row_flags.*,
+    (
+        is_post_2024
+        AND NOT is_canada
+        AND has_isbn
+        AND NOT is_supply
+        AND NOT no_details
+        AND NOT no_materials
+    ) AS is_course_material_use,
+    (
+        is_post_2024
+        AND NOT (
+            NOT is_canada
+            AND has_isbn
+            AND NOT is_supply
+            AND NOT no_details
+            AND NOT no_materials
+        )
+    ) AS is_course_material_no_use
+FROM row_flags;
+
+-- Stable population views for releases and downstream ad-hoc analysis. Canada is
+-- a post-2024 subset and is also part of NoUse; the sets intentionally overlap.
+CREATE VIEW course_materials_post_2024 AS
+SELECT * FROM comprehensive_data WHERE is_post_2024;
+
+CREATE VIEW course_materials_use AS
+SELECT * FROM comprehensive_data WHERE is_course_material_use;
+
+CREATE VIEW course_materials_no_use AS
+SELECT * FROM comprehensive_data WHERE is_course_material_no_use;
+
+CREATE VIEW course_materials_canada AS
+SELECT * FROM comprehensive_data WHERE is_post_2024 AND is_canada;
 
 -- Validation: Check distribution of OER/IA classifications including NULLs
 SELECT
@@ -114,6 +171,113 @@ SELECT
     ROUND(100.0 * COUNT(*) FILTER (WHERE is_supply) / COUNT(*), 2) AS pct_of_rows,
     COUNT(DISTINCT "ISBN13") FILTER (WHERE is_supply) AS supply_isbns
 FROM comprehensive_data;
+
+-- Population contract DQ. Exactly one of Use/NoUse is true for every post-2024
+-- row; neither is true before 2024. Exclusion booleans deliberately remain
+-- independent because (for example) a row can be both Canadian and no-material.
+SELECT
+    'Course-material population contract' AS validation_status,
+    COUNT(*) FILTER (WHERE is_post_2024) AS post_2024_rows,
+    COUNT(*) FILTER (WHERE is_course_material_use) AS use_rows,
+    COUNT(*) FILTER (WHERE is_course_material_no_use) AS no_use_rows,
+    COUNT(*) FILTER (
+        WHERE is_post_2024
+          AND is_course_material_use = is_course_material_no_use
+    ) AS post_2024_partition_violations,
+    COUNT(*) FILTER (
+        WHERE NOT is_post_2024
+          AND (is_course_material_use OR is_course_material_no_use)
+    ) AS pre_2024_flag_violations,
+    COUNT(*) FILTER (
+        WHERE is_post_2024 AND is_canada AND NOT is_course_material_no_use
+    ) AS canada_not_no_use_violations,
+    COUNT(*) FILTER (WHERE is_post_2024)
+      - COUNT(*) FILTER (WHERE is_course_material_use)
+      - COUNT(*) FILTER (WHERE is_course_material_no_use) AS partition_difference
+FROM comprehensive_data;
+
+SELECT
+    'Course-material population contract by term' AS validation_status,
+    period_sortable,
+    COUNT(*) AS post_2024_rows,
+    COUNT(*) FILTER (WHERE is_course_material_use) AS use_rows,
+    COUNT(*) FILTER (WHERE is_course_material_no_use) AS no_use_rows,
+    COUNT(*) FILTER (WHERE NOT has_isbn) AS no_isbn_rows,
+    COUNT(*) FILTER (WHERE is_supply) AS supply_rows,
+    COUNT(*) FILTER (WHERE no_details) AS no_details_rows,
+    COUNT(*) FILTER (WHERE no_materials) AS no_materials_rows,
+    COUNT(*) FILTER (
+        WHERE is_course_material_use = is_course_material_no_use
+    ) AS partition_violations,
+    COUNT(*) FILTER (WHERE is_canada) AS canada_rows,
+    COUNT(*) FILTER (WHERE is_canada AND NOT is_course_material_no_use)
+        AS canada_not_no_use_violations
+FROM comprehensive_data
+WHERE is_post_2024
+GROUP BY period_sortable
+ORDER BY period_sortable;
+
+-- Preserve the overlap structure rather than forcing one exclusion-reason
+-- precedence. Cardinality 0 is exactly Use; cardinality >= 1 is exactly NoUse.
+WITH reason_cardinality AS (
+    SELECT
+        period_sortable,
+        CAST(is_canada AS INTEGER)
+          + CAST(NOT has_isbn AS INTEGER)
+          + CAST(is_supply AS INTEGER)
+          + CAST(no_details AS INTEGER)
+          + CAST(no_materials AS INTEGER) AS no_use_reason_count
+    FROM comprehensive_data
+    WHERE is_post_2024
+)
+SELECT
+    'Course-material NoUse reason cardinality' AS validation_status,
+    period_sortable,
+    no_use_reason_count,
+    COUNT(*) AS record_count
+FROM reason_cardinality
+GROUP BY period_sortable, no_use_reason_count
+ORDER BY period_sortable, no_use_reason_count;
+
+-- Exact observed combinations make every overlap auditable without storing a
+-- lossy single reason on comprehensive_data.
+SELECT
+    'Course-material NoUse reason combinations' AS validation_status,
+    period_sortable,
+    is_canada,
+    NOT has_isbn AS no_isbn,
+    is_supply,
+    no_details,
+    no_materials,
+    COUNT(*) AS record_count
+FROM comprehensive_data
+WHERE is_post_2024
+GROUP BY period_sortable, is_canada, has_isbn, is_supply, no_details, no_materials
+ORDER BY period_sortable, record_count DESC;
+
+-- The stable views must remain direct projections of their owning booleans.
+WITH flag_counts AS (
+    SELECT
+        COUNT(*) FILTER (WHERE is_post_2024) AS post_2024_rows,
+        COUNT(*) FILTER (WHERE is_course_material_use) AS use_rows,
+        COUNT(*) FILTER (WHERE is_course_material_no_use) AS no_use_rows,
+        COUNT(*) FILTER (WHERE is_post_2024 AND is_canada) AS canada_rows
+    FROM comprehensive_data
+), view_counts AS (
+    SELECT
+        (SELECT COUNT(*) FROM course_materials_post_2024) AS post_2024_rows,
+        (SELECT COUNT(*) FROM course_materials_use) AS use_rows,
+        (SELECT COUNT(*) FROM course_materials_no_use) AS no_use_rows,
+        (SELECT COUNT(*) FROM course_materials_canada) AS canada_rows
+)
+SELECT
+    'Course-material population view conservation' AS validation_status,
+    ABS(v.post_2024_rows - f.post_2024_rows) AS post_2024_violations,
+    ABS(v.use_rows - f.use_rows) AS use_violations,
+    ABS(v.no_use_rows - f.no_use_rows) AS no_use_violations,
+    ABS(v.canada_rows - f.canada_rows) AS canada_violations
+FROM flag_counts f
+CROSS JOIN view_counts v;
 
 -- DQ (#41): required rows carrying a pseudo-SKU ISBN (non-978/979 EAN — internal
 -- bookstore codes). A MIX of legitimate non-book materials (access codes, digital

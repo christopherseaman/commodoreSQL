@@ -35,7 +35,7 @@ Run via `scripts/run_sql.sh`. Three stages, each skippable by flag
 | `1_bookprices_import.sql` | `pricing_historical` | Load bookstore pricing; derive `section_id`/period keys; set `required` from Book Status |
 | `1a_supply_classification.sql` | `supply_isbn_classification` | ISBN-level supply flag from title keywords (#36); built here so `has_required` (1b_) can be supply-aware (#40) |
 | `1b_section_filter.sql` | `section_book_status` | One row per section: supply-aware `has_required` flag (#40); sets `is_required_inferred` on pricing |
-| `2_oer_classification.sql` | `format_type_classification`, (re)builds `comprehensive_data` | OER/IA lookup on FormatType; the master join; adds `is_required_inferred`, `is_supply` |
+| `2_oer_classification.sql` | `format_type_classification`, (re)builds `comprehensive_data`, four `course_materials_*` views | OER/IA lookup, master join, row flags, and canonical post-2024 Use/NoUse/Canada population (#58) |
 | `2b_pricing_oer_ia.sql` | (updates `pricing_historical`) | Writes `is_oer`/`is_ia` onto pricing per `(section_id, ISBN13)` via BOOL_OR |
 | `2c_pricing_wide.sql` | **`pricing_wide`** (TABLE), `pricing_wide_filtered` (view) | Pivot pricing into 18 price cols + `has_buy`/`has_rent` + fact aggs + institution enrichment |
 | `2d_data_quality.sql` | `__data_quality_*` tables | Materialized DQ snapshots |
@@ -54,30 +54,33 @@ Auto-discovers `scripts/sql/exports/*.sql`; wraps each in a temp table and `COPY
 `output/`. (Analysis extracts like the A/B subsets and supply classification are separate
 re-runnable scripts — `scripts/export_fall2025_subsets.sh`, `scripts/classify_supplies.sh` —
 that write Parquet to `output/`.) `scripts/export_cmm_masters.sh` writes one release-dated CSV
-per priced term from the materialized Master Institution and Master ISBN tables.
+per priced term from the materialized Master Section, Master Institution, and Master ISBN tables.
 
 ## Key tables
 
 - **`comprehensive_data`** — the master join (catalog × IPEDS × opt-out × panel × format-type ×
-  section status), ~103M rows. Carries `is_required_inferred`, `is_oer`/`is_ia`, `is_supply` (#36), and
-  all institution attributes.
+  section status), ~103M rows. Owns all row-level population booleans, including the authoritative
+  `is_course_material_use` / `is_course_material_no_use` partition (#58). The rerunnable
+  `course_materials_post_2024`, `course_materials_use`, `course_materials_no_use`, and
+  `course_materials_canada` views expose those populations without reimplementing predicates.
 - **`pricing_wide`** — one row per `(section_id, isbn13)`: 18 price columns (option × condition ×
   format), `has_buy`/`has_rent`, `price_min/max`, `rental_days_min/max`, `format_count`, plus
   institution enrichment. `pricing_wide_filtered` = the `is_required_inferred` subset (view).
-- **`section_cost`** — per-section required/optional cost aggregates over distinct priced course
-  materials (#36 supplies excluded).
+- **`section_cost`** — per-section required/optional cost aggregates over distinct priced Use
+  materials; sections without eligible priced material remain on `master_section` with NULL costs.
 - **`master_section`** — **materialized TABLE**, one row per `section_id` (2024+). Institution
-  enrichment (state/control/level/size/sector/…), material/required/optional counts (course
-  materials only; #36 supplies excluded, audited by `is_supply`/`supply_count`), OER/IA
-  indicators + counts, coverage (`has_isbn`/`has_formattype`/…), enrollment fill-potential flags
-  (`has_enrollment*`) plus the persisted numeric fill `enrollment_assigned`/`enrollment_source`
-  (#32), and cost columns (from `section_cost`). It is the analysis workhorse.
+  enrichment (state/control/level/size/sector/…), Use-based material/required/optional counts,
+  OER/IA, publisher, ISBN/FormatType, and cost fields. Its compact population audit includes
+  `has_course_material_use`, Use/NoUse and placeholder counts, and `is_canada`; #36 supplies are
+  still audited across all source rows by `is_supply`/`supply_count`. Enrollment availability
+  flags (`has_enrollment*`) and the persisted `enrollment_assigned`/`enrollment_source` fill (#32)
+  retain the full section population. It is the analysis workhorse.
 - **`master_course`** — view: one row per `(course_id, period)`, rollups of the above.
 - **`master_institution`** — table: one row per `(period_sortable, unit_id)`, including an
   explicit NULL-unit unknown bucket so section totals reconcile; institution attributes,
   deterministic bookstore URL, and section-level coverage/totals (#54).
-- **`master_isbn`** — table: one row per `(period_sortable, isbn13)` for nonblank, non-supply
-  2024+ materials; canonical metadata with conflict DQ, section-level coverage, all 18 price-cell
+- **`master_isbn`** — table: one row per `(period_sortable, isbn13)` for canonical Use
+  materials; canonical metadata with conflict DQ, section-level coverage, all 18 price-cell
   counts, enrollment, and institution-type counts (#55).
 - **`sample10_section_ids`** — table: one row per selected section, using the version-stable
   `md5-prefix64-mod10-v1` bucket-zero rule. All sampled stages join this one membership table (#53).
@@ -94,6 +97,7 @@ flowchart TD
     panel["panel"] --> cd
     ftc["format_type_classification"] --> cd
     sbs["section_book_status"] --> cd
+    cd --> pop["course_materials_post_2024 / use / no_use / canada"]
     pricing["pricing_historical"] --> pw["pricing_wide (table)"]
     cd --> pw
     cd --> ms["master_section (table)"]
@@ -124,7 +128,8 @@ flowchart TD
 Inferred is_required. TRUE when `period_date >= 2024-01-01` AND
 `(has_required=TRUE AND book_status='required')` OR `(has_required=FALSE AND book_status IS NULL)`.
 Applied to `comprehensive_data` and `pricing_historical`. `master_section.required_count` =
-`COUNT(*) FILTER (WHERE is_required_inferred AND NOT is_supply)`. (Renamed from `filter_include`, #34.)
+`COUNT(*) FILTER (WHERE is_required_inferred AND is_course_material_use)`. (Renamed from
+`filter_include`, #34.)
 
 `has_required` is **supply-aware** (#40): `BOOL_OR(book_status='required' AND NOT is_supply)`, built in
 `1a_`/`1b_`. A supply-only "required" item (e.g. safety goggles) no longer forces `has_required=TRUE`,
@@ -145,11 +150,33 @@ include-AND-NOT-exclude **title-keyword** classifier (`FormatType` does not enco
 Keyword list: `scripts/sql/lookups/supply_keywords.tsv` (97 include + 26 exclude, single source of
 truth). `1a_supply_classification.sql` builds `supply_isbn_classification` (ISBN-level, over **all
 2024+** title variants) and `2_oer_classification.sql` joins `is_supply`/`supply_category` onto
-`comprehensive_data`. `master_section` **excludes supplies** from every material count/cost aggregate
-and surfaces `is_supply` (`BOOL_OR`) + `supply_count` for audit. Precision-over-recall (≈0.98); recall
+`comprehensive_data`. Supplies are NoUse for every material/count/cost aggregate, while
+`master_section` surfaces `is_supply` (`BOOL_OR`) + `supply_count` over **all source rows** for audit.
+Precision-over-recall (≈0.98); recall
 is keyword-bounded. The `placeholder_no_material` category (#41) reuses this mechanism to exclude
 explicit "no material required" placeholder rows. Supplies are <1% of Fall-2025 ISBNs — excluding them
 barely moves class medians but removes the high-price tail.
+
+### Course-material population contract (issue #58)
+
+`comprehensive_data` owns non-null row booleans. `is_post_2024` means
+`period_date >= DATE '2024-01-01'`; `has_isbn` is `ISBN13 IS NOT NULL` (the imported
+numeric column maps blank source cells to NULL while retaining nonstandard numeric pseudo-SKUs);
+`has_formattype` means nonblank `FormatType`; enrollment flags test non-null enrollment and
+non-null `seats_taken < 9999`; `no_details` is the exact title `*No Book Details*`;
+`no_materials` is the exact title `*No Books Required*` or
+`supply_category='placeholder_no_material'`; and `is_canada` is `state='CAN'`.
+
+Use is post-2024, non-Canadian, ISBN-bearing, non-supply, and neither placeholder flag. NoUse is
+its exact post-2024 complement; both are false pre-2024, and Canada is a NoUse subset. No single
+exclusion-reason field is stored because the reason booleans can overlap. Non-978/979 pseudo-SKUs
+remain eligible unless the existing supply classifier catches them (#41).
+
+The `master_section` row spine is deliberately **not Use-filtered**: it remains one row for every
+valid 2024+ `section_id`, preserving the #20 decision to retain no-ISBN/no-adoption sections in
+section and enrollment denominators. `master_course` and `master_institution` retain that full
+spine. Only material/publisher/OER/IA/ISBN/FormatType/pricing aggregates use the canonical flag;
+the #36 supply audit and enrollment assignment continue over the retained population.
 
 ### Enrollment fill (issue #32)
 `enrollment_assigned` is the persisted per-section enrollment, filling missing values by a

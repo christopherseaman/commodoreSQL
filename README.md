@@ -49,11 +49,13 @@ and is re-runnable.
 ## Key outputs
 
 - **`comprehensive_data`** — the master join (catalog × IPEDS × opt-out × panel × format-type ×
-  section status), with `is_required_inferred` (2024+ required-material scope) and OER/IA flags.
+  section status), with row-level 2024+ Use/NoUse/Canada, coverage, enrollment, placeholder,
+  supply, required, and OER/IA flags. Four `course_materials_*` views expose the canonical
+  post-2024 populations.
 - **`master_section`** (materialized TABLE) / **`master_course`** (view) — one row per
-  section-offering / course-offering (2024+): institution enrichment, material counts, OER/IA
-  indicators, coverage + enrollment fill-potential flags (`has_enrollment*`), and
-  required/non-required cost columns. Cost is computed in **`section_cost`**.
+  section-offering / course-offering (2024+). The full section/enrollment spine is retained;
+  material, publisher, OER/IA, coverage, and cost measures use the canonical Use population.
+  Supply and NoUse reasons remain audit fields. Cost is computed in **`section_cost`**.
 - **`pricing_wide`** (all priced materials) / **`pricing_wide_filtered`** (required subset) —
   18 price columns pivoted per `(section_id, isbn13)`.
 - **`master_section`** / **`master_institution`** / **`master_isbn`** (materialized TABLEs) —
@@ -71,8 +73,9 @@ scripts/export_cmm_masters.sh 2025-4
 ```
 
 Each selected term emits `master_section`, `master_institution`, and `master_isbn` CSVs
-under `output/cmm/`. These are the current 2024+ pipeline population and remain a
-provisional release surface pending the denominator/input decisions tracked in #58 and #51.
+under `output/cmm/`. Master Section and Institution preserve all valid 2024+ section/enrollment
+denominators while Master ISBN and all material/pricing metrics use the #58 Use population.
+Source/input readiness for the next release remains tracked in #51.
 
 ## Metabase
 

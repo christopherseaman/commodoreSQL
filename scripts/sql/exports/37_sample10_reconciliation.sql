@@ -9,6 +9,8 @@
 -- standard errors). Its Horvitz-Thompson variance is estimated from squared
 -- per-section contributions, so whole-section clustering and unequal numbers of
 -- materials/enrollments within sections are represented rather than ignored.
+-- Use/NoUse, Canada, and placeholder row totals are additive even though their
+-- exclusion booleans overlap; distinct institution/ISBN domains remain coverage-only.
 WITH sample AS MATERIALIZED (
     SELECT section_id FROM sample10_section_ids
 ),
@@ -18,14 +20,28 @@ catalog AS (
         COUNT(*) AS catalog_rows_full,
         COUNT(*) FILTER (WHERE sample.section_id IS NOT NULL) AS catalog_rows_sample,
         COUNT(*) FILTER (
-            WHERE c."ISBN13" IS NOT NULL
-              AND NOT COALESCE(c.is_supply, FALSE)
+            WHERE c.is_course_material_use
         ) AS included_material_rows_full,
         COUNT(*) FILTER (
             WHERE sample.section_id IS NOT NULL
-              AND c."ISBN13" IS NOT NULL
-              AND NOT COALESCE(c.is_supply, FALSE)
+              AND c.is_course_material_use
         ) AS included_material_rows_sample,
+        COUNT(*) FILTER (WHERE c.is_course_material_no_use) AS no_use_rows_full,
+        COUNT(*) FILTER (
+            WHERE sample.section_id IS NOT NULL AND c.is_course_material_no_use
+        ) AS no_use_rows_sample,
+        COUNT(*) FILTER (WHERE c.is_canada) AS canada_rows_full,
+        COUNT(*) FILTER (
+            WHERE sample.section_id IS NOT NULL AND c.is_canada
+        ) AS canada_rows_sample,
+        COUNT(*) FILTER (WHERE c.no_details) AS no_details_rows_full,
+        COUNT(*) FILTER (
+            WHERE sample.section_id IS NOT NULL AND c.no_details
+        ) AS no_details_rows_sample,
+        COUNT(*) FILTER (WHERE c.no_materials) AS no_materials_rows_full,
+        COUNT(*) FILTER (
+            WHERE sample.section_id IS NOT NULL AND c.no_materials
+        ) AS no_materials_rows_sample,
         COUNT(*) FILTER (WHERE c."ISBN13" IS NULL) AS blank_isbn_rows_full,
         COUNT(*) FILTER (
             WHERE sample.section_id IS NOT NULL AND c."ISBN13" IS NULL
@@ -41,15 +57,35 @@ catalog AS (
       AND c.section_id IS NOT NULL
     GROUP BY c.period_sortable
 ),
+catalog_reason_cardinality AS (
+    SELECT
+        c.period_sortable,
+        CAST(c.is_canada AS INTEGER)
+          + CAST(NOT c.has_isbn AS INTEGER)
+          + CAST(c.is_supply AS INTEGER)
+          + CAST(c.no_details AS INTEGER)
+          + CAST(c.no_materials AS INTEGER) AS no_use_reason_count,
+        COUNT(*) AS catalog_rows_full,
+        COUNT(*) FILTER (WHERE sample.section_id IS NOT NULL) AS catalog_rows_sample
+    FROM comprehensive_data c
+    LEFT JOIN sample USING (section_id)
+    WHERE c.is_post_2024
+      AND c.period_sortable IS NOT NULL
+      AND c.section_id IS NOT NULL
+    GROUP BY c.period_sortable, no_use_reason_count
+),
 sampled_catalog_by_section AS MATERIALIZED (
     SELECT
         c.period_sortable,
         c.section_id,
         COUNT(*)::DOUBLE AS catalog_rows,
         COUNT(*) FILTER (
-            WHERE c."ISBN13" IS NOT NULL
-              AND NOT COALESCE(c.is_supply, FALSE)
+            WHERE c.is_course_material_use
         )::DOUBLE AS included_material_rows,
+        COUNT(*) FILTER (WHERE c.is_course_material_no_use)::DOUBLE AS no_use_rows,
+        COUNT(*) FILTER (WHERE c.is_canada)::DOUBLE AS canada_rows,
+        COUNT(*) FILTER (WHERE c.no_details)::DOUBLE AS no_details_rows,
+        COUNT(*) FILTER (WHERE c.no_materials)::DOUBLE AS no_materials_rows,
         COUNT(*) FILTER (WHERE c."ISBN13" IS NULL)::DOUBLE AS blank_isbn_rows,
         COUNT(*) FILTER (WHERE COALESCE(c.is_supply, FALSE))::DOUBLE AS supply_rows
     FROM comprehensive_data c
@@ -59,15 +95,44 @@ sampled_catalog_by_section AS MATERIALIZED (
       AND c.section_id IS NOT NULL
     GROUP BY c.period_sortable, c.section_id
 ),
+sampled_reason_cardinality_by_section AS (
+    SELECT
+        c.period_sortable,
+        c.section_id,
+        CAST(c.is_canada AS INTEGER)
+          + CAST(NOT c.has_isbn AS INTEGER)
+          + CAST(c.is_supply AS INTEGER)
+          + CAST(c.no_details AS INTEGER)
+          + CAST(c.no_materials AS INTEGER) AS no_use_reason_count,
+        COUNT(*)::DOUBLE AS catalog_rows
+    FROM comprehensive_data c
+    JOIN sample USING (section_id)
+    WHERE c.is_post_2024
+      AND c.period_sortable IS NOT NULL
+      AND c.section_id IS NOT NULL
+    GROUP BY c.period_sortable, c.section_id, no_use_reason_count
+),
 catalog_squares AS (
     SELECT
         period_sortable,
         SUM(catalog_rows * catalog_rows) AS catalog_rows_sum_squares,
         SUM(included_material_rows * included_material_rows) AS included_material_rows_sum_squares,
+        SUM(no_use_rows * no_use_rows) AS no_use_rows_sum_squares,
+        SUM(canada_rows * canada_rows) AS canada_rows_sum_squares,
+        SUM(no_details_rows * no_details_rows) AS no_details_rows_sum_squares,
+        SUM(no_materials_rows * no_materials_rows) AS no_materials_rows_sum_squares,
         SUM(blank_isbn_rows * blank_isbn_rows) AS blank_isbn_rows_sum_squares,
         SUM(supply_rows * supply_rows) AS supply_rows_sum_squares
     FROM sampled_catalog_by_section
     GROUP BY period_sortable
+),
+reason_cardinality_squares AS (
+    SELECT
+        period_sortable,
+        no_use_reason_count,
+        SUM(catalog_rows * catalog_rows) AS catalog_rows_sum_squares
+    FROM sampled_reason_cardinality_by_section
+    GROUP BY period_sortable, no_use_reason_count
 ),
 material_spine AS MATERIALIZED (
     SELECT
@@ -78,8 +143,7 @@ material_spine AS MATERIALIZED (
     WHERE c.period_date >= DATE '2024-01-01'
       AND c.period_sortable IS NOT NULL
       AND c.section_id IS NOT NULL
-      AND c."ISBN13" IS NOT NULL
-      AND NOT COALESCE(c.is_supply, FALSE)
+      AND c.is_course_material_use
     GROUP BY c.period_sortable, c.section_id, c."ISBN13"
 ),
 materials AS (
@@ -188,10 +252,42 @@ metrics AS (
            catalog_rows_sample::HUGEINT AS sample_value
     FROM catalog JOIN catalog_squares USING (period_sortable)
     UNION ALL
-    SELECT period_sortable, 'included_materials', 'catalog_rows_with_nonblank_nonsupply_isbn',
+    SELECT period_sortable, 'population', 'course_material_use_catalog_rows',
            TRUE, included_material_rows_sum_squares, included_material_rows_full::HUGEINT,
            included_material_rows_sample::HUGEINT
     FROM catalog JOIN catalog_squares USING (period_sortable)
+    UNION ALL
+    SELECT period_sortable, 'population', 'course_material_no_use_catalog_rows',
+           TRUE, no_use_rows_sum_squares, no_use_rows_full::HUGEINT,
+           no_use_rows_sample::HUGEINT
+    FROM catalog JOIN catalog_squares USING (period_sortable)
+    UNION ALL
+    SELECT period_sortable, 'population', 'canada_catalog_rows',
+           TRUE, canada_rows_sum_squares, canada_rows_full::HUGEINT,
+           canada_rows_sample::HUGEINT
+    FROM catalog JOIN catalog_squares USING (period_sortable)
+    UNION ALL
+    SELECT period_sortable, 'population', 'no_details_catalog_rows',
+           TRUE, no_details_rows_sum_squares, no_details_rows_full::HUGEINT,
+           no_details_rows_sample::HUGEINT
+    FROM catalog JOIN catalog_squares USING (period_sortable)
+    UNION ALL
+    SELECT period_sortable, 'population', 'no_materials_catalog_rows',
+           TRUE, no_materials_rows_sum_squares, no_materials_rows_full::HUGEINT,
+           no_materials_rows_sample::HUGEINT
+    FROM catalog JOIN catalog_squares USING (period_sortable)
+    UNION ALL
+    SELECT
+        crc.period_sortable,
+        'population_overlap',
+        'no_use_reason_count_' || CAST(crc.no_use_reason_count AS VARCHAR) || '_catalog_rows',
+        TRUE,
+        rcs.catalog_rows_sum_squares,
+        crc.catalog_rows_full::HUGEINT,
+        crc.catalog_rows_sample::HUGEINT
+    FROM catalog_reason_cardinality crc
+    LEFT JOIN reason_cardinality_squares rcs
+      USING (period_sortable, no_use_reason_count)
     UNION ALL
     SELECT period_sortable, 'excluded_materials', 'blank_isbn_catalog_rows',
            TRUE, blank_isbn_rows_sum_squares,
@@ -258,7 +354,11 @@ metrics AS (
 evaluated AS (
     SELECT
         *,
-        CASE WHEN is_additive AND full_value > 0 THEN
+        CASE
+          WHEN is_additive
+           AND full_value > 0
+           AND COALESCE(sample_sum_squares, 0) > 0
+          THEN
             SQRT(90.0 * sample_sum_squares)
         END AS scaled_standard_error
     FROM metrics
@@ -283,12 +383,20 @@ SELECT
     CASE WHEN is_additive THEN
         ROUND(3.2905 * scaled_standard_error / NULLIF(full_value, 0) * 100.0, 4)
     END AS tolerance_pct,
-    CASE WHEN is_additive THEN
+    CASE
+      WHEN is_additive
+       AND NOT (full_value > 0 AND COALESCE(sample_sum_squares, 0) = 0)
+      THEN
         ABS(sample_value * 10 - full_value) <= 3.2905 * scaled_standard_error
     END AS within_tolerance,
-    CASE WHEN is_additive
-         THEN '10x estimates an additive section-cluster total'
-         ELSE 'domain coverage only; do not multiply by 10'
+    CASE
+        WHEN is_additive
+         AND full_value > 0
+         AND COALESCE(sample_sum_squares, 0) = 0
+        THEN 'sparse category absent from sample; tolerance is not testable'
+        WHEN is_additive
+        THEN '10x estimates an additive section-cluster total'
+        ELSE 'domain coverage only; do not multiply by 10'
     END AS interpretation
 FROM evaluated
 ORDER BY period_sortable, stage, metric;

@@ -6,18 +6,19 @@ Reference summary of the Bay View Analytics (Jeff Seaman) grant course-materials
 analysis. Organized by **decisions**, **outputs** (grouped conceptually), and **points of
 note & review**. For the chronological build log see the Notion page *"26.06.26 · Fall 2025
 Subsets A/B (BMG)"*; for the data model see `SCHEMA.md` / `schema.dbml`; for pickup see
-`HANDOFF.md`. As of **2026-07-07**.
+`HANDOFF.md`. As of **2026-08-27**.
 
 ## TL;DR
 
 - **Scope:** Fall 2025 (`period_sortable='2025-4'`), 4 undergrad course levels × the 6 real
-  IPEDS teaching sectors. Two subsets: **Set A** (≥1 required course material) = **2,520,108**
-  sections, **Set B** (none) = **133,053**; total **2,653,161** (conserved through every pass).
+  IPEDS teaching sectors. Under the #58 canonical Use contract, **Set A** (≥1 required Use
+  material) = **858,147** sections and **Set B** (none) = **1,795,014**; total **2,653,161**
+  (the complete section spine is conserved).
 - **Headline finding:** Public 2-year students face **~$149/student** in required materials vs
   **~$114** for Public 4-year (**+31%**) — but the gap is **course-mix** (which/how many books
   are assigned), **not** paying more for the identical book (same-item premium is only ~$2).
-- **Status:** the BMG initial-analysis backlog (#32, #34–#41) is complete and in **Review**
-  (human gate). No held decisions remain.
+- **Status:** the BMG initial-analysis backlog (#32, #34–#41) is complete and marked **Done**
+  on the project board. No held decisions remain.
 
 ---
 
@@ -26,7 +27,9 @@ Subsets A/B (BMG)"*; for the data model see `SCHEMA.md` / `schema.dbml`; for pic
 ### Scope & subset definition (#35)
 - **"Required code" = `is_required_inferred`** (issue #1's inferred-required; renamed from
   `filter_include`, #34). Set A = `required_count > 0`, Set B = `required_count = 0`, where
-  `required_count = COUNT(*) FILTER (WHERE is_required_inferred AND NOT is_supply)`.
+  `required_count = COUNT(*) FILTER (WHERE is_required_inferred AND is_course_material_use)`.
+  The #58 Use flag additionally excludes Canada, missing ISBN, `no_details`, and `no_materials`;
+  exclusion-reason booleans remain independently auditable on the retained section spine.
 - **Sector = a whitelist of the 6 real teaching sectors** (not Jeff's exclude list). Equivalent
   to "exclude Jeff's list," and additionally drops 128,780 blank/unmatched-sector sections (no
   IPEDS match) and IPEDS sector 0 (Administrative Unit) — neither is a teaching institution.
@@ -102,21 +105,23 @@ Subsets A/B (BMG)"*; for the data model see `SCHEMA.md` / `schema.dbml`; for pic
 - **New pipeline stage `1a_supply_classification.sql`** → table `supply_isbn_classification`
   (ISBN-level, 2024+ title variants; currently **2,520 supply ISBNs** / 96,685 catalog rows).
 - **`comprehensive_data`** gained `is_supply`, `supply_category`, and `is_required_inferred`
-  (renamed from `filter_include`).
+  (renamed from `filter_include`), followed by the canonical #58 population booleans and direct
+  post-2024 Use/NoUse/Canada views.
 - **`master_section`** gained `is_supply` (BOOL_OR) + `supply_count` (#36), and
   `enrollment_assigned` + `enrollment_source` (#32); all material counts/costs
   (`material_count`, `required_count`, `optional_count`, OER/IA, coverage, publishers, and the
-  `section_cost`-joined cost columns) now exclude supplies.
-- **`section_cost`** and **`master_course_material`** exclude supplies at the source.
+  `section_cost`-joined cost columns) now use the canonical #58 Use population while the complete
+  section/enrollment spine remains.
+- **`section_cost`** and **`master_course_material`** use the canonical #58 Use population.
 - **`master_section_us_intro_fall2025`** view (#38): Fall 2025, US-only, intro/intermediate,
-  `required_count>=1` — a pure filtered projection of `master_section` (~2.12M rows).
+  `required_count>=1` — a pure filtered projection of `master_section` (**773,613 rows**).
 - **Supply keyword list** `scripts/sql/lookups/supply_keywords.tsv`: **97 include + 26 exclude**
   across 6 categories (art_drafting 32, health_nursing_music_pe 18, math_tech_clickers 6,
   paper_office_general 14, science_lab 15, `placeholder_no_material` 12).
 
 ### B. Analysis deliverables
 - **Set A / Set B subsets** — Metabase cards **126 / 127**; Parquet hand-off via
-  `scripts/export_fall2025_subsets.sh` (Set A ~2.5M rows exceeds Metabase's ~1M download cap).
+  `scripts/export_fall2025_subsets.sh` (Set B now exceeds Metabase's ~1M download cap).
 - **5 tallies** by control × level × set — cards **128–132** (counts, fill-potential,
   distribution, cost, OER/IA coverage).
 - **Enrollment assignment** — per-section card **133** + summary card **134**.
@@ -145,11 +150,12 @@ Subsets A/B (BMG)"*; for the data model see `SCHEMA.md` / `schema.dbml`; for pic
   `rebuild_3441.sh` (#34+#41) — each a documented stop-Metabase → run → restart → sync ceremony.
 
 ### E. Issues / board (GitHub Project "CommodoreSQL Roadmap")
-- **In Review (human-owned):** the BMG push **#32, #34, #35, #36, #37, #38, #39, #40, #41** plus
+- **Done:** the BMG push **#32, #34, #35, #36, #37, #38, #39, #40, #41** plus
   the earlier data-model/viz/filter/DQ work (#1–#18, #22, #24, #25, #27, #28, #29, #31, #33).
-- **Open / Todo (not started):** #19 (persistent DQ logging), #20 (NULL-ISBN13 rule), #21
+- **Open / Todo (not started):** #19 (persistent DQ logging), #21
   (pricing section_id normalization), #23 (contemporaneous Amazon prices — wishlist), #26
-  (owned-cost coverage labeling — needs PI decision), #30 (Metabase collection reorg).
+  (owned-cost coverage labeling — needs PI decision), #30 (Metabase collection reorg), and #61
+  (migrate legacy Metabase material predicates to the canonical #58 population).
 
 ---
 
@@ -172,13 +178,14 @@ Subsets A/B (BMG)"*; for the data model see `SCHEMA.md` / `schema.dbml`; for pic
 - **#40 was pre-existing**, exposed (not caused) by #36; total scope stayed conserved throughout.
 - **Set A/B magnitudes evolved** (a reconciliation aid — total always 2,653,161):
   pre-#36 2,525,891/127,270 → post-#36 2,521,847/131,314 → post-#40 2,521,855/131,306 → post-#41
-  **2,520,108/133,053**.
-- **All 6 `master_section` DQ invariants report 0** (required+optional=material; is_supply ⇔
-  supply_count>0; enrollment own ⇔ has_enrollment; assigned-NULL ⇔ source='none'; cost min≤max;
-  unique per section_id).
+  2,520,108/133,053 → post-#58 canonical Use **858,147/1,795,014**.
+- **The merged-model stage reports nine reconciliation checks** (seven `master_section`, two
+  `master_course`), including the #58 Use/NoUse and Canada invariants; observed post-#58 results
+  are recorded after the persistent rebuild.
 
 **Data gotchas (bite people):**
-- Blank `ISBN13` is empty-string `''`, not NULL (~54% of catalog). Canada = `state='CAN'`
+- Blank source `ISBN13` cells import as NULL in the numeric column (~54% of catalog; zero
+  empty strings in the current database). Canada = `state='CAN'`
   (single code, blank institution; IPEDS is US-only) — "US only" excludes both `'CAN'` and blank.
 - `seats_taken=9999` is an invalid sentinel (excluded from the own_seats rung); pricing sentinels
   ≥9999 are nulled in `pricing_wide` (#27).
@@ -197,5 +204,5 @@ Subsets A/B (BMG)"*; for the data model see `SCHEMA.md` / `schema.dbml`; for pic
   to label total-vs-owned so they aren't read as an ordered pair? (Needs a PI decision.)
 - **#41 audit follow-through** — the legitimate access-code residual is documented; no action
   needed unless a finer access-code vs supply split is later wanted.
-- The Review column is a **human gate** — the BMG deliverables are self-validated by Claude and
-  awaiting Review → Done sign-off.
+- The project Review column remains the human gate; the BMG initial-analysis items have passed it
+  and are marked Done.

@@ -4,8 +4,9 @@ ${CONFIG}
 
 -- section_cost: per-section cost aggregates over DISTINCT priced COURSE materials.
 -- Required vs non-required uses the catalog classification (is_required_inferred, #1).
--- Supplies (#36: is_supply, ISBN-level title-keyword classification) are excluded
--- entirely — cost columns measure course materials only. Sums over distinct
+-- The canonical issue-#58 Use flag excludes Canada, missing ISBN, supplies, and
+-- no-details/no-material placeholders. Cost columns therefore measure only the
+-- release material population. Sums over distinct
 -- (section_id, ISBN13) materials that have a price; NULL-priced materials contribute
 -- nothing (*_priced_count shows coverage). "owned" = buy-only (rentals omitted),
 -- from pricing_wide.price_buy_min/max. Materialized as a TABLE so
@@ -26,11 +27,9 @@ WITH materials AS (
     FROM comprehensive_data c
     LEFT JOIN pricing_wide pw
         ON c.section_id = pw.section_id AND c.ISBN13 = pw.isbn13
-    WHERE c.period_date >= '2024-01-01'
+    WHERE c.is_course_material_use
         AND c.section_id IS NOT NULL
         AND c.period_sortable IS NOT NULL
-        AND c.ISBN13 IS NOT NULL
-        AND NOT c.is_supply
     GROUP BY c.section_id, c.ISBN13
 )
 SELECT
@@ -53,160 +52,292 @@ GROUP BY section_id;
 -- Create master_section: exactly one row per section_id (2024+). Collapsed by section_id;
 -- descriptive cols resolved via mode() (most-frequent) / ANY_VALUE (constant) / MAX (#24 —
 -- see the divergence DQ at the bottom). Cost columns (#2/#3/#4) join 1:1 on section_id.
--- Enrichment columns live HERE, not in downstream tables: supply audit (#36:
--- is_supply / supply_count; material counts exclude supplies) and enrollment fill
+-- Enrichment columns live HERE, not in downstream tables: population audit (#58),
+-- supply audit (#36, across all rows), and enrollment fill
 -- (#32: enrollment_assigned / enrollment_source — see the CTE comment below).
--- Materialized as a TABLE (not a VIEW): the course-sibling window + LIST(DISTINCT publisher)
--- aggregations are far too expensive to recompute per query — a single Metabase SELECT *
--- would re-derive the whole 23.5M-row window. Drop dependents first (they reference it).
+-- Materialized as a TABLE (not a VIEW). The build is deliberately staged through
+-- narrow TEMP tables: keeping seven mode() states, publisher lists, scalar states,
+-- sibling windows, and median inputs in one 23.6M-group CTAS exceeded host memory.
+-- Each stage preserves the original aggregate semantics while allowing prior state
+-- to be released before the next high-cardinality aggregate starts.
 DROP VIEW  IF EXISTS master_course_material;
 DROP VIEW  IF EXISTS master_course;
 DROP TABLE IF EXISTS master_section;
-CREATE TABLE master_section AS
-WITH per_section AS (
-    SELECT
-        section_id,
-        -- course_id/period_sortable are substrings of section_id, and period/period_date
-        -- derive deterministically from them -> constant per section_id (0 divergence,
-        -- can't break by construction), so ANY_VALUE is exact (no DQ needed).
-        ANY_VALUE(course_id)       AS course_id,
-        ANY_VALUE(period)          AS period,
-        ANY_VALUE(period_sortable) AS period_sortable,
-        ANY_VALUE(period_date)     AS period_date,
-        -- Institution enrichment (IPEDS + catalog state), keyed on unit_id -> constant per
-        -- section_id (0 divergence verified across 2,428 units), so ANY_VALUE is exact.
-        -- Carried through the collapse so master_section is the complete enriched section
-        -- record and downstream filters (state / control / size ...) need no re-join.
-        ANY_VALUE(unit_id)                  AS unit_id,
-        ANY_VALUE(state)                    AS state,
-        ANY_VALUE(control)                  AS control,
-        ANY_VALUE(level)                    AS level,
-        ANY_VALUE(size)                     AS size,
-        ANY_VALUE(sector)                   AS sector,
-        ANY_VALUE(institution_name)         AS institution_name,
-        ANY_VALUE(institution_type)         AS institution_type,
-        ANY_VALUE(enrollment_2024)          AS enrollment_2024,
-        ANY_VALUE(distance_enrollment_2024) AS distance_enrollment_2024,
-        -- descriptive cols can diverge within a section_id (source-noise spelling /
-        -- normalization variants, e.g. raw course_number "101" vs "0101" that normalize
-        -- to one section_id); mode() keeps the most-frequent value. enrollments/seats_taken
-        -- stay MAX. No columns dropped (#24).
-        mode(school)               AS school,
-        mode(department)           AS department,
-        mode(course_number)        AS course_number,
-        mode(section)              AS section,
-        mode(course_title)         AS course_title,
-        mode(course_level)         AS course_level,
-        mode(course_subject)       AS course_subject,
-        -- Material aggregates count COURSE MATERIALS only — supplies (#36) are
-        -- excluded from every material-level aggregate below and surface separately
-        -- as is_supply / supply_count.
-        COUNT(*) FILTER (WHERE NOT is_supply) AS material_count,
-        -- required vs non-required reuses is_required_inferred (the has_required fallback:
-        -- 'required' rows, plus no-entry rows in sections with no required material).
-        -- is_required_inferred is never NULL, so the two FILTERs partition material_count.
-        COUNT(*) FILTER (WHERE is_required_inferred AND NOT is_supply)     AS required_count,
-        COUNT(*) FILTER (WHERE NOT is_required_inferred AND NOT is_supply) AS optional_count,
-        -- Supply audit (#36): BOOL_OR definitive indicator (no suffix, per CLAUDE.md)
-        -- + item count, over ALL section materials. is_supply <=> supply_count > 0.
-        COALESCE(BOOL_OR(is_supply), FALSE) AS is_supply,
-        COUNT(*) FILTER (WHERE is_supply)   AS supply_count,
-        -- OER / Inclusive-Access: indicator (any item) + item count, over the section's
-        -- course materials. is_oer/is_ia come from comprehensive_data (FormatType lookup).
-        -- COALESCE keeps the indicator boolean so is_oer <=> oer_count > 0.
-        COALESCE(BOOL_OR(is_oer) FILTER (WHERE NOT is_supply), FALSE) AS is_oer,
-        COALESCE(BOOL_OR(is_ia)  FILTER (WHERE NOT is_supply), FALSE) AS is_ia,
-        COUNT(*) FILTER (WHERE is_oer AND NOT is_supply) AS oer_count,
-        COUNT(*) FILTER (WHERE is_ia AND NOT is_supply)  AS ia_count,
-        LIST(DISTINCT publisher) FILTER (WHERE publisher IS NOT NULL AND NOT is_supply) AS publishers,
-        -- required/optional publisher splits reuse is_required_inferred (consistent with #1's
-        -- required_count classification), not raw book_status='required'.
-        LIST(DISTINCT publisher) FILTER (WHERE publisher IS NOT NULL AND is_required_inferred AND NOT is_supply) AS required_publishers,
-        COUNT(DISTINCT publisher) FILTER (WHERE is_required_inferred AND NOT is_supply)     AS required_publisher_count,
-        COUNT(DISTINCT publisher) FILTER (WHERE NOT is_required_inferred AND NOT is_supply) AS optional_publisher_count,
-        MAX(enrollments) AS enrollments,
-        MAX(seats_taken) AS seats_taken,
-        -- Coverage (2026-06-04 notes): ISBN presence + OER/IA classifiability per
-        -- section, over course materials only. is_oer/is_ia are NULL exactly when
-        -- FormatType is absent, so has_formattype is the classifiability flag; the
-        -- counts give the per-section coverage numerator.
-        COALESCE(BOOL_OR(ISBN13 IS NOT NULL) FILTER (WHERE NOT is_supply), FALSE)     AS has_isbn,
-        COALESCE(BOOL_OR("FormatType" IS NOT NULL AND "FormatType" <> '') FILTER (WHERE NOT is_supply), FALSE) AS has_formattype,
-        COUNT(*) FILTER (WHERE ISBN13 IS NOT NULL AND NOT is_supply)                              AS isbn_count,
-        COUNT(*) FILTER (WHERE "FormatType" IS NOT NULL AND "FormatType" <> '' AND NOT is_supply) AS classified_count,
-        -- Enrollment fill-potential helpers (diagnostic only — values are NOT imputed).
-        (MAX(enrollments) IS NOT NULL)                             AS own_has_enrollment,
-        (MAX(seats_taken) IS NOT NULL AND MAX(seats_taken) < 9999) AS own_has_seats
-    FROM comprehensive_data
-    WHERE
-        section_id IS NOT NULL AND
-        period_sortable IS NOT NULL AND
-        -- is_required_inferred is gated on period_date >= 2024; scope the view to match so
-        -- required_count (= is_required_inferred count) is meaningful on every row.
-        period_date >= '2024-01-01'
-    GROUP BY section_id
-),
-with_course AS (
-    -- Sibling context within the same (course_id, period_sortable): how many sibling
-    -- sections carry enrollment / usable seats_taken, feeding the fill-potential flags.
-    SELECT *,
-        SUM(CASE WHEN own_has_enrollment THEN 1 ELSE 0 END) OVER w AS course_enroll_sections,
-        SUM(CASE WHEN own_has_seats      THEN 1 ELSE 0 END) OVER w AS course_seats_sections
-    FROM per_section
-    WINDOW w AS (PARTITION BY course_id, period_sortable)
-),
--- MATERIALIZED: enriched is referenced by ref_pop AND the final SELECT, and ref_pop
--- feeds three median CTEs. Without this hint DuckDB inlines enriched, re-running the
--- ~23.6M-row GROUP BY section_id + course-sibling WINDOW four times. Materializing it
--- collapses that to one pass (byte-identical output) — critical since this is the
--- heaviest step and config.sql leaves memory_limit unset.
-enriched AS MATERIALIZED (
-    SELECT *,
-        -- Diagnostic availability flags (one section per row): which fill signals EXIST,
-        -- NOT that any value was imputed. has_enrollment_* are pure facts decoupled from
-        -- has_enrollment (a section with its own enrollment can still have a sibling with
-        -- enrollment); to assess a MISSING section, combine with NOT has_enrollment.
-        -- Sibling = a DIFFERENT section in the same (course_id, period_sortable).
-        own_has_enrollment AS has_enrollment,
-        ((course_enroll_sections - CASE WHEN own_has_enrollment THEN 1 ELSE 0 END) > 0) AS has_enrollment_sibling,
-        own_has_seats                                                                   AS has_enrollment_own_seats,
-        ((course_seats_sections  - CASE WHEN own_has_seats      THEN 1 ELSE 0 END) > 0) AS has_enrollment_sibling_seats
-    FROM with_course
-),
--- Enrollment assignment (#32): persisted numeric fill + provenance, porting the
--- question-44 hierarchy: own -> own_seats (< 9999 sentinel) -> sibling_enroll ->
--- sibling_seats -> class_median -> level_median. Medians are computed PER PERIOD
--- from the REFERENCE POPULATION: the 4 BMG course levels x the 6 real teaching
--- sectors (IPEDS 1-6) — keeps unknown-sector / admin-unit noise out of the
--- imputation references. For Fall-2025 scope rows this reproduces cards 133/134
--- exactly. Rows outside the reference population still fill through the same
--- rungs; a row with no reachable signal gets enrollment_source = 'none' (NULL
--- value). Raw enrollments / seats_taken are never overwritten.
-ref_pop AS (
-    SELECT course_id, period_sortable, control, level, enrollments, seats_taken
-    FROM enriched
-    WHERE course_level IN ('Introductory or general undergraduate', 'Intermediate undergraduate',
-                           'Non-degree credit', 'Uncategorized')
-      AND sector IN ('Public, 4-year or above', 'Public, 2-year',
-                     'Private not-for-profit, 4-year or above', 'Private not-for-profit, 2-year',
-                     'Private for-profit, 4-year or above', 'Private for-profit, 2-year')
-),
-course_agg AS (
-    SELECT course_id, period_sortable,
-        quantile_cont(enrollments, 0.5) AS ce_med,
-        quantile_cont(CASE WHEN seats_taken < 9999 THEN seats_taken END, 0.5) AS cs_med
-    FROM ref_pop GROUP BY course_id, period_sortable
-),
-class_agg AS (
-    SELECT control, level, period_sortable, quantile_cont(enrollments, 0.5) AS cl_med
-    FROM ref_pop GROUP BY control, level, period_sortable
-),
-level_agg AS (
-    SELECT level, period_sortable, quantile_cont(enrollments, 0.5) AS lv_med
-    FROM ref_pop GROUP BY level, period_sortable
-)
+
+DROP TABLE IF EXISTS _ms_scalar;
+DROP TABLE IF EXISTS _ms_mode_school;
+DROP TABLE IF EXISTS _ms_mode_department;
+DROP TABLE IF EXISTS _ms_mode_course_number;
+DROP TABLE IF EXISTS _ms_mode_section;
+DROP TABLE IF EXISTS _ms_mode_course_title;
+DROP TABLE IF EXISTS _ms_mode_course_level;
+DROP TABLE IF EXISTS _ms_mode_course_subject;
+DROP TABLE IF EXISTS _ms_publishers;
+DROP TABLE IF EXISTS _ms_required_publishers;
+DROP TABLE IF EXISTS _ms_publisher_counts;
+DROP TABLE IF EXISTS _ms_course_signals;
+DROP TABLE IF EXISTS _ms_enriched;
+DROP TABLE IF EXISTS _ms_ref_pop;
+DROP TABLE IF EXISTS _ms_course_agg;
+DROP TABLE IF EXISTS _ms_class_agg;
+DROP TABLE IF EXISTS _ms_level_agg;
+
+-- Fixed-size aggregates over the full section spine. Descriptive modes and
+-- publisher collection states are intentionally isolated below.
+CREATE TEMP TABLE _ms_scalar AS
 SELECT
-    base.* EXCLUDE (own_has_enrollment, own_has_seats, course_enroll_sections, course_seats_sections),
+    section_id,
+    ANY_VALUE(course_id)       AS course_id,
+    ANY_VALUE(period)          AS period,
+    ANY_VALUE(period_sortable) AS period_sortable,
+    ANY_VALUE(period_date)     AS period_date,
+    ANY_VALUE(unit_id)                  AS unit_id,
+    ANY_VALUE(state)                    AS state,
+    ANY_VALUE(control)                  AS control,
+    ANY_VALUE(level)                    AS level,
+    ANY_VALUE(size)                     AS size,
+    ANY_VALUE(sector)                   AS sector,
+    ANY_VALUE(institution_name)         AS institution_name,
+    ANY_VALUE(institution_type)         AS institution_type,
+    ANY_VALUE(enrollment_2024)          AS enrollment_2024,
+    ANY_VALUE(distance_enrollment_2024) AS distance_enrollment_2024,
+    COUNT(*) FILTER (WHERE is_course_material_use) AS material_count,
+    COUNT(*) FILTER (WHERE is_required_inferred AND is_course_material_use)     AS required_count,
+    COUNT(*) FILTER (WHERE NOT is_required_inferred AND is_course_material_use) AS optional_count,
+    COALESCE(BOOL_OR(is_course_material_use), FALSE) AS has_course_material_use,
+    COUNT(*) FILTER (WHERE is_course_material_use)    AS course_material_use_count,
+    COUNT(*) FILTER (WHERE is_course_material_no_use) AS course_material_no_use_count,
+    COUNT(*) FILTER (WHERE no_details)                 AS no_details_count,
+    COUNT(*) FILTER (WHERE no_materials)               AS no_materials_count,
+    COALESCE(BOOL_OR(is_canada), FALSE) AS is_canada,
+    COALESCE(BOOL_OR(is_supply), FALSE) AS is_supply,
+    COUNT(*) FILTER (WHERE is_supply)   AS supply_count,
+    COALESCE(BOOL_OR(is_oer) FILTER (WHERE is_course_material_use), FALSE) AS is_oer,
+    COALESCE(BOOL_OR(is_ia)  FILTER (WHERE is_course_material_use), FALSE) AS is_ia,
+    COUNT(*) FILTER (WHERE is_oer AND is_course_material_use) AS oer_count,
+    COUNT(*) FILTER (WHERE is_ia AND is_course_material_use)  AS ia_count,
+    MAX(enrollments) AS enrollments,
+    MAX(seats_taken) AS seats_taken,
+    COALESCE(BOOL_OR(has_isbn) FILTER (WHERE is_course_material_use), FALSE) AS has_isbn,
+    COALESCE(BOOL_OR(has_formattype) FILTER (WHERE is_course_material_use), FALSE) AS has_formattype,
+    COUNT(*) FILTER (WHERE has_isbn AND is_course_material_use)       AS isbn_count,
+    COUNT(*) FILTER (WHERE has_formattype AND is_course_material_use) AS classified_count,
+    (MAX(enrollments) IS NOT NULL)                             AS own_has_enrollment,
+    (MAX(seats_taken) IS NOT NULL AND MAX(seats_taken) < 9999) AS own_has_seats
+FROM comprehensive_data
+WHERE section_id IS NOT NULL
+  AND period_sortable IS NOT NULL
+  AND period_date >= '2024-01-01'
+GROUP BY section_id;
+
+-- Keep native mode() tie behavior, but only one frequency state per pass.
+CREATE TEMP TABLE _ms_mode_school AS
+SELECT section_id, mode(school) AS school
+FROM comprehensive_data
+WHERE section_id IS NOT NULL AND period_sortable IS NOT NULL AND period_date >= '2024-01-01'
+GROUP BY section_id;
+
+CREATE TEMP TABLE _ms_mode_department AS
+SELECT section_id, mode(department) AS department
+FROM comprehensive_data
+WHERE section_id IS NOT NULL AND period_sortable IS NOT NULL AND period_date >= '2024-01-01'
+GROUP BY section_id;
+
+CREATE TEMP TABLE _ms_mode_course_number AS
+SELECT section_id, mode(course_number) AS course_number
+FROM comprehensive_data
+WHERE section_id IS NOT NULL AND period_sortable IS NOT NULL AND period_date >= '2024-01-01'
+GROUP BY section_id;
+
+CREATE TEMP TABLE _ms_mode_section AS
+SELECT section_id, mode(section) AS section
+FROM comprehensive_data
+WHERE section_id IS NOT NULL AND period_sortable IS NOT NULL AND period_date >= '2024-01-01'
+GROUP BY section_id;
+
+CREATE TEMP TABLE _ms_mode_course_title AS
+SELECT section_id, mode(course_title) AS course_title
+FROM comprehensive_data
+WHERE section_id IS NOT NULL AND period_sortable IS NOT NULL AND period_date >= '2024-01-01'
+GROUP BY section_id;
+
+CREATE TEMP TABLE _ms_mode_course_level AS
+SELECT section_id, mode(course_level) AS course_level
+FROM comprehensive_data
+WHERE section_id IS NOT NULL AND period_sortable IS NOT NULL AND period_date >= '2024-01-01'
+GROUP BY section_id;
+
+CREATE TEMP TABLE _ms_mode_course_subject AS
+SELECT section_id, mode(course_subject) AS course_subject
+FROM comprehensive_data
+WHERE section_id IS NOT NULL AND period_sortable IS NOT NULL AND period_date >= '2024-01-01'
+GROUP BY section_id;
+
+-- Publisher lists retain the original LIST(DISTINCT) semantics and NULL result
+-- for sections with no qualifying publisher. Counts are isolated from list state.
+CREATE TEMP TABLE _ms_publishers AS
+SELECT section_id, LIST(DISTINCT publisher) AS publishers
+FROM comprehensive_data
+WHERE section_id IS NOT NULL
+  AND period_sortable IS NOT NULL
+  AND period_date >= '2024-01-01'
+  AND publisher IS NOT NULL
+  AND is_course_material_use
+GROUP BY section_id;
+
+CREATE TEMP TABLE _ms_required_publishers AS
+SELECT section_id, LIST(DISTINCT publisher) AS required_publishers
+FROM comprehensive_data
+WHERE section_id IS NOT NULL
+  AND period_sortable IS NOT NULL
+  AND period_date >= '2024-01-01'
+  AND publisher IS NOT NULL
+  AND is_required_inferred
+  AND is_course_material_use
+GROUP BY section_id;
+
+CREATE TEMP TABLE _ms_publisher_counts AS
+SELECT
+    section_id,
+    COUNT(DISTINCT publisher) FILTER (WHERE is_required_inferred) AS required_publisher_count,
+    COUNT(DISTINCT publisher) FILTER (WHERE NOT is_required_inferred) AS optional_publisher_count
+FROM comprehensive_data
+WHERE section_id IS NOT NULL
+  AND period_sortable IS NOT NULL
+  AND period_date >= '2024-01-01'
+  AND is_course_material_use
+GROUP BY section_id;
+
+-- A grouped course table is equivalent to the former partition windows, but
+-- avoids sorting/buffering all section rows at once.
+CREATE TEMP TABLE _ms_course_signals AS
+SELECT
+    course_id,
+    period_sortable,
+    SUM(CASE WHEN own_has_enrollment THEN 1 ELSE 0 END) AS course_enroll_sections,
+    SUM(CASE WHEN own_has_seats THEN 1 ELSE 0 END) AS course_seats_sections
+FROM _ms_scalar
+GROUP BY course_id, period_sortable;
+
+CREATE TEMP TABLE _ms_enriched AS
+SELECT
+    s.section_id,
+    s.course_id,
+    s.period,
+    s.period_sortable,
+    s.period_date,
+    s.unit_id,
+    s.state,
+    s.control,
+    s.level,
+    s.size,
+    s.sector,
+    s.institution_name,
+    s.institution_type,
+    s.enrollment_2024,
+    s.distance_enrollment_2024,
+    school.school,
+    department.department,
+    course_number.course_number,
+    section_mode.section,
+    course_title.course_title,
+    course_level.course_level,
+    course_subject.course_subject,
+    s.material_count,
+    s.required_count,
+    s.optional_count,
+    s.has_course_material_use,
+    s.course_material_use_count,
+    s.course_material_no_use_count,
+    s.no_details_count,
+    s.no_materials_count,
+    s.is_canada,
+    s.is_supply,
+    s.supply_count,
+    s.is_oer,
+    s.is_ia,
+    s.oer_count,
+    s.ia_count,
+    publishers.publishers,
+    required_publishers.required_publishers,
+    COALESCE(publisher_counts.required_publisher_count, 0) AS required_publisher_count,
+    COALESCE(publisher_counts.optional_publisher_count, 0) AS optional_publisher_count,
+    s.enrollments,
+    s.seats_taken,
+    s.has_isbn,
+    s.has_formattype,
+    s.isbn_count,
+    s.classified_count,
+    s.own_has_enrollment AS has_enrollment,
+    ((signals.course_enroll_sections - CASE WHEN s.own_has_enrollment THEN 1 ELSE 0 END) > 0)
+        AS has_enrollment_sibling,
+    s.own_has_seats AS has_enrollment_own_seats,
+    ((signals.course_seats_sections - CASE WHEN s.own_has_seats THEN 1 ELSE 0 END) > 0)
+        AS has_enrollment_sibling_seats
+FROM _ms_scalar s
+JOIN _ms_mode_school school USING (section_id)
+JOIN _ms_mode_department department USING (section_id)
+JOIN _ms_mode_course_number course_number USING (section_id)
+JOIN _ms_mode_section section_mode USING (section_id)
+JOIN _ms_mode_course_title course_title USING (section_id)
+JOIN _ms_mode_course_level course_level USING (section_id)
+JOIN _ms_mode_course_subject course_subject USING (section_id)
+LEFT JOIN _ms_publishers publishers USING (section_id)
+LEFT JOIN _ms_required_publishers required_publishers USING (section_id)
+LEFT JOIN _ms_publisher_counts publisher_counts USING (section_id)
+JOIN _ms_course_signals signals
+  ON s.course_id IS NOT DISTINCT FROM signals.course_id
+ AND s.period_sortable IS NOT DISTINCT FROM signals.period_sortable;
+
+DROP TABLE _ms_scalar;
+DROP TABLE _ms_mode_school;
+DROP TABLE _ms_mode_department;
+DROP TABLE _ms_mode_course_number;
+DROP TABLE _ms_mode_section;
+DROP TABLE _ms_mode_course_title;
+DROP TABLE _ms_mode_course_level;
+DROP TABLE _ms_mode_course_subject;
+DROP TABLE _ms_publishers;
+DROP TABLE _ms_required_publishers;
+DROP TABLE _ms_publisher_counts;
+DROP TABLE _ms_course_signals;
+
+-- Enrollment assignment (#32): persist the same six-rung hierarchy. Median
+-- inputs are narrow and materialized separately so their aggregate states do not
+-- coexist with the wide section build.
+CREATE TEMP TABLE _ms_ref_pop AS
+SELECT course_id, period_sortable, control, level, enrollments, seats_taken
+FROM _ms_enriched
+WHERE course_level IN ('Introductory or general undergraduate', 'Intermediate undergraduate',
+                       'Non-degree credit', 'Uncategorized')
+  AND sector IN ('Public, 4-year or above', 'Public, 2-year',
+                 'Private not-for-profit, 4-year or above', 'Private not-for-profit, 2-year',
+                 'Private for-profit, 4-year or above', 'Private for-profit, 2-year');
+
+CREATE TEMP TABLE _ms_course_agg AS
+SELECT
+    course_id,
+    period_sortable,
+    quantile_cont(enrollments, 0.5) AS ce_med,
+    quantile_cont(CASE WHEN seats_taken < 9999 THEN seats_taken END, 0.5) AS cs_med
+FROM _ms_ref_pop
+GROUP BY course_id, period_sortable;
+
+CREATE TEMP TABLE _ms_class_agg AS
+SELECT control, level, period_sortable, quantile_cont(enrollments, 0.5) AS cl_med
+FROM _ms_ref_pop
+GROUP BY control, level, period_sortable;
+
+CREATE TEMP TABLE _ms_level_agg AS
+SELECT level, period_sortable, quantile_cont(enrollments, 0.5) AS lv_med
+FROM _ms_ref_pop
+GROUP BY level, period_sortable;
+
+DROP TABLE _ms_ref_pop;
+
+CREATE TABLE master_section AS
+SELECT
+    base.*,
     ROUND(COALESCE(base.enrollments,
                    CASE WHEN base.seats_taken < 9999 THEN base.seats_taken END,
                    ca.ce_med, ca.cs_med, cl.cl_med, lv.lv_med))::INT AS enrollment_assigned,
@@ -228,11 +359,19 @@ SELECT
     (sc.required_cost_owned_min + sc.required_cost_owned_max) / 2.0 AS required_cost_owned_avg,
     (sc.optional_cost_total_min + sc.optional_cost_total_max) / 2.0 AS optional_cost_avg,
     sc.required_priced_count, sc.optional_priced_count
-FROM enriched base
-LEFT JOIN course_agg ca ON base.course_id = ca.course_id AND base.period_sortable = ca.period_sortable
-LEFT JOIN class_agg  cl ON base.control = cl.control AND base.level = cl.level AND base.period_sortable = cl.period_sortable
-LEFT JOIN level_agg  lv ON base.level = lv.level AND base.period_sortable = lv.period_sortable
+FROM _ms_enriched base
+LEFT JOIN _ms_course_agg ca
+  ON base.course_id = ca.course_id AND base.period_sortable = ca.period_sortable
+LEFT JOIN _ms_class_agg cl
+  ON base.control = cl.control AND base.level = cl.level AND base.period_sortable = cl.period_sortable
+LEFT JOIN _ms_level_agg lv
+  ON base.level = lv.level AND base.period_sortable = lv.period_sortable
 LEFT JOIN section_cost sc ON base.section_id = sc.section_id;
+
+DROP TABLE _ms_enriched;
+DROP TABLE _ms_course_agg;
+DROP TABLE _ms_class_agg;
+DROP TABLE _ms_level_agg;
 
 -- Create master_course: one row per course per period.
 -- Cost rolls up section_cost via MIN(min)/MAX(max)/AVG(avg) across the course's
@@ -341,9 +480,8 @@ WHERE
     period_sortable IS NOT NULL AND
     -- 2024+ scope, consistent with master_section / master_course (#24)
     period_date >= '2024-01-01' AND
-    -- #36: course materials only, consistent with master_section's supply-excluded
-    -- counts (so course-level material tallies reconcile across the master_* views).
-    NOT is_supply
+    -- #58: canonical Use population, consistent with every material aggregate.
+    is_course_material_use
 GROUP BY
     course_id,
     period,
@@ -369,13 +507,16 @@ WHERE period_sortable = '2025-4'
   AND course_level IN ('Introductory or general undergraduate', 'Intermediate undergraduate')
   AND state NOT IN ('CAN', '');
 
--- DQ: required_count + optional_count must reconcile to material_count on every
--- row (the issue #1 invariant: is_required_inferred partitions materials into
--- required vs non-required). Both rows should report violations = 0; a nonzero
--- value signals a classification regression.
+-- DQ: the canonical Use count is material_count, and inferred required/optional
+-- partition it. The full section spine and the all-row supply/enrollment audits
+-- remain independent of material eligibility.
 SELECT 'master_section reconciliation' AS metric,
        COUNT(*) AS rows,
-       COUNT(*) FILTER (WHERE required_count + optional_count <> material_count) AS violations
+       COUNT(*) FILTER (
+           WHERE required_count + optional_count <> material_count
+              OR material_count <> course_material_use_count
+              OR has_course_material_use <> (course_material_use_count > 0)
+       ) AS violations
 FROM master_section
 UNION ALL
 SELECT 'master_course reconciliation' AS metric,
@@ -401,6 +542,14 @@ SELECT 'master_section supply invariant (#36)' AS metric,
        COUNT(*) FILTER (WHERE is_supply <> (supply_count > 0)) AS violations
 FROM master_section
 UNION ALL
+SELECT 'master_section Canada subset NoUse (#58)' AS metric,
+       COUNT(*) AS rows,
+       COUNT(*) FILTER (
+           WHERE is_canada
+             AND (course_material_use_count > 0 OR course_material_no_use_count = 0)
+       ) AS violations
+FROM master_section
+UNION ALL
 SELECT 'master_section enrollment_assigned invariant (#32)' AS metric,
        COUNT(*) AS rows,
        COUNT(*) FILTER (WHERE ((enrollment_source = 'own') <> has_enrollment)
@@ -422,7 +571,12 @@ FROM master_course;
 -- confirms that the period carried on each materialized row agrees with the period
 -- suffix embedded in section_id. All three violation columns should be zero.
 WITH source_by_term AS (
-    SELECT period_sortable, COUNT(DISTINCT section_id) AS source_rows
+    SELECT
+        period_sortable,
+        COUNT(DISTINCT section_id) AS source_rows,
+        COUNT(*) AS source_catalog_rows,
+        COUNT(*) FILTER (WHERE is_course_material_use) AS source_use_rows,
+        COUNT(*) FILTER (WHERE is_course_material_no_use) AS source_no_use_rows
     FROM comprehensive_data
     WHERE section_id IS NOT NULL
       AND period_sortable IS NOT NULL
@@ -437,7 +591,9 @@ master_by_term AS (
         COUNT(*) FILTER (
             WHERE REGEXP_EXTRACT(section_id, '::([0-9]{4}-[1-4])$', 1)
                   IS DISTINCT FROM period_sortable
-        ) AS encoded_term_violations
+        ) AS encoded_term_violations,
+        SUM(course_material_use_count) AS master_use_rows,
+        SUM(course_material_no_use_count) AS master_no_use_rows
     FROM master_section
     GROUP BY period_sortable
 )
@@ -448,34 +604,107 @@ SELECT
     COALESCE(s.source_rows, 0) AS source_rows,
     COALESCE(m.master_rows - m.unique_section_ids, 0) AS uniqueness_violations,
     COALESCE(m.encoded_term_violations, 0) AS encoded_term_violations,
-    ABS(COALESCE(m.master_rows, 0) - COALESCE(s.source_rows, 0)) AS conservation_violations
+    ABS(COALESCE(m.master_rows, 0) - COALESCE(s.source_rows, 0)) AS conservation_violations,
+    COALESCE(s.source_catalog_rows, 0)
+      - COALESCE(s.source_use_rows, 0)
+      - COALESCE(s.source_no_use_rows, 0) AS source_partition_violations,
+    ABS(COALESCE(m.master_use_rows, 0) - COALESCE(s.source_use_rows, 0))
+        AS use_row_conservation_violations,
+    ABS(COALESCE(m.master_no_use_rows, 0) - COALESCE(s.source_no_use_rows, 0))
+        AS no_use_row_conservation_violations
 FROM master_by_term m
 FULL OUTER JOIN source_by_term s USING (period_sortable)
 ORDER BY period_sortable;
 
--- DQ (informational, #24): descriptive-column divergence flattened by the section
--- collapse — mode() keeps the most-frequent value per section_id. Nonzero is expected
--- source noise, not an error; this surfaces which field is noisy and how many sections.
-SELECT 'section descriptive divergence (flattened)' AS note,
-       COUNT(*) FILTER (WHERE n_subject > 1) AS course_subject,
-       COUNT(*) FILTER (WHERE n_cnum > 1)    AS course_number,
-       COUNT(*) FILTER (WHERE n_title > 1)   AS course_title,
-       COUNT(*) FILTER (WHERE n_level > 1)   AS course_level,
-       COUNT(*) FILTER (WHERE n_school > 1)  AS school,
-       COUNT(*) FILTER (WHERE n_section > 1) AS section,
-       COUNT(*) FILTER (WHERE n_dept > 1)    AS department
+-- Informational section-level population mix. Mixed sections retain their one
+-- section/enrollment row while only their Use materials feed release metrics.
+SELECT
+    'master_section Use/NoUse mix (#58)' AS metric,
+    period_sortable,
+    COUNT(*) FILTER (
+        WHERE course_material_use_count > 0 AND course_material_no_use_count = 0
+    ) AS use_only_sections,
+    COUNT(*) FILTER (
+        WHERE course_material_use_count = 0 AND course_material_no_use_count > 0
+    ) AS no_use_only_sections,
+    COUNT(*) FILTER (
+        WHERE course_material_use_count > 0 AND course_material_no_use_count > 0
+    ) AS mixed_sections
+FROM master_section
+GROUP BY period_sortable
+ORDER BY period_sortable;
+
+-- DQ (informational, #24): mode() flattens source-noise divergence. Run one
+-- fixed-state aggregate per field; seven simultaneous COUNT(DISTINCT) maps over
+-- 23.6M groups can exhaust memory after an otherwise successful rebuild.
+SELECT 'section descriptive divergence (course_subject)' AS note,
+       COUNT(*) AS divergent_sections
 FROM (
-    SELECT section_id,
-           COUNT(DISTINCT course_subject) AS n_subject,
-           COUNT(DISTINCT course_number)  AS n_cnum,
-           COUNT(DISTINCT course_title)   AS n_title,
-           COUNT(DISTINCT course_level)   AS n_level,
-           COUNT(DISTINCT school)         AS n_school,
-           COUNT(DISTINCT section)        AS n_section,
-           COUNT(DISTINCT department)     AS n_dept
+    SELECT section_id
     FROM comprehensive_data
     WHERE period_date >= '2024-01-01' AND section_id IS NOT NULL AND period_sortable IS NOT NULL
     GROUP BY section_id
+    HAVING MIN(course_subject) IS DISTINCT FROM MAX(course_subject)
+);
+
+SELECT 'section descriptive divergence (course_number)' AS note,
+       COUNT(*) AS divergent_sections
+FROM (
+    SELECT section_id
+    FROM comprehensive_data
+    WHERE period_date >= '2024-01-01' AND section_id IS NOT NULL AND period_sortable IS NOT NULL
+    GROUP BY section_id
+    HAVING MIN(course_number) IS DISTINCT FROM MAX(course_number)
+);
+
+SELECT 'section descriptive divergence (course_title)' AS note,
+       COUNT(*) AS divergent_sections
+FROM (
+    SELECT section_id
+    FROM comprehensive_data
+    WHERE period_date >= '2024-01-01' AND section_id IS NOT NULL AND period_sortable IS NOT NULL
+    GROUP BY section_id
+    HAVING MIN(course_title) IS DISTINCT FROM MAX(course_title)
+);
+
+SELECT 'section descriptive divergence (course_level)' AS note,
+       COUNT(*) AS divergent_sections
+FROM (
+    SELECT section_id
+    FROM comprehensive_data
+    WHERE period_date >= '2024-01-01' AND section_id IS NOT NULL AND period_sortable IS NOT NULL
+    GROUP BY section_id
+    HAVING MIN(course_level) IS DISTINCT FROM MAX(course_level)
+);
+
+SELECT 'section descriptive divergence (school)' AS note,
+       COUNT(*) AS divergent_sections
+FROM (
+    SELECT section_id
+    FROM comprehensive_data
+    WHERE period_date >= '2024-01-01' AND section_id IS NOT NULL AND period_sortable IS NOT NULL
+    GROUP BY section_id
+    HAVING MIN(school) IS DISTINCT FROM MAX(school)
+);
+
+SELECT 'section descriptive divergence (section)' AS note,
+       COUNT(*) AS divergent_sections
+FROM (
+    SELECT section_id
+    FROM comprehensive_data
+    WHERE period_date >= '2024-01-01' AND section_id IS NOT NULL AND period_sortable IS NOT NULL
+    GROUP BY section_id
+    HAVING MIN(section) IS DISTINCT FROM MAX(section)
+);
+
+SELECT 'section descriptive divergence (department)' AS note,
+       COUNT(*) AS divergent_sections
+FROM (
+    SELECT section_id
+    FROM comprehensive_data
+    WHERE period_date >= '2024-01-01' AND section_id IS NOT NULL AND period_sortable IS NOT NULL
+    GROUP BY section_id
+    HAVING MIN(department) IS DISTINCT FROM MAX(department)
 );
 
 -- Coverage summary (informational, 2026-06-04 notes). Values are NOT imputed; these
@@ -500,12 +729,12 @@ SELECT 'OER/IA + ISBN coverage' AS note,
        SUM(classified_count) AS classified_materials
 FROM master_section;
 
--- Supply exclusion summary (informational, #36): how many sections carry supplies,
--- and how many carry ONLY supplies (material_count = 0 -> they land in Set B).
+-- Supply exclusion summary (informational, #36): supply is audited over all rows;
+-- the final column is sections that carry supply rows but have no Use material.
 SELECT 'supply exclusion (sections)' AS note,
        COUNT(*) FILTER (WHERE is_supply) AS sections_with_supply,
        SUM(supply_count)                 AS supply_materials,
-       COUNT(*) FILTER (WHERE is_supply AND material_count = 0) AS supply_only_sections
+       COUNT(*) FILTER (WHERE is_supply AND material_count = 0) AS supply_no_use_sections
 FROM master_section;
 
 -- Enrollment assignment source mix (informational, #32): sections per fill rung.

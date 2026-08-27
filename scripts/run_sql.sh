@@ -11,9 +11,20 @@ REPO_ROOT="$(cd "$SCRIPT_DIR/.." && pwd)"
 cd "$SCRIPT_DIR"
 
 # Load environment configuration
+# Explicit process-environment values override dot.env. This lets memory-heavy
+# stages be run with a safe one-off bound without editing the ignored local file.
+RUN_SQL_MEM_LIMIT_OVERRIDE="${MEM_LIMIT-}"
+RUN_SQL_NUM_THREADS_OVERRIDE="${NUM_THREADS-}"
 set -o allexport
 source dot.env
 set +o allexport
+if [ -n "$RUN_SQL_MEM_LIMIT_OVERRIDE" ]; then
+    export MEM_LIMIT="$RUN_SQL_MEM_LIMIT_OVERRIDE"
+fi
+if [ -n "$RUN_SQL_NUM_THREADS_OVERRIDE" ]; then
+    export NUM_THREADS="$RUN_SQL_NUM_THREADS_OVERRIDE"
+fi
+unset RUN_SQL_MEM_LIMIT_OVERRIDE RUN_SQL_NUM_THREADS_OVERRIDE
 
 # Override output directories to use repo root
 export OUTPUT_DIR="${REPO_ROOT}/output"

@@ -2,7 +2,7 @@
 
 > 🔗 **Living Notion build-log:** https://app.notion.com/p/38bd9fdd1a1a81f9b094c13ba9cfbedf
 
-Pickup context as of **2026-07-07**. Read this first, then `SCHEMA.md` (data model) and
+Pickup context as of **2026-08-27**. Read this first, then `SCHEMA.md` (data model) and
 `CLAUDE.md` (conventions). Work tracking is **GitHub Issues + Projects board**, not this file.
 
 ## What this repo is
@@ -13,7 +13,8 @@ A DuckDB pipeline (`duckdb/commodore.duckdb`, ~71 GB) that joins course-catalog 
 
 - Branch: **`cmm-spring-2026`** (push to it, **no PR** — team convention).
 - Board lifecycle: Todo → On Deck → In Progress → **Review** → Done. **Review = human
-  review**; Claude sets Review only after self-validating, the human owns Review → Done.
+  review**; the implementing agent sets Review only after self-validating, and the human owns
+  Review → Done.
 
 ## Current focus — August 2026 CMM refresh
 
@@ -22,18 +23,35 @@ A DuckDB pipeline (`duckdb/commodore.duckdb`, ~71 GB) that joins course-catalog 
 - `master_section`, `master_institution`, and `master_isbn` are the three canonical materialized
   per-term release tables. The two rollup queries are in `scripts/sql/models/`, combined export
   wrappers in `scripts/sql/exports/`, and all three are release-split by
-  `scripts/export_cmm_masters.sh`; institution/ISBN are Metabase Models 170/171. Fall 2025
-  rollups were validated at 2,373 institution rows and 347,159 ISBN rows. The release remains
-  current-population/provisional pending #58/#51.
+  `scripts/export_cmm_masters.sh`; institution/ISBN are Metabase Models 170/171. The rebuilt
+  models contain 15,698 institution-term rows and 1,713,368 ISBN-term rows; Fall 2025 has
+  2,373 and 335,157 respectively. New-input readiness remains pending #51.
+- **#58 IMPLEMENTED AND REBUILT** — `comprehensive_data` now owns non-null row flags
+  and the exact post-2024 Use/NoUse partition. Use excludes Canada, NULL ISBN, supplies,
+  `*No Book Details*`, and explicit no-material placeholders. `master_section` deliberately keeps
+  the complete valid 2024+ section/enrollment spine (the #20 retention decision), while all
+  material/publisher/OER/IA/coverage/cost aggregates, `master_course_material`, and `master_isbn`
+  use the canonical flag. Supply audit remains all-row (#36); legitimate pseudo-SKUs remain
+  eligible unless the existing classifier catches them (#41). Observed counts are 31,506,574
+  post-2024 rows = 13,650,872 Use + 17,855,702 NoUse, including 1,058,295 Canada rows. The
+  23,580,550-section spine and 599,778,117 assigned-enrollment total are unchanged; `section_cost`
+  has 6,983,049 Use-bearing sections and unchanged priced counts/dollar sums.
 - Deterministic 10% work uses `sample10_section_ids` and rule
   `md5-prefix64-mod10-v1`; join this membership table at every stage. Do not reintroduce
   independent `hash()`/Bernoulli predicates or multiply distinct institution/ISBN domains by ten.
-  `37_sample10_reconciliation.sql` currently reports 96/96 additive checks inside the 99.9%
-  section-cluster reference band; 16 institution/ISBN domain metrics are coverage-only. The
-  25-institution fixture remains blocked on the promised ID list.
+  `37_sample10_reconciliation.sql` emits 160 additive checks: 159 pass, 0 fail, and the single
+  2024-1 no-material row is explicitly not testable because it is absent from the sample. The 16
+  institution/ISBN metrics are coverage-only. Sample membership remains 2,359,278 sections with
+  the pre-rebuild hash fingerprint unchanged.
+  The 25-institution fixture remains blocked on the promised ID list.
 - The current local source/DB ends at `2025-4`. Spring 2026 catalog/pricing, `cmm_discipline`,
   updated mailing history, 25 IPEDS IDs/sample pricing, updated IPEDS, external pricing, and
   campus IA inputs are not present locally; do not invent schemas or substitute old snapshots.
+- Current gitignored release artifacts were regenerated from the rebuilt database on 2026-08-27:
+  Fall 2025 Set A/B Parquets, the 2,359,278-row deterministic sample CSV.gz, and the 2025-4
+  Master Section (5,007,488 rows), Master Institution (2,373), and Master ISBN (335,157) CSVs.
+  Metabase config was synced afterward and the local service reports healthy. The audit/migration
+  of older Metabase questions that reconstruct pre-#58 predicates is tracked separately in #61.
 
 ## Prior focus — BMG grant cost analysis (Bay View Analytics / Jeff Seaman)
 
@@ -41,7 +59,7 @@ Fixed initial-analysis scope: **Fall 2025** (`period_sortable='2025-4'`). Everyt
 **re-runnable** — the supply exclusion (#36), enrollment fill (#32), `has_required` fix (#40), the
 `is_required_inferred` rename (#34), and the #41 fold-in have all landed on `master_section`.
 
-### Done and in Review
+### Completed initial-analysis work
 
 | # | Deliverable | Where |
 |---|---|---|
@@ -55,9 +73,12 @@ Fixed initial-analysis scope: **Fall 2025** (`period_sortable='2025-4'`). Everyt
 Scope filter (Set A/B): `course_level IN` {intro/general undergrad, intermediate undergrad,
 non-degree credit, uncategorized} AND `sector` = the 6 real teaching sectors (IPEDS 1–6).
 "Required" = **`is_required_inferred`** (inferred is_required, #1; renamed from `filter_include`, #34).
-Magnitudes **post-#36/#40/#41**: A=**2,520,108** / B=**133,053** (total 2,653,161 conserved).
+Current magnitudes under the **#58 canonical Use** material contract: A=**858,147** /
+B=**1,795,014** (the full 2,653,161-section scope is conserved). The prior post-#36/#40/#41
+split was 2,520,108 / 133,053.
 Enrollment fill reproduces cards 133/134 exactly (own=1,825,095; raw 52.8M → assigned 74.0M; 28.6%
-imputed; 0 unassigned in scope). All 6 `master_section` DQ invariants = 0.
+imputed; 0 unassigned in scope). All nine merged-model reconciliation checks report 0 violations
+(seven `master_section`, two `master_course`).
 
 ### Done in this pass (#32 / #36 integration / #39)
 
@@ -97,8 +118,8 @@ counts/costs with `is_supply`/`supply_count` audit columns; classification spans
 
 ### Held / pending decisions (do NOT start without sign-off)
 
-- _(none open — the BMG initial-analysis backlog #32/#34/#35/#36/#37/#38/#39/#40/#41 is complete and in
-  Review. The enrollment-weighted hypothesis test has been run. Next work is human-directed.)_
+- _(none open — the BMG initial-analysis backlog #32/#34/#35/#36/#37/#38/#39/#40/#41 is complete
+  and marked Done. The enrollment-weighted hypothesis test has been run.)_
 
 **Enrichment principle (important):** derived/enriched columns belong **on `master_section`**,
 NOT in new downstream tables. Downstream artifacts (like the #38 view) only *project/filter*.
@@ -122,6 +143,9 @@ SQL
 
 **Full pipeline** (`scripts/run_sql.sh`, stages skippable via `NO_IMPORT`/`NO_EDA`/`NO_EXPORT`).
 Single file: `.temp/run_one.sh <file.sql>` (envsubst + duckdb). `${CONFIG}` = `sql/config.sql`.
+`MEM_LIMIT` and `NUM_THREADS` supplied in the process environment override `scripts/dot.env`.
+The 23.6M-row `master_section` rebuild was validated with `MEM_LIMIT=16GB NUM_THREADS=1`; its
+narrow staged TEMP aggregates peaked at about 17GB resident memory and avoid the prior 89.5GB OOM.
 
 **Writes to the DB require stopping Metabase** (it holds the file lock):
 ```bash
