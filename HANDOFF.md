@@ -20,9 +20,13 @@ A DuckDB pipeline (`duckdb/commodore.duckdb`, ~71 GB) that joins course-catalog 
 
 - Source communications and extracted XLSX/DOCX/image content are under `comms/`; the
   release-facing pipeline contract is `CMM-ETL.md`.
-- `master_section`, `master_institution`, and `master_isbn` are the three canonical materialized
-  per-term release tables. The two rollup queries are in `scripts/sql/models/`, combined export
-  wrappers in `scripts/sql/exports/`, and all three are release-split by
+- `material_costs` is the canonical materialized one-row-per-(period, section, ISBN) Use item
+  table. `section_enrollment` owns exact assigned enrollment. `section_cost` and `master_isbn`
+  consume `material_costs`; `master_section`, `master_institution`, and `master_isbn` are the
+  three canonical materialized per-term release tables; `material_costs` is exported alongside
+  them. The two rollup queries are in
+  `scripts/sql/models/`, combined export
+  wrappers in `scripts/sql/exports/`, and all four exported tables are release-split by
   `scripts/export_cmm_masters.sh`; institution/ISBN are Metabase Models 170/171. The rebuilt
   models contain 15,698 institution-term rows and 1,713,368 ISBN-term rows; Fall 2025 has
   2,373 and 335,157 respectively. New-input readiness remains pending #51.
@@ -34,8 +38,9 @@ A DuckDB pipeline (`duckdb/commodore.duckdb`, ~71 GB) that joins course-catalog 
   use the canonical flag. Supply audit remains all-row (#36); legitimate pseudo-SKUs remain
   eligible unless the existing classifier catches them (#41). Observed counts are 31,506,574
   post-2024 rows = 13,650,872 Use + 17,855,702 NoUse, including 1,058,295 Canada rows. The
-  23,580,550-section spine and 599,778,117 assigned-enrollment total are unchanged; `section_cost`
-  has 6,983,049 Use-bearing sections and unchanged priced counts/dollar sums.
+  23,580,550-section spine and 599,778,117 assigned-enrollment total are unchanged. Assigned
+  enrollment is owned by `section_enrollment`; `section_cost` rolls up canonical `material_costs`
+  items and keeps items without valid prices out of priced-count/dollar numerators.
 - Deterministic 10% work uses `sample10_section_ids` and rule
   `md5-prefix64-mod10-v1`; join this membership table at every stage. Do not reintroduce
   independent `hash()`/Bernoulli predicates or multiply distinct institution/ISBN domains by ten.
@@ -47,6 +52,10 @@ A DuckDB pipeline (`duckdb/commodore.duckdb`, ~71 GB) that joins course-catalog 
 - The current local source/DB ends at `2025-4`. Spring 2026 catalog/pricing, `cmm_discipline`,
   updated mailing history, 25 IPEDS IDs/sample pricing, updated IPEDS, external pricing, and
   campus IA inputs are not present locally; do not invent schemas or substitute old snapshots.
+- The expected current material-cost baseline is **12,806,060** canonical Use rows:
+  **7,476,130** have a pricing-row match and **5,329,930** do not; **5,329,933** have
+  NULL `price_min` because three matched rows also lack a valid price. This is a refresh
+  baseline, not evidence that Spring 2026 or `cmm_discipline` has landed.
 - Current gitignored release artifacts were regenerated from the rebuilt database on 2026-08-27:
   Fall 2025 Set A/B Parquets, the 2,359,278-row deterministic sample CSV.gz, and the 2025-4
   Master Section (5,007,488 rows), Master Institution (2,373), and Master ISBN (335,157) CSVs.
@@ -73,7 +82,7 @@ Fixed initial-analysis scope: **Fall 2025** (`period_sortable='2025-4'`). Everyt
 | #37 | Master ISBN dataset (one row per ISBN13×Title×Author×Format×FormatType) | card **157**, question `46_master_isbn_fall2025.sql` |
 | #38 | `master_section` US intro/intermediate required VIEW | DB view **`master_section_us_intro_fall2025`** (in `4_merged_records.sql`), GUI-queryable in Metabase |
 | #36 | Supply-vs-course-material ISBN classifier + **model integration** | `scripts/sql/lookups/supply_keywords.tsv` (97 incl + 26 excl), `1a_supply_classification.sql`; `is_supply`/`supply_category` on `comprehensive_data`, `is_supply`/`supply_count` on `master_section` |
-| #32 | **Persisted** `enrollment_assigned`/`enrollment_source` on `master_section` | `4_merged_records.sql` (per-period medians over the scope reference population); cards 133/134 now project the columns |
+| #32 | **Persisted** `enrollment_assigned`/`enrollment_source` | `section_enrollment` owns the exact per-section assignment (per-period medians over the scope reference population); `master_section` consumes it and cards 133/134 project the columns |
 | #39 | Metabase **Models** (`master_section` 158, US-intro-scope 159) + **3 dashboards** (Overview 18, Cost-hypothesis 16, Enrollment-DQ 17) | `metabase/models/*.sql`, `metabase/dashboards/bmg_*.json`, `sync.py` model support |
 
 Scope filter (Set A/B): `course_level IN` {intro/general undergrad, intermediate undergrad,
@@ -127,9 +136,11 @@ counts/costs with `is_supply`/`supply_count` audit columns; classification spans
 - _(none open — the BMG initial-analysis backlog #32/#34/#35/#36/#37/#38/#39/#40/#41 is complete
   and marked Done. The enrollment-weighted hypothesis test has been run.)_
 
-**Enrichment principle (important):** derived/enriched columns belong **on `master_section`**,
-NOT in new downstream tables. Downstream artifacts (like the #38 view) only *project/filter*.
-That's why #32/#36 are framed as new master_section columns, not side tables.
+**Ownership principle (important):** `comprehensive_data` owns enriched/raw catalog rows and
+canonical Use flags; `section_enrollment` owns exact assigned enrollment; and `material_costs`
+owns the canonical Use item spine plus pricing enrichment. `master_section` deliberately keeps
+the broader complete 2024+ section spine and rolls price/cost fields from `material_costs` via
+`section_cost`; downstream views project/filter these canonical tables.
 
 ### Documentation surface — Notion (living)
 
@@ -187,8 +198,12 @@ scripts/export_cmm_masters.sh 2025-4  # -> output/cmm/master_{section,institutio
 - `price_avg` / `*_cost_avg` = **`(min+max)/2`**, NOT an arithmetic mean (legacy). Label wherever surfaced.
 - `master_section` is a **materialized TABLE** (window + LIST aggs too costly as a view). Cheap to
   `SELECT *`; don't rebuild casually (heavy). It carries institution enrichment + coverage +
-  `has_enrollment_*` + cost columns already.
+  `has_enrollment_*`; exact assigned enrollment comes from `section_enrollment`, and price/cost
+  columns roll through `material_costs` → `section_cost`.
 - `seats_taken` = 9999 is an invalid sentinel; `pricing` sentinel prices ≥ 9999 are nulled in `pricing_wide`.
+- Catalog duplicates collapse at `(period_sortable, section_id, isbn13)` for `material_costs`;
+  variant counts/conflict signals remain available for DQ. Pricing duplicates collapse at the
+  documented historical pricing key, with rental-term multiplicity retained in raw history.
 - A heavy `SELECT *` on an **un-materialized** view once crashed the box — bound memory on big scans.
 
 ## Pointers

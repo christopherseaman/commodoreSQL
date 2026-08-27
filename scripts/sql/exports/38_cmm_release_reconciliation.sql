@@ -1,11 +1,12 @@
 -- Exact current-state reconciliation across the canonical CMM release models (#59).
 --
 -- Unlike the probabilistic full-vs-10% checks in export 37, every row here must
--- match exactly. section_cost is the approved material-cost input: it is built
--- from distinct canonical-Use (section_id, ISBN13) materials, then joined 1:1 to
--- the retained Master Section spine. Master ISBN is independently reconciled to
--- that distinct material spine; Master Institution is reconciled to the full
--- section/enrollment spine. Bare SELECT by export convention.
+-- match exactly. material_costs is the approved canonical-Use material input;
+-- section_cost aggregates it before joining 1:1 to the retained Master Section
+-- spine. Master ISBN is independently reconciled to the material_costs spine;
+-- Master Institution is reconciled to the full section/enrollment spine. Raw
+-- comprehensive_data remains the authority for Use/NoUse population checks.
+-- Bare SELECT by export convention.
 WITH catalog AS (
     SELECT
         period_sortable,
@@ -18,13 +19,8 @@ WITH catalog AS (
     GROUP BY period_sortable
 ),
 material_spine AS MATERIALIZED (
-    SELECT period_sortable, section_id, "ISBN13" AS isbn13
-    FROM comprehensive_data
-    WHERE period_date >= DATE '2024-01-01'
-      AND period_sortable IS NOT NULL
-      AND section_id IS NOT NULL
-      AND is_course_material_use
-    GROUP BY period_sortable, section_id, "ISBN13"
+    SELECT period_sortable, section_id, isbn13
+    FROM material_costs
 ),
 materials AS (
     SELECT
@@ -180,9 +176,9 @@ metrics AS (
            master_section_rows, master_institution_section_rows FROM reconciled
     UNION ALL SELECT period_sortable, 'master_section_to_master_institution', 'enrollment_assigned_total',
            master_section_enrollment_total, master_institution_enrollment_total FROM reconciled
-    UNION ALL SELECT period_sortable, 'material_spine_to_master_isbn', 'section_isbn_rows',
+    UNION ALL SELECT period_sortable, 'material_costs_to_master_isbn', 'section_isbn_rows',
            source_section_isbn_rows, master_isbn_section_isbn_rows FROM reconciled
-    UNION ALL SELECT period_sortable, 'material_spine_to_master_isbn', 'enrollment_assigned_total',
+    UNION ALL SELECT period_sortable, 'material_costs_to_master_isbn', 'enrollment_assigned_total',
            source_isbn_enrollment_total, master_isbn_enrollment_total FROM reconciled
 )
 SELECT

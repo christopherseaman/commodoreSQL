@@ -90,21 +90,21 @@ Valid `enrollment_source` values are `own`, `own_seats`, `sibling_enroll`, `sibl
 
 ## Cost and price coverage
 
-Cost fields come from `section_cost`, whose material grain is distinct `(section_id, ISBN13)` over
-Use rows. A material contributes only when the named pricing bound exists; missing prices are not
+Cost fields come from `section_cost`, which aggregates canonical `(period_sortable, section_id,
+isbn13)` Use items from `material_costs`. A material contributes only when the named pricing bound exists; missing prices are not
 treated as zero. “Owned” means buy-only and excludes rental cells. “Average” is the legacy midpoint,
 not an arithmetic mean.
 
 | Column | Business label | Source / derivation | Population / denominator | NULL meaning |
 |---|---|---|---|---|
-| `required_cost_total_min` | Required cost, all-options minimum | Sum of each required Use ISBN's `pricing_wide.price_min` | Distinct priced required Use materials in the section | No required Use material has a valid price |
-| `required_cost_total_max` | Required cost, all-options maximum | Sum of each required Use ISBN's `pricing_wide.price_max` | Distinct priced required Use materials in the section | No required Use material has a valid price |
-| `optional_cost_total_min` | Optional cost, all-options minimum | Sum of each optional Use ISBN's `pricing_wide.price_min` | Distinct priced optional Use materials in the section | No optional Use material has a valid price |
-| `optional_cost_total_max` | Optional cost, all-options maximum | Sum of each optional Use ISBN's `pricing_wide.price_max` | Distinct priced optional Use materials in the section | No optional Use material has a valid price |
-| `required_cost_owned_min` | Required buy-only minimum | Sum of each required Use ISBN's `price_buy_min` | Distinct required Use materials with a buy price | No required Use material has a valid buy price |
-| `required_cost_owned_max` | Required buy-only maximum | Sum of each required Use ISBN's `price_buy_max` | Distinct required Use materials with a buy price | No required Use material has a valid buy price |
-| `optional_cost_owned_min` | Optional buy-only minimum | Sum of each optional Use ISBN's `price_buy_min` | Distinct optional Use materials with a buy price | No optional Use material has a valid buy price |
-| `optional_cost_owned_max` | Optional buy-only maximum | Sum of each optional Use ISBN's `price_buy_max` | Distinct optional Use materials with a buy price | No optional Use material has a valid buy price |
+| `required_cost_total_min` | Required cost, all-options minimum | Sum of each required Use ISBN's `material_costs.price_min` | Distinct priced required Use materials in the section | No required Use material has a valid price |
+| `required_cost_total_max` | Required cost, all-options maximum | Sum of each required Use ISBN's `material_costs.price_max` | Distinct priced required Use materials in the section | No required Use material has a valid price |
+| `optional_cost_total_min` | Optional cost, all-options minimum | Sum of each optional Use ISBN's `material_costs.price_min` | Distinct priced optional Use materials in the section | No optional Use material has a valid price |
+| `optional_cost_total_max` | Optional cost, all-options maximum | Sum of each optional Use ISBN's `material_costs.price_max` | Distinct priced optional Use materials in the section | No optional Use material has a valid price |
+| `required_cost_owned_min` | Required buy-only minimum | Sum of each required Use ISBN's `material_costs.price_buy_min` | Distinct required Use materials with a buy price | No required Use material has a valid buy price |
+| `required_cost_owned_max` | Required buy-only maximum | Sum of each required Use ISBN's `material_costs.price_buy_max` | Distinct required Use materials with a buy price | No required Use material has a valid buy price |
+| `optional_cost_owned_min` | Optional buy-only minimum | Sum of each optional Use ISBN's `material_costs.price_buy_min` | Distinct optional Use materials with a buy price | No optional Use material has a valid buy price |
+| `optional_cost_owned_max` | Optional buy-only maximum | Sum of each optional Use ISBN's `material_costs.price_buy_max` | Distinct optional Use materials with a buy price | No optional Use material has a valid buy price |
 | `required_cost_avg` | Required all-options midpoint | (`required_cost_total_min` + `required_cost_total_max`) / 2 | Same priced required population as the total bounds | Either total bound is NULL |
 | `required_cost_owned_avg` | Required buy-only midpoint | (`required_cost_owned_min` + `required_cost_owned_max`) / 2 | Same buy-priced required population as the owned bounds | Either owned bound is NULL |
 | `optional_cost_avg` | Optional all-options midpoint | (`optional_cost_total_min` + `optional_cost_total_max`) / 2 | Same priced optional population as the total bounds | Either total bound is NULL |

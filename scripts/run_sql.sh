@@ -48,6 +48,7 @@ IMPORT_SQL=(
 
 EDA_SQL=(
     "3_mailing_lists.sql"
+    "3b_material_costs.sql"
     "4_merged_records.sql"
 )
 

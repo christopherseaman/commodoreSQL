@@ -1,6 +1,6 @@
 -- name: Fall 2025 — Sections with no price choice, by institution class (#46)
 -- display: table
--- description: BMG grant Fall-2025 scope (period_sortable=2025-4, 4 BMG course levels, 6 real teaching sectors; 2,653,161 sections). For each in-scope section, required canonical Use materials (is_required_inferred and comprehensive_data.is_course_material_use) are joined to pricing_wide on (section_id, ISBN13) and restricted to those with a non-null price_min ('priced'). NO-PRICE-CHOICE definition (per 2026-07-09 refinement): a priced required material offers no price choice when pricing_wide.price_min = price_max — every acquisition option (buy/rent x new/used x format) costs the same, so there is no cheaper option to choose (regardless of format). A section has NO price choice if it has >=1 priced required material AND ALL of them have price_min = price_max. Sections with ZERO priced required materials are broken out separately as no_priced_required_material ('can't even see a price' — Set B sections plus Set A sections whose required item(s) never matched a priced pricing_wide row), since 'no visible price' and 'one fixed price' are different situations. Secondary comparison columns: alt_single_format (all required priced materials have format_count<=1 — the earlier format-based cut) and ia_only (all are inclusive-access, is_ia). pct_*_of_scope divides by all scope sections in the class cell; pct_*_of_priced divides by sections_with_priced_required. One row per (control, level 4yr/2yr) plus a TOTAL row. Small-n caution: Private for-profit 2yr. price_min/price_max/format_count/is_ia from pricing_wide (sentinel prices >=9999 nulled, #27); is_required_inferred/is_course_material_use from comprehensive_data.
+-- description: BMG grant Fall-2025 scope (period_sortable=2025-4, 4 BMG course levels, 6 real teaching sectors; 2,653,161 sections). For each in-scope section, required canonical Use materials come from material_costs and are restricted to those with a non-null price_min ('priced'). NO-PRICE-CHOICE definition (per 2026-07-09 refinement): a priced required material offers no price choice when material_costs.price_min = price_max — every acquisition option (buy/rent x new/used x format) costs the same, so there is no cheaper option to choose (regardless of format). A section has NO price choice if it has >=1 priced required material AND ALL of them have price_min = price_max. Sections with ZERO priced required materials are broken out separately as no_priced_required_material ('can't even see a price' — Set B sections plus Set A sections whose required item(s) have no visible price), since 'no visible price' and 'one fixed price' are different situations. Secondary comparison columns: alt_single_format (all required priced materials have format_count<=1 — the earlier format-based cut) and ia_only (all are inclusive-access, is_ia). pct_*_of_scope divides by all scope sections in the class cell; pct_*_of_priced divides by sections_with_priced_required. One row per (control, level 4yr/2yr) plus a TOTAL row. Small-n caution: Private for-profit 2yr. price_min/price_max/format_count/is_ia/is_required_inferred come from material_costs; sentinel prices >=9999 remain nulled upstream (#27). The complete section denominator remains master_section.
 WITH scope AS (
   SELECT section_id, control, level
   FROM master_section
@@ -8,24 +8,19 @@ WITH scope AS (
     AND course_level IN ('Introductory or general undergraduate','Intermediate undergraduate','Non-degree credit','Uncategorized')
     AND sector IN ('Public, 4-year or above','Public, 2-year','Private not-for-profit, 4-year or above','Private not-for-profit, 2-year','Private for-profit, 4-year or above','Private for-profit, 2-year')
 ),
-required_priced AS (
-  SELECT
-    c.section_id,
-    c.ISBN13,
-    MAX(pw.format_count) AS format_count,
-    BOOL_OR(pw.is_ia)    AS is_ia,
-    MAX(pw.price_min)    AS price_min,
-    MAX(pw.price_max)    AS price_max
-  FROM comprehensive_data c
-  JOIN scope s ON c.section_id = s.section_id
-  LEFT JOIN pricing_wide pw
-    ON c.section_id = pw.section_id AND c.ISBN13 = pw.isbn13
-  WHERE c.is_required_inferred
-    AND c.is_course_material_use
-  GROUP BY c.section_id, c.ISBN13
-),
 priced_only AS (
-  SELECT * FROM required_priced WHERE price_min IS NOT NULL
+  SELECT
+    m.section_id,
+    m.isbn13,
+    m.format_count,
+    m.is_ia,
+    m.price_min,
+    m.price_max
+  FROM material_costs m
+  JOIN scope s ON m.section_id = s.section_id
+  WHERE m.period_sortable = '2025-4'
+    AND m.is_required_inferred
+    AND m.price_min IS NOT NULL
 ),
 section_agg AS (
   SELECT

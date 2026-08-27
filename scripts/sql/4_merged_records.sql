@@ -2,35 +2,29 @@
 
 ${CONFIG}
 
--- section_cost: per-section cost aggregates over DISTINCT priced COURSE materials.
+-- section_cost: per-section cost aggregates over canonical Use materials.
 -- Required vs non-required uses the catalog classification (is_required_inferred, #1).
 -- The canonical issue-#58 Use flag excludes Canada, missing ISBN, supplies, and
 -- no-details/no-material placeholders. Cost columns therefore measure only the
--- release material population. Sums over distinct
--- (section_id, ISBN13) materials that have a price; NULL-priced materials contribute
+-- release material population. material_costs already owns the distinct
+-- (period_sortable, section_id, isbn13) grain; NULL-priced materials contribute
 -- nothing (*_priced_count shows coverage). "owned" = buy-only (rentals omitted),
--- from pricing_wide.price_buy_min/max. Materialized as a TABLE so
+-- from material_costs.price_buy_min/max. Materialized as a TABLE so
 -- master_section / master_course join it cheaply.
 DROP TABLE IF EXISTS section_cost;
 CREATE TABLE section_cost AS
 WITH materials AS (
     SELECT
-        c.section_id,
-        MAX(c.course_id)       AS course_id,
-        MAX(c.period_sortable) AS period_sortable,
-        c.ISBN13,
-        BOOL_OR(c.is_required_inferred) AS is_required,
-        MAX(pw.price_min)     AS price_min,
-        MAX(pw.price_max)     AS price_max,
-        MAX(pw.price_buy_min) AS owned_min,
-        MAX(pw.price_buy_max) AS owned_max
-    FROM comprehensive_data c
-    LEFT JOIN pricing_wide pw
-        ON c.section_id = pw.section_id AND c.ISBN13 = pw.isbn13
-    WHERE c.is_course_material_use
-        AND c.section_id IS NOT NULL
-        AND c.period_sortable IS NOT NULL
-    GROUP BY c.section_id, c.ISBN13
+        section_id,
+        course_id,
+        period_sortable,
+        isbn13,
+        is_required_inferred AS is_required,
+        price_min,
+        price_max,
+        price_buy_min AS owned_min,
+        price_buy_max AS owned_max
+    FROM material_costs
 )
 SELECT
     section_id,
@@ -44,8 +38,8 @@ SELECT
     SUM(owned_max) FILTER (WHERE is_required)     AS required_cost_owned_max,
     SUM(owned_min) FILTER (WHERE NOT is_required) AS optional_cost_owned_min,
     SUM(owned_max) FILTER (WHERE NOT is_required) AS optional_cost_owned_max,
-    COUNT(DISTINCT ISBN13) FILTER (WHERE is_required AND price_min IS NOT NULL)     AS required_priced_count,
-    COUNT(DISTINCT ISBN13) FILTER (WHERE NOT is_required AND price_min IS NOT NULL) AS optional_priced_count
+    COUNT(DISTINCT isbn13) FILTER (WHERE is_required AND price_min IS NOT NULL)     AS required_priced_count,
+    COUNT(DISTINCT isbn13) FILTER (WHERE NOT is_required AND price_min IS NOT NULL) AS optional_priced_count
 FROM materials
 GROUP BY section_id;
 
@@ -54,10 +48,11 @@ GROUP BY section_id;
 -- see the divergence DQ at the bottom). Cost columns (#2/#3/#4) join 1:1 on section_id.
 -- Enrichment columns live HERE, not in downstream tables: population audit (#58),
 -- supply audit (#36, across all rows), and enrollment fill
--- (#32: enrollment_assigned / enrollment_source — see the CTE comment below).
+-- (#32: enrollment_assigned / enrollment_source from section_enrollment).
 -- Materialized as a TABLE (not a VIEW). The build is deliberately staged through
--- narrow TEMP tables: keeping seven mode() states, publisher lists, scalar states,
--- sibling windows, and median inputs in one 23.6M-group CTAS exceeded host memory.
+-- narrow TEMP tables: keeping seven mode() states, publisher lists, and scalar
+-- states in one 23.6M-group CTAS exceeded host memory. Enrollment medians are
+-- now owned upstream by section_enrollment.
 -- Each stage preserves the original aggregate semantics while allowing prior state
 -- to be released before the next high-cardinality aggregate starts.
 DROP VIEW  IF EXISTS master_course_material;
@@ -70,33 +65,23 @@ DROP TABLE IF EXISTS _ms_mode_department;
 DROP TABLE IF EXISTS _ms_mode_course_number;
 DROP TABLE IF EXISTS _ms_mode_section;
 DROP TABLE IF EXISTS _ms_mode_course_title;
-DROP TABLE IF EXISTS _ms_mode_course_level;
 DROP TABLE IF EXISTS _ms_mode_course_subject;
 DROP TABLE IF EXISTS _ms_publishers;
 DROP TABLE IF EXISTS _ms_required_publishers;
 DROP TABLE IF EXISTS _ms_publisher_counts;
-DROP TABLE IF EXISTS _ms_course_signals;
 DROP TABLE IF EXISTS _ms_enriched;
-DROP TABLE IF EXISTS _ms_ref_pop;
-DROP TABLE IF EXISTS _ms_course_agg;
-DROP TABLE IF EXISTS _ms_class_agg;
-DROP TABLE IF EXISTS _ms_level_agg;
 
 -- Fixed-size aggregates over the full section spine. Descriptive modes and
 -- publisher collection states are intentionally isolated below.
 CREATE TEMP TABLE _ms_scalar AS
 SELECT
     section_id,
-    ANY_VALUE(course_id)       AS course_id,
     ANY_VALUE(period)          AS period,
     ANY_VALUE(period_sortable) AS period_sortable,
     ANY_VALUE(period_date)     AS period_date,
     ANY_VALUE(unit_id)                  AS unit_id,
     ANY_VALUE(state)                    AS state,
-    ANY_VALUE(control)                  AS control,
-    ANY_VALUE(level)                    AS level,
     ANY_VALUE(size)                     AS size,
-    ANY_VALUE(sector)                   AS sector,
     ANY_VALUE(institution_name)         AS institution_name,
     ANY_VALUE(institution_type)         AS institution_type,
     ANY_VALUE(enrollment_2024)          AS enrollment_2024,
@@ -116,14 +101,10 @@ SELECT
     COALESCE(BOOL_OR(is_ia)  FILTER (WHERE is_course_material_use), FALSE) AS is_ia,
     COUNT(*) FILTER (WHERE is_oer AND is_course_material_use) AS oer_count,
     COUNT(*) FILTER (WHERE is_ia AND is_course_material_use)  AS ia_count,
-    MAX(enrollments) AS enrollments,
-    MAX(seats_taken) AS seats_taken,
     COALESCE(BOOL_OR(has_isbn) FILTER (WHERE is_course_material_use), FALSE) AS has_isbn,
     COALESCE(BOOL_OR(has_formattype) FILTER (WHERE is_course_material_use), FALSE) AS has_formattype,
     COUNT(*) FILTER (WHERE has_isbn AND is_course_material_use)       AS isbn_count,
-    COUNT(*) FILTER (WHERE has_formattype AND is_course_material_use) AS classified_count,
-    (MAX(enrollments) IS NOT NULL)                             AS own_has_enrollment,
-    (MAX(seats_taken) IS NOT NULL AND MAX(seats_taken) < 9999) AS own_has_seats
+    COUNT(*) FILTER (WHERE has_formattype AND is_course_material_use) AS classified_count
 FROM comprehensive_data
 WHERE section_id IS NOT NULL
   AND period_sortable IS NOT NULL
@@ -157,12 +138,6 @@ GROUP BY section_id;
 
 CREATE TEMP TABLE _ms_mode_course_title AS
 SELECT section_id, mode(course_title) AS course_title
-FROM comprehensive_data
-WHERE section_id IS NOT NULL AND period_sortable IS NOT NULL AND period_date >= '2024-01-01'
-GROUP BY section_id;
-
-CREATE TEMP TABLE _ms_mode_course_level AS
-SELECT section_id, mode(course_level) AS course_level
 FROM comprehensive_data
 WHERE section_id IS NOT NULL AND period_sortable IS NOT NULL AND period_date >= '2024-01-01'
 GROUP BY section_id;
@@ -208,30 +183,19 @@ WHERE section_id IS NOT NULL
   AND is_course_material_use
 GROUP BY section_id;
 
--- A grouped course table is equivalent to the former partition windows, but
--- avoids sorting/buffering all section rows at once.
-CREATE TEMP TABLE _ms_course_signals AS
-SELECT
-    course_id,
-    period_sortable,
-    SUM(CASE WHEN own_has_enrollment THEN 1 ELSE 0 END) AS course_enroll_sections,
-    SUM(CASE WHEN own_has_seats THEN 1 ELSE 0 END) AS course_seats_sections
-FROM _ms_scalar
-GROUP BY course_id, period_sortable;
-
 CREATE TEMP TABLE _ms_enriched AS
 SELECT
     s.section_id,
-    s.course_id,
+    enrollment.course_id,
     s.period,
     s.period_sortable,
     s.period_date,
     s.unit_id,
     s.state,
-    s.control,
-    s.level,
+    enrollment.control,
+    enrollment.level,
     s.size,
-    s.sector,
+    enrollment.sector,
     s.institution_name,
     s.institution_type,
     s.enrollment_2024,
@@ -241,7 +205,7 @@ SELECT
     course_number.course_number,
     section_mode.section,
     course_title.course_title,
-    course_level.course_level,
+    enrollment.course_level,
     course_subject.course_subject,
     s.material_count,
     s.required_count,
@@ -262,32 +226,29 @@ SELECT
     required_publishers.required_publishers,
     COALESCE(publisher_counts.required_publisher_count, 0) AS required_publisher_count,
     COALESCE(publisher_counts.optional_publisher_count, 0) AS optional_publisher_count,
-    s.enrollments,
-    s.seats_taken,
+    enrollment.enrollments,
+    enrollment.seats_taken,
     s.has_isbn,
     s.has_formattype,
     s.isbn_count,
     s.classified_count,
-    s.own_has_enrollment AS has_enrollment,
-    ((signals.course_enroll_sections - CASE WHEN s.own_has_enrollment THEN 1 ELSE 0 END) > 0)
-        AS has_enrollment_sibling,
-    s.own_has_seats AS has_enrollment_own_seats,
-    ((signals.course_seats_sections - CASE WHEN s.own_has_seats THEN 1 ELSE 0 END) > 0)
-        AS has_enrollment_sibling_seats
+    enrollment.has_enrollment,
+    enrollment.has_enrollment_sibling,
+    enrollment.has_enrollment_own_seats,
+    enrollment.has_enrollment_sibling_seats,
+    enrollment.enrollment_assigned,
+    enrollment.enrollment_source
 FROM _ms_scalar s
 JOIN _ms_mode_school school USING (section_id)
 JOIN _ms_mode_department department USING (section_id)
 JOIN _ms_mode_course_number course_number USING (section_id)
 JOIN _ms_mode_section section_mode USING (section_id)
 JOIN _ms_mode_course_title course_title USING (section_id)
-JOIN _ms_mode_course_level course_level USING (section_id)
 JOIN _ms_mode_course_subject course_subject USING (section_id)
 LEFT JOIN _ms_publishers publishers USING (section_id)
 LEFT JOIN _ms_required_publishers required_publishers USING (section_id)
 LEFT JOIN _ms_publisher_counts publisher_counts USING (section_id)
-JOIN _ms_course_signals signals
-  ON s.course_id IS NOT DISTINCT FROM signals.course_id
- AND s.period_sortable IS NOT DISTINCT FROM signals.period_sortable;
+JOIN section_enrollment enrollment USING (section_id);
 
 DROP TABLE _ms_scalar;
 DROP TABLE _ms_mode_school;
@@ -295,61 +256,14 @@ DROP TABLE _ms_mode_department;
 DROP TABLE _ms_mode_course_number;
 DROP TABLE _ms_mode_section;
 DROP TABLE _ms_mode_course_title;
-DROP TABLE _ms_mode_course_level;
 DROP TABLE _ms_mode_course_subject;
 DROP TABLE _ms_publishers;
 DROP TABLE _ms_required_publishers;
 DROP TABLE _ms_publisher_counts;
-DROP TABLE _ms_course_signals;
-
--- Enrollment assignment (#32): persist the same six-rung hierarchy. Median
--- inputs are narrow and materialized separately so their aggregate states do not
--- coexist with the wide section build.
-CREATE TEMP TABLE _ms_ref_pop AS
-SELECT course_id, period_sortable, control, level, enrollments, seats_taken
-FROM _ms_enriched
-WHERE course_level IN ('Introductory or general undergraduate', 'Intermediate undergraduate',
-                       'Non-degree credit', 'Uncategorized')
-  AND sector IN ('Public, 4-year or above', 'Public, 2-year',
-                 'Private not-for-profit, 4-year or above', 'Private not-for-profit, 2-year',
-                 'Private for-profit, 4-year or above', 'Private for-profit, 2-year');
-
-CREATE TEMP TABLE _ms_course_agg AS
-SELECT
-    course_id,
-    period_sortable,
-    quantile_cont(enrollments, 0.5) AS ce_med,
-    quantile_cont(CASE WHEN seats_taken < 9999 THEN seats_taken END, 0.5) AS cs_med
-FROM _ms_ref_pop
-GROUP BY course_id, period_sortable;
-
-CREATE TEMP TABLE _ms_class_agg AS
-SELECT control, level, period_sortable, quantile_cont(enrollments, 0.5) AS cl_med
-FROM _ms_ref_pop
-GROUP BY control, level, period_sortable;
-
-CREATE TEMP TABLE _ms_level_agg AS
-SELECT level, period_sortable, quantile_cont(enrollments, 0.5) AS lv_med
-FROM _ms_ref_pop
-GROUP BY level, period_sortable;
-
-DROP TABLE _ms_ref_pop;
 
 CREATE TABLE master_section AS
 SELECT
     base.*,
-    ROUND(COALESCE(base.enrollments,
-                   CASE WHEN base.seats_taken < 9999 THEN base.seats_taken END,
-                   ca.ce_med, ca.cs_med, cl.cl_med, lv.lv_med))::INT AS enrollment_assigned,
-    CASE
-        WHEN base.enrollments IS NOT NULL THEN 'own'
-        WHEN base.seats_taken < 9999      THEN 'own_seats'
-        WHEN ca.ce_med IS NOT NULL        THEN 'sibling_enroll'
-        WHEN ca.cs_med IS NOT NULL        THEN 'sibling_seats'
-        WHEN cl.cl_med IS NOT NULL        THEN 'class_median'
-        WHEN lv.lv_med IS NOT NULL        THEN 'level_median'
-        ELSE 'none'
-    END AS enrollment_source,
     sc.required_cost_total_min, sc.required_cost_total_max,
     sc.optional_cost_total_min, sc.optional_cost_total_max,
     sc.required_cost_owned_min, sc.required_cost_owned_max,
@@ -360,18 +274,9 @@ SELECT
     (sc.optional_cost_total_min + sc.optional_cost_total_max) / 2.0 AS optional_cost_avg,
     sc.required_priced_count, sc.optional_priced_count
 FROM _ms_enriched base
-LEFT JOIN _ms_course_agg ca
-  ON base.course_id = ca.course_id AND base.period_sortable = ca.period_sortable
-LEFT JOIN _ms_class_agg cl
-  ON base.control = cl.control AND base.level = cl.level AND base.period_sortable = cl.period_sortable
-LEFT JOIN _ms_level_agg lv
-  ON base.level = lv.level AND base.period_sortable = lv.period_sortable
 LEFT JOIN section_cost sc ON base.section_id = sc.section_id;
 
 DROP TABLE _ms_enriched;
-DROP TABLE _ms_course_agg;
-DROP TABLE _ms_class_agg;
-DROP TABLE _ms_level_agg;
 
 -- Create master_course: one row per course per period.
 -- Cost rolls up section_cost via MIN(min)/MAX(max)/AVG(avg) across the course's
