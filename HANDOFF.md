@@ -52,6 +52,11 @@ A DuckDB pipeline (`duckdb/commodore.duckdb`, ~71 GB) that joins course-catalog 
   Master Section (5,007,488 rows), Master Institution (2,373), and Master ISBN (335,157) CSVs.
   Metabase config was synced afterward and the local service reports healthy. The audit/migration
   of older Metabase questions that reconstruct pre-#58 predicates is tracked separately in #61.
+- The actionable current-data portion of #59 now has a complete 66-column Master Section release
+  dictionary (`MASTER-SECTION-DICTIONARY.md`) and an exact cross-model reconciliation export
+  (`38_cmm_release_reconciliation.sql`) plus a separately bounded exact-key audit (`39_...`);
+  all 144 cross-model checks and all 8 term key sets match exactly in the rebuilt database.
+  Spring 2026 and the shared 25-institution rerun remain external dependencies in #51/#60.
 
 ## Prior focus — BMG grant cost analysis (Bay View Analytics / Jeff Seaman)
 

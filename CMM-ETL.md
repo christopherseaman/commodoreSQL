@@ -88,6 +88,9 @@ The following is the release-facing grain dictionary. Types and complete columns
 authoritative in [`schema.dbml`](schema.dbml); common values/formats below are the
 values used by current SQL.
 
+The complete Master Section column-by-column source, aggregation, denominator, NULL, and
+business-label mapping is [`MASTER-SECTION-DICTIONARY.md`](MASTER-SECTION-DICTIONARY.md).
+
 | Table/view | Grain / key | Key fields (type; common values or format) | Upstream source / intended analysis |
 |---|---|---|---|
 | `course_catalog_20251215` | one source catalog row | `unit_id` INTEGER; `period_sortable` `YYYY-N`; `course_id`, `section_id` VARCHAR | BMG DiscoveryExtract; adoption and coverage denominators |
@@ -253,6 +256,11 @@ priced term. Its default term discovery remains based on 2024+ `pricing_historic
 `scripts/sql/exports/35_master_institution_by_term.sql` and
 `36_master_isbn_by_term.sql` provide combined all-term exports from the two rollup tables.
 All three per-term files follow the #58 population contract; source-readiness remains pending #51.
+`scripts/sql/exports/38_cmm_release_reconciliation.sql` performs exact per-term checks from the
+population/material-cost spines through Master Section, Master Institution, and Master ISBN.
+`39_cmm_release_key_reconciliation.sql` separately compares the complete source/Master Section
+key sets so the two large reconciliation states do not coexist. Every `is_match` value is required
+to be true.
 
 ## 7. Known pending Spring 2026 inputs and unresolved decisions
 

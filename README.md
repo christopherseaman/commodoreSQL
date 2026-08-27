@@ -6,7 +6,8 @@ mailing lists and analysis of course-materials cost and OER/Inclusive-Access ado
 
 > **Where to look:** current work status, how to run things, and gotchas in
 > [`HANDOFF.md`](HANDOFF.md) · data model overview in [`SCHEMA.md`](SCHEMA.md) · full column
-> definitions in [`schema.dbml`](schema.dbml) (load in dbdiagram.io) · naming standards in
+> definitions in [`schema.dbml`](schema.dbml) (load in dbdiagram.io) · Master Section release
+> columns in [`MASTER-SECTION-DICTIONARY.md`](MASTER-SECTION-DICTIONARY.md) · naming standards in
 > [`CLAUDE.md`](CLAUDE.md) · historical design decisions in
 > [`260529-DECISIONS.md`](260529-DECISIONS.md).
 
@@ -76,6 +77,8 @@ Each selected term emits `master_section`, `master_institution`, and `master_isb
 under `output/cmm/`. Master Section and Institution preserve all valid 2024+ section/enrollment
 denominators while Master ISBN and all material/pricing metrics use the #58 Use population.
 Source/input readiness for the next release remains tracked in #51.
+Exact cross-model and key-set checks are exported by `38_cmm_release_reconciliation.sql` and
+`39_cmm_release_key_reconciliation.sql`; every row must match.
 
 ## Metabase
 

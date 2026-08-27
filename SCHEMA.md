@@ -55,6 +55,9 @@ Auto-discovers `scripts/sql/exports/*.sql`; wraps each in a temp table and `COPY
 re-runnable scripts — `scripts/export_fall2025_subsets.sh`, `scripts/classify_supplies.sh` —
 that write Parquet to `output/`.) `scripts/export_cmm_masters.sh` writes one release-dated CSV
 per priced term from the materialized Master Section, Master Institution, and Master ISBN tables.
+`38_cmm_release_reconciliation.sql` and `39_cmm_release_key_reconciliation.sql` check the canonical
+population, material-cost, section, institution, ISBN, and exact section-key paths by term after
+those tables are materialized. They are split to keep the two high-cardinality states sequential.
 
 ## Key tables
 
@@ -177,6 +180,9 @@ valid 2024+ `section_id`, preserving the #20 decision to retain no-ISBN/no-adopt
 section and enrollment denominators. `master_course` and `master_institution` retain that full
 spine. Only material/publisher/OER/IA/ISBN/FormatType/pricing aggregates use the canonical flag;
 the #36 supply audit and enrollment assignment continue over the retained population.
+
+For every exported Master Section column, including its business label, owning source/aggregation,
+denominator, and NULL meaning, see [`MASTER-SECTION-DICTIONARY.md`](MASTER-SECTION-DICTIONARY.md).
 
 ### Enrollment fill (issue #32)
 `enrollment_assigned` is the persisted per-section enrollment, filling missing values by a

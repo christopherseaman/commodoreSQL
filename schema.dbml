@@ -489,7 +489,7 @@ Table master_section [note: 'table'] {
   required_priced_count integer [note: 'distinct required materials with ANY price (total coverage; NOT owned-only — can be >0 while owned cost is NULL when priced materials are rental-only)']
   optional_priced_count integer
 
-  Note: 'TABLE (materialized). One row per valid section_id (2024+) over the full section spine—not a Use-only row filter. Material/OER/coverage/publisher/cost fields use is_course_material_use; supply, NoUse, Canada, and placeholder audits retain source rows. Section/enrollment denominators and #32 assignment remain full-spine.'
+  Note: 'TABLE (materialized). One row per valid section_id (2024+) over the full section spine—not a Use-only row filter. Material/OER/coverage/publisher/cost fields use is_course_material_use; supply, NoUse, Canada, and placeholder audits retain source rows. Section/enrollment denominators and #32 assignment remain full-spine. MASTER-SECTION-DICTIONARY.md is the complete release-column contract.'
 }
 
 Table master_course [note: 'view'] {
