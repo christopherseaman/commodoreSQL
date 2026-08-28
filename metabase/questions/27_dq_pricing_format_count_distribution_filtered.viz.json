@@ -1,6 +1,6 @@
 {
   "graph.dimensions": ["format_count"],
   "graph.metrics": ["pricing_wide_rows"],
-  "graph.x_axis.title_text": "Populated pivot cells (format_count)",
+  "graph.x_axis.title_text": "Distinct offered option/condition/format tuples (format_count)",
   "graph.y_axis.title_text": "(section, isbn) rows — filtered"
 }

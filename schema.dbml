@@ -25,6 +25,7 @@ Enum source_files {
   "data/2025.12.15/panel_20260108.csv" [note: '→ panel']
   "data/2025.12.15/format_type_lookup.tsv" [note: '→ format_type_classification (69 rows)']
   "data/BookPricing.Historical_20260224.csv" [note: '→ pricing_historical (~27.3M current rows)']
+  "scripts/sql/lookups/supply_keywords.tsv" [note: '→ supply_isbn_classification; 97 include + 26 exclude title patterns']
 }
 
 // ---------------------------------------------------------------------------
@@ -158,6 +159,20 @@ Table pricing_historical {
 // IMPORT — Derived
 // ---------------------------------------------------------------------------
 
+Table supply_isbn_classification {
+  isbn13 bigint [note: 'logical unique key; non-NULL classified ISBN from the catalog source']
+  title varchar [note: 'representative matched catalog title']
+  n_rows hugeint [note: '2024+ catalog rows covered by qualifying title variants']
+  matched_pattern varchar [note: 'representative longest lowercase include-pattern match']
+  category varchar [note: 'category associated with matched_pattern']
+
+  indexes {
+    isbn13 [name: 'idx_supply_isbn']
+  }
+
+  Note: 'Created by 1a_supply_classification.sql. One row per classified ISBN. A title variant qualifies when lowercase substring matching finds an include pattern and no exclude pattern; any qualifying 2024+ title variant can place the ISBN in this table.'
+}
+
 Table section_book_status {
   section_id varchar [pk]
   has_required boolean [note: '#40 supply-aware: TRUE if section has any required-status NON-SUPPLY material (BOOL_OR(book_status=required AND NOT is_supply)). A supply-only required item no longer forces TRUE, so a co-listed blank-status real textbook keeps the required fallback.']
@@ -209,7 +224,7 @@ Table pricing_wide {
   price_rental_na_physical decimal
   price_rental_na_digital decimal
   price_rental_na_na decimal
-  format_count bigint [note: 'COUNT(DISTINCT option × condition × format) FILTERed to buy/rental — equals non-null pivot cells, max 18']
+  format_count bigint [note: 'COUNT(DISTINCT option × condition × format) FILTERed to buy/rental; counts offered tuples independently of price validity, so it can exceed the number of non-NULL pivot cells; max 18']
   has_buy boolean [note: 'BOOL_OR(book_option = buy) — a buy listing is offered (option presence, independent of price validity)']
   has_rent boolean [note: 'BOOL_OR(book_option = rental) — a rental listing is offered (≫ rental_days_min coverage, since many rentals lack a term)']
   price_min decimal
@@ -514,7 +529,7 @@ Table material_costs {
   price_rental_na_physical decimal
   price_rental_na_digital decimal
   price_rental_na_na decimal
-  format_count bigint [note: 'non-NULL wide price cells, maximum 18']
+  format_count bigint [note: 'pricing_wide count of distinct offered buy/rental option × condition × format tuples, independent of price validity; maximum 18']
   has_buy boolean
   has_rent boolean
   price_min decimal
@@ -862,6 +877,7 @@ TableGroup import_sources {
 }
 
 TableGroup import_derived {
+  supply_isbn_classification
   section_book_status
   state_region
   pricing_wide

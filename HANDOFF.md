@@ -2,7 +2,7 @@
 
 > 🔗 **Living Notion build-log:** https://app.notion.com/p/38bd9fdd1a1a81f9b094c13ba9cfbedf
 
-Pickup context as of **2026-08-27**. Read this first, then `SCHEMA.md` (data model) and
+Pickup context as of **2026-08-28**. Read this first, then `SCHEMA.md` (data model) and
 `CLAUDE.md` (conventions). Work tracking is **GitHub Issues + Projects board**, not this file.
 
 ## What this repo is
@@ -20,6 +20,12 @@ A DuckDB pipeline (`duckdb/commodore.duckdb`, ~71 GB) that joins course-catalog 
 
 - Source communications and extracted XLSX/DOCX/image content are under `comms/`; the
   release-facing pipeline contract is `CMM-ETL.md`.
+- **#64 lineage correction:** `SCHEMA.md` now separates exact `run_sql.sh` execution order from
+  data-dependency lineage, carries the current automatic and standalone export layer through to
+  concrete files, and explicitly labels views without file exporters. `CMM-ETL.md` owns the linked
+  filter/derived-field semantics; pending sources remain outside the executable path. The alternate
+  recursive Parquet wrapper now resolves repo-relative config/temp/output paths and fails if any
+  export fails.
 - `material_costs` is the canonical materialized one-row-per-(period, section, ISBN) Use item
   table. `section_enrollment` owns exact assigned enrollment. `section_cost` and `master_isbn`
   consume `material_costs`; `master_section`, `master_institution`, and `master_isbn` are the

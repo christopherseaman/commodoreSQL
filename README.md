@@ -5,7 +5,9 @@ characteristics (IPEDS), bookstore pricing, and opt-out/panel lists — to suppo
 mailing lists and analysis of course-materials cost and OER/Inclusive-Access adoption.
 
 > **Where to look:** current work status, how to run things, and gotchas in
-> [`HANDOFF.md`](HANDOFF.md) · data model overview in [`SCHEMA.md`](SCHEMA.md) · full column
+> [`HANDOFF.md`](HANDOFF.md) · exact execution/file lineage in
+> [`SCHEMA.md`](SCHEMA.md#data-lineage) · release-facing process, filters, and derived-field
+> semantics in [`CMM-ETL.md`](CMM-ETL.md) · full column
 > definitions in [`schema.dbml`](schema.dbml) (load in dbdiagram.io) · Master Section release
 > columns in [`MASTER-SECTION-DICTIONARY.md`](MASTER-SECTION-DICTIONARY.md) · naming standards in
 > [`CLAUDE.md`](CLAUDE.md) · historical design decisions in
