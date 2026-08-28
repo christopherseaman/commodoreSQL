@@ -9,10 +9,13 @@
 -- standard errors). Its Horvitz-Thompson variance is estimated from squared
 -- per-section contributions, so whole-section clustering and unequal numbers of
 -- materials/enrollments within sections are represented rather than ignored.
--- Use/NoUse, Canada, and placeholder row totals are additive even though their
--- exclusion booleans overlap; distinct institution/ISBN domains remain coverage-only.
+-- Raw Use/NoUse, Canada, and placeholder row totals remain full-catalog additive
+-- diagnostics even though their exclusion booleans overlap. Canonical material
+-- metrics use material_costs. Distinct institution/ISBN domains remain
+-- coverage-only. Sample membership itself comes from the complete
+-- section_enrollment population.
 WITH sample AS MATERIALIZED (
-    SELECT section_id FROM sample10_section_ids
+    SELECT period_sortable, section_id FROM sample10_section_ids
 ),
 catalog AS (
     SELECT
@@ -51,7 +54,7 @@ catalog AS (
             WHERE sample.section_id IS NOT NULL AND COALESCE(c.is_supply, FALSE)
         ) AS supply_rows_sample
     FROM comprehensive_data c
-    LEFT JOIN sample USING (section_id)
+    LEFT JOIN sample USING (period_sortable, section_id)
     WHERE c.period_date >= DATE '2024-01-01'
       AND c.period_sortable IS NOT NULL
       AND c.section_id IS NOT NULL
@@ -68,7 +71,7 @@ catalog_reason_cardinality AS (
         COUNT(*) AS catalog_rows_full,
         COUNT(*) FILTER (WHERE sample.section_id IS NOT NULL) AS catalog_rows_sample
     FROM comprehensive_data c
-    LEFT JOIN sample USING (section_id)
+    LEFT JOIN sample USING (period_sortable, section_id)
     WHERE c.is_post_2024
       AND c.period_sortable IS NOT NULL
       AND c.section_id IS NOT NULL
@@ -89,7 +92,7 @@ sampled_catalog_by_section AS MATERIALIZED (
         COUNT(*) FILTER (WHERE c."ISBN13" IS NULL)::DOUBLE AS blank_isbn_rows,
         COUNT(*) FILTER (WHERE COALESCE(c.is_supply, FALSE))::DOUBLE AS supply_rows
     FROM comprehensive_data c
-    JOIN sample USING (section_id)
+    JOIN sample USING (period_sortable, section_id)
     WHERE c.period_date >= DATE '2024-01-01'
       AND c.period_sortable IS NOT NULL
       AND c.section_id IS NOT NULL
@@ -106,7 +109,7 @@ sampled_reason_cardinality_by_section AS (
           + CAST(c.no_materials AS INTEGER) AS no_use_reason_count,
         COUNT(*)::DOUBLE AS catalog_rows
     FROM comprehensive_data c
-    JOIN sample USING (section_id)
+    JOIN sample USING (period_sortable, section_id)
     WHERE c.is_post_2024
       AND c.period_sortable IS NOT NULL
       AND c.section_id IS NOT NULL
@@ -136,15 +139,10 @@ reason_cardinality_squares AS (
 ),
 material_spine AS MATERIALIZED (
     SELECT
-        c.period_sortable,
-        c.section_id,
-        c."ISBN13" AS isbn13
-    FROM comprehensive_data c
-    WHERE c.period_date >= DATE '2024-01-01'
-      AND c.period_sortable IS NOT NULL
-      AND c.section_id IS NOT NULL
-      AND c.is_course_material_use
-    GROUP BY c.period_sortable, c.section_id, c."ISBN13"
+        period_sortable,
+        section_id,
+        isbn13
+    FROM material_costs
 ),
 materials AS (
     SELECT
@@ -156,7 +154,7 @@ materials AS (
             WHERE sample.section_id IS NOT NULL
         ) AS isbn_rows_sample
     FROM material_spine spine
-    LEFT JOIN sample USING (section_id)
+    LEFT JOIN sample USING (period_sortable, section_id)
     GROUP BY spine.period_sortable
 ),
 sampled_material_by_section AS (
@@ -165,7 +163,7 @@ sampled_material_by_section AS (
         spine.section_id,
         COUNT(*)::DOUBLE AS section_isbn_rows
     FROM material_spine spine
-    JOIN sample USING (section_id)
+    JOIN sample USING (period_sortable, section_id)
     GROUP BY spine.period_sortable, spine.section_id
 ),
 material_squares AS (
@@ -189,7 +187,7 @@ costs AS (
             WHERE sample.section_id IS NOT NULL
         ) AS optional_priced_materials_sample
     FROM section_cost sc
-    LEFT JOIN sample USING (section_id)
+    LEFT JOIN sample USING (period_sortable, section_id)
     GROUP BY sc.period_sortable
 ),
 cost_squares AS (
@@ -199,8 +197,31 @@ cost_squares AS (
         SUM(POWER(COALESCE(sc.required_priced_count, 0)::DOUBLE, 2)) AS required_priced_sum_squares,
         SUM(POWER(COALESCE(sc.optional_priced_count, 0)::DOUBLE, 2)) AS optional_priced_sum_squares
     FROM section_cost sc
-    JOIN sample USING (section_id)
+    JOIN sample USING (period_sortable, section_id)
     GROUP BY sc.period_sortable
+),
+section_population AS (
+    SELECT
+        enrollment.period_sortable,
+        COUNT(*) AS section_rows_full,
+        COUNT(*) FILTER (WHERE sample.section_id IS NOT NULL) AS section_rows_sample,
+        SUM(enrollment.enrollment_assigned) AS enrollment_assigned_full,
+        SUM(enrollment.enrollment_assigned) FILTER (
+            WHERE sample.section_id IS NOT NULL
+        ) AS enrollment_assigned_sample
+    FROM section_enrollment enrollment
+    LEFT JOIN sample USING (period_sortable, section_id)
+    GROUP BY enrollment.period_sortable
+),
+section_population_squares AS (
+    SELECT
+        enrollment.period_sortable,
+        COUNT(*)::DOUBLE AS section_rows_sum_squares,
+        SUM(POWER(COALESCE(enrollment.enrollment_assigned, 0)::DOUBLE, 2))
+            AS enrollment_sum_squares
+    FROM section_enrollment enrollment
+    JOIN sample USING (period_sortable, section_id)
+    GROUP BY enrollment.period_sortable
 ),
 sections AS (
     SELECT
@@ -219,7 +240,7 @@ sections AS (
             WHERE sample.section_id IS NOT NULL
         ) AS institution_rows_sample
     FROM master_section ms
-    LEFT JOIN sample USING (section_id)
+    LEFT JOIN sample USING (period_sortable, section_id)
     GROUP BY ms.period_sortable
 ),
 section_squares AS (
@@ -229,7 +250,7 @@ section_squares AS (
         SUM(POWER(ms.material_count::DOUBLE, 2)) AS material_count_sum_squares,
         SUM(POWER(COALESCE(ms.enrollment_assigned, 0)::DOUBLE, 2)) AS enrollment_sum_squares
     FROM master_section ms
-    JOIN sample USING (section_id)
+    JOIN sample USING (period_sortable, section_id)
     GROUP BY ms.period_sortable
 ),
 institutions AS (
@@ -250,32 +271,32 @@ metrics AS (
            TRUE AS is_additive, catalog_rows_sum_squares AS sample_sum_squares,
            catalog_rows_full::HUGEINT AS full_value,
            catalog_rows_sample::HUGEINT AS sample_value
-    FROM catalog JOIN catalog_squares USING (period_sortable)
+    FROM catalog LEFT JOIN catalog_squares USING (period_sortable)
     UNION ALL
     SELECT period_sortable, 'population', 'course_material_use_catalog_rows',
            TRUE, included_material_rows_sum_squares, included_material_rows_full::HUGEINT,
            included_material_rows_sample::HUGEINT
-    FROM catalog JOIN catalog_squares USING (period_sortable)
+    FROM catalog LEFT JOIN catalog_squares USING (period_sortable)
     UNION ALL
     SELECT period_sortable, 'population', 'course_material_no_use_catalog_rows',
            TRUE, no_use_rows_sum_squares, no_use_rows_full::HUGEINT,
            no_use_rows_sample::HUGEINT
-    FROM catalog JOIN catalog_squares USING (period_sortable)
+    FROM catalog LEFT JOIN catalog_squares USING (period_sortable)
     UNION ALL
     SELECT period_sortable, 'population', 'canada_catalog_rows',
            TRUE, canada_rows_sum_squares, canada_rows_full::HUGEINT,
            canada_rows_sample::HUGEINT
-    FROM catalog JOIN catalog_squares USING (period_sortable)
+    FROM catalog LEFT JOIN catalog_squares USING (period_sortable)
     UNION ALL
     SELECT period_sortable, 'population', 'no_details_catalog_rows',
            TRUE, no_details_rows_sum_squares, no_details_rows_full::HUGEINT,
            no_details_rows_sample::HUGEINT
-    FROM catalog JOIN catalog_squares USING (period_sortable)
+    FROM catalog LEFT JOIN catalog_squares USING (period_sortable)
     UNION ALL
     SELECT period_sortable, 'population', 'no_materials_catalog_rows',
            TRUE, no_materials_rows_sum_squares, no_materials_rows_full::HUGEINT,
            no_materials_rows_sample::HUGEINT
-    FROM catalog JOIN catalog_squares USING (period_sortable)
+    FROM catalog LEFT JOIN catalog_squares USING (period_sortable)
     UNION ALL
     SELECT
         crc.period_sortable,
@@ -292,47 +313,57 @@ metrics AS (
     SELECT period_sortable, 'excluded_materials', 'blank_isbn_catalog_rows',
            TRUE, blank_isbn_rows_sum_squares,
            blank_isbn_rows_full::HUGEINT, blank_isbn_rows_sample::HUGEINT
-    FROM catalog JOIN catalog_squares USING (period_sortable)
+    FROM catalog LEFT JOIN catalog_squares USING (period_sortable)
     UNION ALL
     SELECT period_sortable, 'excluded_materials', 'supply_catalog_rows',
            TRUE, supply_rows_sum_squares,
            supply_rows_full::HUGEINT, supply_rows_sample::HUGEINT
-    FROM catalog JOIN catalog_squares USING (period_sortable)
+    FROM catalog LEFT JOIN catalog_squares USING (period_sortable)
     UNION ALL
     SELECT period_sortable, 'material_cost_input', 'distinct_section_isbn_rows',
            TRUE, section_isbn_rows_sum_squares,
-           section_isbn_rows_full::HUGEINT, section_isbn_rows_sample::HUGEINT
-    FROM materials JOIN material_squares USING (period_sortable)
+           section_isbn_rows_full::HUGEINT, COALESCE(section_isbn_rows_sample, 0)::HUGEINT
+    FROM materials LEFT JOIN material_squares USING (period_sortable)
     UNION ALL
     SELECT period_sortable, 'section_cost', 'section_rows',
            TRUE, section_cost_rows_sum_squares,
-           section_cost_rows_full::HUGEINT, section_cost_rows_sample::HUGEINT
-    FROM costs JOIN cost_squares USING (period_sortable)
+           section_cost_rows_full::HUGEINT, COALESCE(section_cost_rows_sample, 0)::HUGEINT
+    FROM costs LEFT JOIN cost_squares USING (period_sortable)
     UNION ALL
     SELECT period_sortable, 'section_cost', 'required_priced_materials',
            TRUE, required_priced_sum_squares, required_priced_materials_full::HUGEINT,
-           required_priced_materials_sample::HUGEINT
-    FROM costs JOIN cost_squares USING (period_sortable)
+           COALESCE(required_priced_materials_sample, 0)::HUGEINT
+    FROM costs LEFT JOIN cost_squares USING (period_sortable)
     UNION ALL
     SELECT period_sortable, 'section_cost', 'optional_priced_materials',
            TRUE, optional_priced_sum_squares, optional_priced_materials_full::HUGEINT,
-           optional_priced_materials_sample::HUGEINT
-    FROM costs JOIN cost_squares USING (period_sortable)
+           COALESCE(optional_priced_materials_sample, 0)::HUGEINT
+    FROM costs LEFT JOIN cost_squares USING (period_sortable)
+    UNION ALL
+    SELECT period_sortable, 'section_enrollment', 'section_rows',
+           TRUE, section_rows_sum_squares,
+           section_rows_full::HUGEINT, COALESCE(section_rows_sample, 0)::HUGEINT
+    FROM section_population LEFT JOIN section_population_squares USING (period_sortable)
+    UNION ALL
+    SELECT period_sortable, 'section_enrollment', 'enrollment_assigned_total',
+           TRUE, enrollment_sum_squares,
+           enrollment_assigned_full::HUGEINT, COALESCE(enrollment_assigned_sample, 0)::HUGEINT
+    FROM section_population LEFT JOIN section_population_squares USING (period_sortable)
     UNION ALL
     SELECT period_sortable, 'master_section', 'section_rows',
            TRUE, section_rows_sum_squares,
-           section_rows_full::HUGEINT, section_rows_sample::HUGEINT
-    FROM sections JOIN section_squares USING (period_sortable)
+           section_rows_full::HUGEINT, COALESCE(section_rows_sample, 0)::HUGEINT
+    FROM sections LEFT JOIN section_squares USING (period_sortable)
     UNION ALL
     SELECT period_sortable, 'master_section', 'material_count',
            TRUE, material_count_sum_squares,
-           material_count_full::HUGEINT, material_count_sample::HUGEINT
-    FROM sections JOIN section_squares USING (period_sortable)
+           material_count_full::HUGEINT, COALESCE(material_count_sample, 0)::HUGEINT
+    FROM sections LEFT JOIN section_squares USING (period_sortable)
     UNION ALL
     SELECT period_sortable, 'master_section', 'enrollment_assigned_total',
            TRUE, enrollment_sum_squares, enrollment_assigned_full::HUGEINT,
-           enrollment_assigned_sample::HUGEINT
-    FROM sections JOIN section_squares USING (period_sortable)
+           COALESCE(enrollment_assigned_sample, 0)::HUGEINT
+    FROM sections LEFT JOIN section_squares USING (period_sortable)
     UNION ALL
     SELECT period_sortable, 'master_institution', 'institution_rows',
            FALSE, NULL::DOUBLE, institution_rows_full::HUGEINT,
@@ -341,15 +372,15 @@ metrics AS (
     UNION ALL
     SELECT period_sortable, 'master_isbn', 'isbn_rows',
            FALSE, NULL::DOUBLE, isbns.isbn_rows_full::HUGEINT,
-           materials.isbn_rows_sample::HUGEINT
+           COALESCE(materials.isbn_rows_sample, 0)::HUGEINT
     FROM isbns JOIN materials USING (period_sortable)
     UNION ALL
     SELECT period_sortable, 'master_isbn', 'section_isbn_rows',
            TRUE, section_isbn_rows_sum_squares, isbns.section_isbn_rows_full::HUGEINT,
-           materials.section_isbn_rows_sample::HUGEINT
+           COALESCE(materials.section_isbn_rows_sample, 0)::HUGEINT
     FROM isbns
     JOIN materials USING (period_sortable)
-    JOIN material_squares USING (period_sortable)
+    LEFT JOIN material_squares USING (period_sortable)
 ),
 evaluated AS (
     SELECT

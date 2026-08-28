@@ -1,6 +1,6 @@
 -- name: Coverage — OER/IA Classifiability & ISBN (2024+)
 -- display: table
--- description: How much of the catalog carries an ISBN and is OER/IA-classifiable. is_oer/is_ia are NULL exactly when FormatType is absent; classification is ISBN-structural, so internal inference fills 0 missing values (raising coverage needs an external ISBN→OER/IA source).
+-- description: ISBN and OER/IA-classification coverage among canonical material_costs items rolled into material-bearing Master Section rows. The section denominator is not the complete catalog or section_enrollment population; raising FormatType coverage requires an external ISBN→OER/IA source.
 SELECT metric, value
 FROM (
     SELECT 1 AS ord, 'sections total'                       AS metric, COUNT(*)                          AS value FROM master_section

@@ -1,14 +1,12 @@
 -- Exact source/Master Section key-set reconciliation (#59).
 --
--- Kept separate from export 38 so the 23.6M-key section state is released before
--- the distinct material-spine reconciliation starts. Every missing/extra count
--- must be zero and both key counts must match. Bare SELECT by export convention.
+-- Kept separate from export 38 to bound the exact key-set state. Distinct
+-- Material Costs section keys define the Master Section population. Every
+-- missing/extra count must be zero and both key counts must match. Bare SELECT by
+-- export convention.
 WITH source_keys AS MATERIALIZED (
     SELECT period_sortable, section_id
-    FROM comprehensive_data
-    WHERE period_date >= DATE '2024-01-01'
-      AND period_sortable IS NOT NULL
-      AND section_id IS NOT NULL
+    FROM material_costs
     GROUP BY period_sortable, section_id
 ),
 key_presence AS (

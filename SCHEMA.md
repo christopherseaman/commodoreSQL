@@ -18,7 +18,7 @@ For naming standards and gotchas see [`CLAUDE.md`](CLAUDE.md). For current work 
 | `panel_*.csv` | `panel` | variable |
 | `format_type_lookup.tsv` | `format_type_classification` | ~69 |
 | `supply_keywords.tsv` | (read by `1a_supply_classification.sql` + `scripts/classify_supplies.sh`) | 97 incl + 26 excl |
-| `BookPricing.Historical_*.csv` | `pricing_historical` | ~11K distinct |
+| `BookPricing.Historical_*.csv` | `pricing_historical` | snapshot-dependent (~27.3M current rows) |
 
 ## Pipeline
 
@@ -46,7 +46,7 @@ Run via `scripts/run_sql.sh`. Three stages, each skippable by flag
 |----------|---------|---------|
 | `3_mailing_lists.sql` | `master_mailing`, `current_mailing`, 5 state views | Deduplicated instructor mailing lists |
 | `3b_material_costs.sql` | **`section_enrollment`**, **`material_costs`** (TABLEs) | Exact section enrollment assignment; canonical Use item spine, LEFT-enriched from `pricing_wide` |
-| `4_merged_records.sql` | **`section_cost`** (table), **`master_section`** (TABLE), `master_course` (view), `master_course_material` (view), `master_section_us_intro_fall2025` (view) | Section cost rollups from `material_costs`; full section spine and BMG report view |
+| `4_merged_records.sql` | **`section_cost`** (table), **`master_section`** (TABLE), `master_course` (view), `master_course_material` (view), `master_section_us_intro_fall2025` (view) | Material-cost section rollups, material-bearing Master Section, and BMG report view |
 | `models/*.sql` | **`master_institution`**, **`master_isbn`**, **`sample10_section_ids`** (TABLEs) | Canonical term rollups and deterministic section-sample membership; `master_isbn` consumes `material_costs`; auto-discovered and materialized by `run_sql.sh` after the EDA SQL files |
 
 ### EXPORT stage
@@ -87,22 +87,22 @@ NULL `price_min` because three matched pricing rows lack a valid price.
   and buy bounds. Term/ISBN compatibility metadata needed by `master_isbn` is also persisted here,
   so that rollup does not return to raw catalog rows. Expected current baseline: 12,806,060 rows;
   7,476,130 pricing-row matches; 5,329,930 without a match; 5,329,933 with NULL `price_min`.
-- **`section_cost`** — per-section required/optional cost aggregates consumed from
-  `material_costs`; sections without eligible priced material remain on `master_section` with
-  NULL costs. It is not the approved item-level input.
-- **`master_section`** — **materialized TABLE**, one row per `section_id` (2024+). Institution
-  enrichment (state/control/level/size/sector/…), Use-based material/required/optional counts,
-  OER/IA, publisher, ISBN/FormatType, and non-cost material fields use canonical Use rows from
-  `comprehensive_data`; only price/cost fields roll from `material_costs` via `section_cost`. Its compact population audit includes
-  `has_course_material_use`, Use/NoUse and placeholder counts, and `is_canada`; #36 supplies are
-  still audited across all source rows by `is_supply`/`supply_count`. Enrollment availability
-  flags (`has_enrollment*`) and the exact assignment from `section_enrollment` retain the full
-  section population. It is the analysis workhorse.
+- **`section_cost`** — per-material-bearing-section required/optional cost aggregates consumed
+  from `material_costs`. A section can have Use materials but no valid price, producing NULL cost
+  bounds. It is not the approved item-level input.
+- **`master_section`** — **materialized TABLE**, one row per distinct
+  `(period_sortable, section_id)` represented in canonical `material_costs` (6,983,049 current
+  rows). Material/required/optional counts, OER/IA, publishers, ISBN/FormatType, and coverage
+  derive from deduplicated `material_costs`; price/cost fields join from `section_cost`; section
+  dimensions, enrollment flags, and exact assigned enrollment join from `section_enrollment`.
+  Compact NoUse/placeholder/Canada/supply fields are sidecar audits over source rows for retained
+  material-bearing sections only—not full-population denominators. Complete valid section and
+  enrollment coverage remains upstream in `section_enrollment`.
 - **`master_course`** — view: one row per `(course_id, period)`, rollups of the above.
-- **`master_institution`** — table: one row per `(period_sortable, unit_id)`, including an
-  explicit NULL-unit unknown bucket so section totals reconcile; institution attributes,
-  deterministic bookstore URL from all same-term `pricing_wide` rows, and section-level
-  coverage/totals (#54).
+- **`master_institution`** — table: one row per `(period_sortable, unit_id)` represented by a
+  material-bearing Master Section row, including an explicit NULL-unit unknown bucket when one is
+  present; institution attributes, deterministic bookstore URL from all same-term `pricing_wide`
+  rows, and material-section coverage/totals (#54).
 - **`master_isbn`** — table: one row per `(period_sortable, isbn13)` for canonical Use
   materials consumed from `material_costs`; canonical metadata with conflict DQ, section-level
   coverage, all 18 price-cell counts, enrollment, and institution-type counts (#55).
@@ -129,13 +129,14 @@ flowchart TD
     pw --> mcst
     cd --> mcst
     mcst --> sc["section_cost"]
-    se --> ms["master_section (table)"]
+    mcst --> ms["master_section (table)<br/>material-bearing sections"]
+    se --> ms
     sc --> ms
     ms --> mc["master_course (view)"]
     ms --> mi["master_institution (table)"]
     pw --> mi
     mcst --> misbn
-    ms --> sample10["sample10_section_ids (table)"]
+    se --> sample10["sample10_section_ids (table)<br/>full-section membership"]
     ms --> usv["master_section_us_intro_fall2025 (view)"]
     cd --> mm["master_mailing → current_mailing (+ state views)"]
 ```
@@ -153,8 +154,8 @@ flowchart TD
 Inferred is_required. TRUE when `period_date >= 2024-01-01` AND
 `(has_required=TRUE AND book_status='required')` OR `(has_required=FALSE AND book_status IS NULL)`.
 Applied to `comprehensive_data` and `pricing_historical`. `master_section.required_count` =
-`COUNT(*) FILTER (WHERE is_required_inferred AND is_course_material_use)`. (Renamed from
-`filter_include`, #34.)
+the count of canonical `material_costs` items where `is_required_inferred` is true; membership in
+that table already guarantees the Use predicate. (Renamed from `filter_include`, #34.)
 
 `has_required` is **supply-aware** (#40): `BOOL_OR(book_status='required' AND NOT is_supply)`, built in
 `1a_`/`1b_`. A supply-only "required" item (e.g. safety goggles) no longer forces `has_required=TRUE`,
@@ -176,7 +177,9 @@ Keyword list: `scripts/sql/lookups/supply_keywords.tsv` (97 include + 26 exclude
 truth). `1a_supply_classification.sql` builds `supply_isbn_classification` (ISBN-level, over **all
 2024+** title variants) and `2_oer_classification.sql` joins `is_supply`/`supply_category` onto
 `comprehensive_data`. Supplies are NoUse for every material/count/cost aggregate, while
-`master_section` surfaces `is_supply` (`BOOL_OR`) + `supply_count` over **all source rows** for audit.
+`master_section` surfaces `is_supply` (`BOOL_OR`) + `supply_count` only for excluded source rows
+that co-occur with a retained material-bearing section. Complete supply audits use
+`comprehensive_data`.
 Precision-over-recall (≈0.98); recall
 is keyword-bounded. The `placeholder_no_material` category (#41) reuses this mechanism to exclude
 explicit "no material required" placeholder rows. Supplies are <1% of Fall-2025 ISBNs — excluding them
@@ -197,12 +200,13 @@ its exact post-2024 complement; both are false pre-2024, and Canada is a NoUse s
 exclusion-reason field is stored because the reason booleans can overlap. Non-978/979 pseudo-SKUs
 remain eligible unless the existing supply classifier catches them (#41).
 
-The `master_section` row spine is deliberately **not Use-filtered**: it remains one row for every
-valid 2024+ `section_id`, preserving the #20 decision to retain no-ISBN/no-adoption sections in
-section and enrollment denominators. `master_course` and `master_institution` retain that full
-spine. Material/publisher/OER/IA/ISBN/FormatType aggregates use canonical Use rows from
-`comprehensive_data`; price/cost aggregates use `material_costs`;
-the #36 supply audit and enrollment assignment continue over the retained population.
+The `master_section` row population is the distinct set of canonical Use/material keys in
+`material_costs`, one row per period-specific section. `master_course` and `master_institution`
+roll up that same material-bearing population. No-ISBN, no-adoption, NoUse-only, Canada-only, and
+supply-only sections remain available in `comprehensive_data` and the complete
+`section_enrollment` spine; they do not create release-facing Master Section rows. Sidecar audit
+columns on retained rows describe excluded source records that co-occur with an included material
+section and must not be interpreted as complete-population counts.
 
 For every exported Master Section column, including its business label, owning source/aggregation,
 denominator, and NULL meaning, see [`MASTER-SECTION-DICTIONARY.md`](MASTER-SECTION-DICTIONARY.md).
@@ -216,9 +220,9 @@ retained as explicit variant/conflict signals (for example title, author, publis
 FormatType variant counts) rather than silently choosing a pricing value. A LEFT join to the
 one-row-per-key `pricing_wide` table preserves all Use items, including the expected 5,329,930
 without a pricing-row match. Three additional matched rows have NULL `price_min`.
-`section_cost` aggregates this table; `master_isbn` rolls it up by term and ISBN;
-`master_section` keeps the broader complete 2024+ section spine and takes every price/cost field
-from this path. `pricing_historical` and reverse-enriched `pricing_wide` fields remain available
+`section_cost` aggregates this table; `master_section` is its one-row-per-section rollup; and
+`master_isbn` rolls it up by term and ISBN. `pricing_historical` and reverse-enriched
+`pricing_wide` fields remain available
 for compatibility and pricing-only DQ, but are not canonical ownership for catalog attributes.
 
 The current expected baseline is 12,806,060 material-cost rows: 7,476,130 rows match a pricing
@@ -245,7 +249,7 @@ Sentinel prices ≥ 9999 are nulled (#27).
 
 ## Metabase
 
-Reporting is config-as-code: ~52 SQL questions (frontmatter: `-- name:`/`-- display:`/
+Reporting is config-as-code: 61 SQL questions (frontmatter: `-- name:`/`-- display:`/
 `-- description:`) in `metabase/questions/`, dashboard JSON in `metabase/dashboards/`, IDs in
 `metabase/ids.json` (keyed by filename stem), synced via `metabase/sync.py` (DB id 2). The local
 image is built/launched by `metabase.sh`; it connects to `duckdb/commodore.duckdb` and holds a

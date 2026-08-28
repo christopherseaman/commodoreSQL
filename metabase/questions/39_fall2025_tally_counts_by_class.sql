@@ -1,6 +1,6 @@
 -- name: Fall 2025 — Section & Enrollment Counts by Institution Class x Set
 -- display: table
--- description: Headline size table for the BMG grant scope (Fall 2025, period_sortable=2025-4). One row per (control, lvl, set), where set A = sections with >=1 required material and B = no required material. Shows section counts, distinct institutions (unit_id), how many sections carry section-level enrollment (has_enrollment), the present-rate, the section-weighted enrollment_sum, and the enrollment_median over sections that have enrollment. Caveats: enrollment_sum is section-weighted (a total of section enrollments where present); enrollment_median is unweighted across sections and ignores NULL/missing enrollments (has_enrollment aligns exactly with enrollments IS NOT NULL), so both reflect only sections with data; pct_with_enrollment is the share of sections flagged has_enrollment; institutions_count is per-cell, so it will not sum across set A/B because an institution can appear in both. lvl maps level to 4yr/2yr.
+-- description: Headline size table for the material-bearing Fall-2025 BMG grant scope. One row per control × level × set, where Set A has at least one required canonical item and Set B is optional-only. Enrollment values originate from section_enrollment but the displayed denominator is retained Master Section rows. enrollment_sum and enrollment_median use only present raw enrollment; institutions_count is per cell and does not add across A/B.
 WITH scope AS (
   SELECT * FROM master_section
   WHERE period_sortable = '2025-4'

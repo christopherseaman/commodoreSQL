@@ -37,7 +37,7 @@ snapshot is currently asserted by this repository.
 The runnable order is `0_setup.sql`, `0b_state_region.sql`, `1_bookprices_import.sql`,
 `1a_supply_classification.sql`, `1b_section_filter.sql`, `2_oer_classification.sql`,
 `2b_pricing_oer_ia.sql`, `2c_pricing_wide.sql`, `2d_data_quality.sql`, then EDA
-(`3_mailing_lists.sql`, `4_merged_records.sql`), auto-discovered analysis models in
+(`3_mailing_lists.sql`, `3b_material_costs.sql`, `4_merged_records.sql`), auto-discovered analysis models in
 `scripts/sql/models/`, and discovered exports. The pipeline is envsubst-templated, uses
 replace/recreate semantics, and is intended to be re-runnable;
 see [`SCHEMA.md`](SCHEMA.md#pipeline) and [`scripts/sql/config.sql`](scripts/sql/config.sql).
@@ -83,8 +83,10 @@ see [`SCHEMA.md`](SCHEMA.md#pipeline) and [`scripts/sql/config.sql`](scripts/sql
    bounds, rental range, and buy bounds.
 9. **Aggregation (`4_merged_records.sql`).** Build `section_cost` from `material_costs`, then
    materialize `master_section` and views `master_course`, `master_course_material`, and the
-   Fall 2025 BMG scope projection. `master_section` keeps the deliberately broader complete
-   2024+ section/enrollment spine; every price/cost field rolls from `material_costs`.
+   Fall 2025 BMG scope projection. `master_section` is exactly the one-row-per-section rollup of
+   canonical `material_costs`; it joins section dimensions and assigned enrollment from the
+   independent full-population `section_enrollment` table, and every price/cost field from
+   `section_cost`.
 10. **Release rollups and sample membership (`scripts/sql/models/`).** The runner materializes
    the canonical bare SELECTs as `master_institution`, `master_isbn`, and
    `sample10_section_ids`. Export wrappers and Metabase Models select these tables rather
@@ -114,14 +116,14 @@ business-label mapping is [`MASTER-SECTION-DICTIONARY.md`](MASTER-SECTION-DICTIO
 | `pricing_wide` / `pricing_wide_filtered` | one `(section_id, isbn13)`; filtered view is inferred-required | 18 option/condition/format price cells; `format_count`, `price_min/max`, `rental_days_min/max`; filtered `is_required_inferred=TRUE` | Reverse-enrichment compatibility and raw pricing DQ; not canonical catalog ownership |
 | `section_enrollment` | one `(period_sortable, section_id)` | authoritative raw enrollment/flags, scope dimensions, exact `enrollment_assigned`, `enrollment_source` | Enriched catalog section spine; authoritative section-enrollment owner |
 | `material_costs` | one `(period_sortable, section_id, isbn13)` canonical Use item | catalog-owned item metadata/flags; term/ISBN metadata contract; bookstore URL; all 18 price cells; format/price bounds; rental range; buy bounds; `has_pricing_match`; conflict signals | `comprehensive_data` Use spine LEFT-enriched from `pricing_wide`; retains items without a pricing row or valid price |
-| `section_cost` | one `section_id` (2024+) | required/optional total and buy-only bounds; priced counts | `material_costs`; section cost coverage; downstream aggregate, not item input |
-| `master_section` | one `section_id` (2024+) | complete-spine counts, OER/IA, supply audit, coverage, enrollment fill, costs | Full catalog section spine + `section_enrollment` + `section_cost`; price/cost fields roll from `material_costs` |
+| `section_cost` | one `(period_sortable, section_id)` represented by `material_costs` | required/optional total and buy-only bounds; priced counts | `material_costs`; section cost coverage; downstream aggregate, not item input |
+| `master_section` | one `(period_sortable, section_id)` represented by `material_costs` | canonical material counts, OER/IA, retained-section sidecar audits, coverage, enrollment fill, costs | `material_costs` + `section_cost`, with section/enrollment fields from `section_enrollment`; material-bearing release population |
 | `master_course` | one `(course_id, period_sortable)` | section/material/enrollment rollups; course cost rollup | `master_section`/`section_cost`; course-level analysis |
-| `master_course_material` | course-period-publisher-status group | material instances, sections using, seats affected | canonical Use rows; publisher/material distribution |
+| `master_course_material` | course-period-publisher-status group | material instances, sections using, seats affected | `material_costs`; publisher/material distribution |
 | `master_section_us_intro_fall2025` | one selected `section_id` | Fall 2025, required-bearing, US intro/intermediate sections | Filtered `master_section`; BMG initial-analysis surface |
-| `master_institution` | one `(period_sortable, unit_id)` | 36 institution/section-coverage fields; NULL unit is an explicit unknown bucket | full-spine `master_section` × `section_book_status` plus deterministic URL from all same-term `pricing_wide` rows; Use-derived material metrics |
+| `master_institution` | one `(period_sortable, unit_id)` represented by `master_section` | 36 institution/material-section coverage fields; NULL unit is an explicit unknown bucket when present | material-bearing `master_section` plus deterministic URL metadata from all same-term `pricing_wide` rows |
 | `master_isbn` | one `(period_sortable, isbn13)` | 44 metadata, DQ, coverage, price-cell, and institution-type fields | Rollup of `material_costs`; ISBN-term release and Metabase model |
-| `sample10_section_ids` | one selected `section_id` | period, stable 64-bit MD5 prefix, bucket 0 | `master_section`; canonical membership joined back to every sampled pipeline stage (#53) |
+| `sample10_section_ids` | one selected full-population `section_id` | period, stable 64-bit MD5 prefix, bucket 0 | `section_enrollment`; canonical membership joined back to every sampled pipeline stage (#53) |
 | `master_mailing`, `recent_periods`, `current_mailing`, state views | unique cleaned email / latest-period selector / filtered views | most recent period; state views include CA/TX/FL/NY/other | Catalog + opt-out/panel; mailing outputs |
 | `__data_quality_metrics` and six `__data_quality_*` drill-down tables | metric row or named top-N/distribution grain | counts for catalog, pricing, joins, ISBN, and wide-pivot checks | Snapshot DQ surfaces created by `2d_data_quality.sql`; diagnostic, not analysis facts |
 
@@ -145,9 +147,10 @@ not silent deduplication.
 - `section_id` is `unit_id::dept_code::course_number::section::period_sortable`; the
   period is part of the key. `course_id` omits section and period. A section means one
   section offering in one period, not a cross-period course.
-- `master_section` is one row for every non-null `section_id`/`period_sortable` at
-  `period_date >= '2024-01-01'`. It is explicitly **not** a Use-only filter. This preserves
-  all section/enrollment denominators and the #20 decision to retain no-ISBN/no-adoption rows.
+- `master_section` is one row for every distinct `(period_sortable, section_id)` represented by a
+  canonical Use item in `material_costs`. The current snapshot has 6,983,049 such sections.
+  `section_enrollment` independently preserves all valid 2024+ section/enrollment denominators,
+  including no-ISBN and no-adoption sections retained by #20.
 - At row grain, Use means post-2024, not Canada, non-null ISBN, not supply, not
   `no_details`, and not `no_materials`. NoUse is the exact post-2024 complement; both are false
   before 2024. Canada is also exposed separately and is wholly NoUse. The imported
@@ -156,9 +159,11 @@ not silent deduplication.
 - `no_details` means title exactly `*No Book Details*`. `no_materials` means title exactly
   `*No Books Required*` or `supply_category='placeholder_no_material'`. These and the other
   exclusion booleans can overlap, so no lossy single exclusion-reason field is stored.
-- Supplies remain auditable across all source rows (`is_supply`, `supply_count`, #36) while all
-  master material, OER/IA, publisher, ISBN/FormatType, and cost measures consume only Use rows.
-  The classifier is precision-oriented and keyword-bounded, not an exhaustive supply census.
+- Supplies remain auditable across all source rows in `comprehensive_data` (#36), while all master
+  material, OER/IA, publisher, ISBN/FormatType, and cost measures consume `material_costs`.
+  Master Section's supply/NoUse/placeholder/Canada fields are sidecar audits limited to excluded
+  source rows that co-occur with a retained material-bearing section. The classifier is
+  precision-oriented and keyword-bounded, not an exhaustive supply census.
 - Required classification is `is_required_inferred`: for 2024+, a `required` row when
   the section has a non-supply required item, otherwise a NULL-status fallback when it
   does not. Raw `book_status` remains available and is not overwritten.
@@ -166,15 +171,17 @@ not silent deduplication.
   intermediate undergraduate, non-degree credit, or uncategorized, and sector in the
   six real teaching-sector descriptors listed in [`HANDOFF.md`](HANDOFF.md). Set A is
   `required_count >= 1`; Set B is `required_count = 0`; their section totals must be
-  reported together and reconcile to the same scope denominator.
+  reported together and reconcile to the same material-bearing scope denominator. Set B is
+  therefore **optional-only**, not a no-adoption population.
 - The named Fall 2025 US intro/intermediate view further selects
   `period_sortable='2025-4'`, `required_count >= 1`, the two intro/intermediate levels,
   and `state NOT IN ('CAN','')`; it is a filtered projection in
-  [`scripts/sql/4_merged_records.sql`](scripts/sql/4_merged_records.sql#L364).
-- `master_institution` retains every 2024+ `master_section` row. Sections without `unit_id`
+  [`scripts/sql/4_merged_records.sql`](scripts/sql/4_merged_records.sql#L423).
+- `master_institution` retains every material-bearing `master_section` row. Sections without `unit_id`
   roll into one explicitly documented unknown-institution row per term; they receive no
-  bookstore URL. The canonical URL is the most frequent nonblank URL among that unit's
-  priced section-material rows in the same encoded term, with lexical tie-breaking.
+  bookstore URL. As an explicit institution-metadata exception, the canonical URL is the most
+  frequent nonblank URL among all of that unit's `pricing_wide` rows in the same encoded term,
+  with lexical tie-breaking; it is not restricted to canonical Use items.
 - `master_isbn` uses the canonical material spine: Use rows with an ISBN. Canada, supply,
   no-details, no-material, and no-ISBN rows are therefore absent; non-978/979 pseudo-SKUs remain
   eligible unless `is_supply` catches them (#41). Catalog duplicates collapse before joins;
@@ -183,11 +190,12 @@ not silent deduplication.
   `(period_sortable, section_id, isbn13)` after the canonical Use predicate. It is built from
   catalog-owned `comprehensive_data` fields and LEFT-enriched from `pricing_wide`, so every Use
   item survives, including items with no pricing match. `section_cost` and `master_isbn` consume
-  this table; `master_section` receives all price/cost fields from this path while retaining the
-  broader complete section spine.
+  this table; `master_section` is its exact section-key rollup and receives all price/cost fields
+  from `section_cost`.
 - The per-term Master Section release is a direct term filter of materialized `master_section`.
-  It retains the full 2024+ section spine; its material fields are Use-derived. Issue #58 is
-  implemented by this split contract, while new-input readiness remains tracked in #51.
+  It contains only sections represented by the canonical Use/material population. Issue #58 is
+  implemented by this release contract, while full section/enrollment analysis remains upstream
+  and new-input readiness remains tracked in #51.
 - Mailing outputs deduplicate by cleaned email, exclude opt-outs, choose the most
   recent period, and have state-specific views. Tie-breaking and mailing-history
   updates require confirmation when a source has multiple equally eligible rows.
@@ -236,18 +244,19 @@ Always state the denominator and grain with every percentage or crosstab:
    keys in the selected catalog slice; numerator = `required_priced_count` or
    `optional_priced_count` (a valid `price_min` exists). Report total-price and
    buy-only coverage separately; do not use `has_buy` alone as a valid-price flag.
-3. **Section cost:** denominator = all selected `master_section` sections, including
-   sections with no priced material; NULL cost means no valid bound, not zero cost.
+3. **Section cost:** denominator = all selected material-bearing `master_section` sections,
+   including sections whose Use materials have no valid price; NULL cost means no valid bound,
+   not zero cost or no material adoption.
 4. **OER/IA:** denominator = Use course-material items/sections in the named
    slice; `has_formattype` is the classifiability denominator and `is_oer`/`is_ia` are
    not silently recoded from NULL to false at the raw-material level.
 5. **Enrollment-weighted results:** denominator/weight must name whether the result
    uses `enrollment_assigned` or raw enrollment and report `enrollment_source` mix;
    imputed enrollment is not equivalent to observed enrollment.
-6. **Master Institution counts:** section/enrollment/course-level denominators, the raw
-   supply-aware required flag, and the supply audit use all `master_section` rows for the
-   term×unit; material/inferred-required/optional/OER/IA/ISBN and non-cost material fields are
-   Use-derived, while price/cost fields consume the `material_costs` path.
+6. **Master Institution counts:** section/enrollment/course-level denominators and all material,
+   inferred-required/optional/OER/IA/ISBN, and cost measures use material-bearing
+   `master_section` rows for the term×unit. Retained-section sidecar audit fields do not restore
+   excluded full-population sections.
    `bookstore_url` remains the institution-level metadata exception selected deterministically
    from all same-term `pricing_wide` rows; it is not a catalog field. `required_section_count` is raw
    `section_book_status.has_required`, while
@@ -264,10 +273,12 @@ The full release uses all rows meeting the stated scope. The reproducible sample
 random per-query draw. Rule `md5-prefix64-mod10-v1` interprets the first 64 bits of
 `MD5(section_id)` as an unsigned integer and retains modulo-10 bucket zero in
 `sample10_section_ids`. MD5 is used because DuckDB does not promise `hash()` stability across
-versions. Sampling occurs after the canonical section key/grain is established; joining that
-same membership table back to catalog, cost, institution, and ISBN stages preserves whole
-section clusters and prevents stage-specific samples. Approximately 10%, rather than exactly
-10%, is expected overall and within subgroups.
+versions. Membership is drawn from the complete `section_enrollment` population, not from
+Master Section, so the stable 2,359,278-row membership and its existing fingerprint remain
+unchanged. Joining that same membership table back to catalog, cost, institution, and ISBN stages
+preserves whole section clusters and prevents stage-specific samples. The Master Section sample
+export is the 698,578-row intersection of that membership with material-bearing Master Section.
+Approximately 10%, rather than exactly 10%, is expected overall and within subgroups.
 
 Only additive section-cluster totals can be estimated by multiplying the sample by ten.
 Distinct institution and ISBN domain sizes cannot: high-frequency domains have a much higher
@@ -276,7 +287,8 @@ reports both cases explicitly. For each additive metric it estimates Horvitz-Tho
 from squared per-section contributions and applies a two-sided 99.9% normal-reference alarm
 (`|z| <= 3.2905`). This represents whole-section clustering and unequal section weights; because
 membership is a deterministic hash partition, treat the band as a pipeline-drift reference,
-not a formal repeated-sampling confidence interval.
+not a formal repeated-sampling confidence interval. The current reconciliation emits 192 checks:
+176 additive checks, zero failures, and one sparse source cell explicitly marked not testable.
 
 The four canonical materialized export tables retain `period_sortable`;
 `scripts/export_cmm_masters.sh` splits `master_section`, `master_institution`, and
@@ -293,33 +305,32 @@ direct term filters. The expected current `material_costs` baseline is 12,806,06
 because three matched pricing rows also lack a valid price. Source-readiness
 remains pending #51.
 `scripts/sql/exports/38_cmm_release_reconciliation.sql` performs exact per-term checks from the
-population/material-cost spines through Master Section, Master Institution, and Master ISBN.
-`39_cmm_release_key_reconciliation.sql` separately compares the complete source/Master Section
-key sets so the two large reconciliation states do not coexist. Every `is_match` value is required
-to be true.
+material-cost item and section spines through Master Section, Master Institution, and Master ISBN.
+`39_cmm_release_key_reconciliation.sql` separately compares distinct `material_costs` section keys
+with Master Section keys so the two large reconciliation states do not coexist. Every `is_match`
+value is required to be true.
 
 ### Metabase population routing (#61)
 
 Metabase is a presentation layer over the population contract above; a question must not
-silently create a competing material or section denominator. Release-facing material and
-pricing analyses use `course_materials_use` (or the equivalent
-`is_course_material_use` predicate). Section and enrollment denominators use the complete
-`master_section` spine, including no-adoption and NoUse sections. A `master_section` report
-with a dashboard material filter may apply that filter through a canonical distinct
-`section_id` subquery over `course_materials_use`/`comprehensive_data`, then aggregate the
-selected sections from `master_section`. This keeps section-level counts at one row per
-section while allowing the material filter to remain useful.
+silently create a competing material or section denominator. Release-facing item and pricing
+analyses use `material_costs` (or the equivalent canonical `course_materials_use` predicate where
+raw catalog grain is intentionally needed). Release-facing section and enrollment denominators
+use material-bearing `master_section`. A Master Section report with a dashboard material filter
+applies that filter through distinct canonical `material_costs` section keys, then aggregates the
+selected sections once. Full catalog/enrollment diagnostics must explicitly source
+`comprehensive_data` or `section_enrollment` and label that broader denominator.
 
 The grouped inventory below covers every tracked Metabase question, model, and dashboard.
 
 | Artifact group | Tracked artifacts | Population contract |
 |---|---|---|
-| Canonical material-row questions | **02, 04–05, 31–32, 36, 48, 59–60, 63** | Use `course_materials_use`/`is_course_material_use`; explicitly named required-status or literal-status cuts are subsets of Use, not replacement population rules. |
-| Canonical rollup/full-spine questions | **24–26, 30, 33–35, 37–45, 47, 54–56** | Read one-row-per-section denominators and Use-derived measures from `master_section`, `section_cost`, or their canonical rollups. Question 30 and question 40's report card preserve the distinct canonical-material section subquery only when the material dashboard filter is supplied. |
+| Canonical material-row questions | **02, 04–05, 31–32, 36, 48, 59–60, 63** | Use `material_costs` or the exact `course_materials_use` predicate at an explicitly named raw grain; required-status cuts are subsets of Use, not replacement population rules. |
+| Canonical material-section rollups | **24–26, 30, 33–35, 37–45, 47, 54–56** | Read one-row-per-material-section denominators and canonical measures from `master_section`, `section_cost`, or their rollups. Questions 30 and 40 filter through distinct `material_costs` section keys only when the material dashboard filter is supplied. |
 | Intentional raw catalog/listing/DQ questions | **01, 03, 13–18, 23, 46, 50–52, 57–58, 61–62** | May retain NoUse, Canada, supplies, and/or missing ISBNs as each diagnostic requires; descriptions must state the raw scope and that it is not a release denominator. |
 | Intentional pricing-only DQ/lineage questions | **06–12, 19–22, 27, 53** | May use broad `pricing_historical`/`pricing_wide` rows to inspect dedupe, rental terms, matching, pivots, and outliers; these are not material or section denominators. |
-| Models | `master_section`, `master_institution`, `master_isbn`, `master_section_us_intro_fall2025` | Master Section and Institution retain the complete valid section spine with Use-derived material measures; Master ISBN is Use-only; the BMG model is the documented Fall-2025 required-Use subset. |
-| Canonical/full-spine dashboards | `bmg_cost_hypothesis`, `bmg_enrollment_dq`, `bmg_overview`, `course_materials_cost`, `data_coverage`, `oer_ia_adoption`, `oer_ia_status_filtered`, `report` | Compose the canonical material questions and/or full-spine section questions above; dashboard descriptions state any narrower analytical subset. |
+| Models | `master_section`, `master_institution`, `master_isbn`, `master_section_us_intro_fall2025` | Master Section and Institution are material-bearing; Master ISBN is canonical Use-only; the BMG model is the documented Fall-2025 required-bearing subset. |
+| Canonical material dashboards | `bmg_cost_hypothesis`, `bmg_enrollment_dq`, `bmg_overview`, `course_materials_cost`, `data_coverage`, `oer_ia_adoption`, `oer_ia_status_filtered`, `report` | Compose the canonical item and material-section questions above; dashboard descriptions state any narrower analytical subset. |
 | Intentional DQ/lineage dashboards | `data_lineage`, `data_quality_catalog`, `data_quality_pricing`, `data_quality_pricing_filtered`, `filter_include_quality` | Present the explicitly labeled raw, pricing-only, lineage, or required-inference diagnostics above and do not define release populations. |
 
 When an older question reconstructs a pre-#58 material predicate, migrate its presentation

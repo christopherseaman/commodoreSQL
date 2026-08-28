@@ -1,6 +1,6 @@
 -- name: Fall 2025 — Course-material cost by institution class (control x level x set)
 -- display: table
--- description: Per-section course-material cost summaries for Fall 2025 (period 2025-4, BMG grant scope) broken out by institution control x level (2yr/4yr) x A/B set. Grain is one row per (control, lvl, set); all three medians are computed across sections and are UNWEIGHTED by enrollment. Every median column uses the project (min+max)/2 cost summary (required_cost_avg / required_cost_owned_avg / optional_cost_avg), NOT an arithmetic mean — all three carry the '(min+max)/2' label. Set B sections have no required item, so their required-cost medians are NULL by construction (correct, not a data gap); only optional_cost_median is meaningful for B. sections_priced_required counts sections with required_priced_count > 0. Small-n cells (Private for-profit 2yr n=8, Private not-for-profit 2yr B n=8) should be read with caution.
+-- description: Per-section course-material cost summaries for material-bearing Fall-2025 Master Section rows in the BMG scope, broken out by institution control × level × A/B set. All medians are section-weighted, not enrollment-weighted, and use the project (min+max)/2 summaries rather than arithmetic means. Set B is optional-only, so required-cost medians are NULL by construction; sections_priced_required counts retained sections with required_priced_count > 0. Treat small cells cautiously.
 WITH scope AS (
   SELECT * FROM master_section
   WHERE period_sortable = '2025-4'

@@ -1,6 +1,6 @@
 -- name: Coverage — Enrollment Fill-Potential (sections, 2024+)
 -- display: table
--- description: Section-level enrollment coverage. Enrollment is NOT imputed — these counts show how many missing-enrollment sections have each fill signal available (has_enrollment_* are pure availability flags; here scoped to missing sections). Signals overlap (a section can have more than one), so the fillable rows do not sum to (missing − unfillable).
+-- description: Enrollment coverage among material-bearing Master Section rows. Enrollment is NOT imputed here — these counts show how many retained sections missing enrollment have each fill signal available (has_enrollment_* are pure availability flags). Signals overlap (a section can have more than one), so the fillable rows do not sum to (missing − unfillable). pct_of_all_sections means all material-bearing sections in this model, not the complete section_enrollment population.
 SELECT metric, sections,
        ROUND(100.0 * sections / (SELECT COUNT(*) FROM master_section), 2) AS pct_of_all_sections
 FROM (

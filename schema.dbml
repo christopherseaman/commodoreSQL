@@ -1,18 +1,14 @@
 // CommodoreSQL — Data Landscape
 // Course catalog + institutional + pricing pipeline for OER/IA analysis
-// Pipeline: IMPORT (CSV → tables) → EDA (views) → EXPORT (CSV) → Metabase (dashboards)
+// Pipeline: IMPORT (CSV → tables/views) → EDA (tables/views/models) → EXPORT (CSV) → Metabase
 
 Project CommodoreSQL {
   database_type: 'DuckDB'
   Note: '''
-    ## Metabase Questions (26) — see metabase/questions/
-    - Analysis: 01-05 (is_required_inferred counts + OER/IA), 24-26 (materials cost + OER/IA section adoption)
-    - Data quality: 06-12 (pricing), 13-18 (catalog), 19-23 (rental + null-ISBN)
-
-    ## Metabase Dashboards (6)
-    - filter_include_quality, oer_ia_status_filtered
-    - data_quality_catalog, data_quality_pricing
-    - course_materials_cost (24, 25), oer_ia_adoption (26, 05)
+    ## Metabase config-as-code — see metabase/
+    - 61 SQL questions spanning canonical material/section analysis, reports, and raw/DQ diagnostics
+    - 4 Models: Master Section, its Fall-2025 US intro scope, Master Institution, and Master ISBN
+    - 13 dashboards, including BMG, report, OER/IA, coverage, lineage, and data-quality surfaces
   '''
 }
 
@@ -28,7 +24,7 @@ Enum source_files {
   "data/2025.12.15/OptOut_20251215.csv" [note: '→ opt_out']
   "data/2025.12.15/panel_20260108.csv" [note: '→ panel']
   "data/2025.12.15/format_type_lookup.tsv" [note: '→ format_type_classification (69 rows)']
-  "data/BookPricing.Historical_20260224.csv" [note: '→ pricing_historical (~30M rows)']
+  "data/BookPricing.Historical_20260224.csv" [note: '→ pricing_historical (~27.3M current rows)']
 }
 
 // ---------------------------------------------------------------------------
@@ -342,7 +338,7 @@ Table section_enrollment {
   enrollment_assigned integer [note: 'Exact section enrollment after the documented own/seats/sibling/median hierarchy; NULL only when no rung is available']
   enrollment_source varchar [note: 'own | own_seats | sibling_enroll | sibling_seats | class_median | level_median | none']
 
-  Note: 'Materialized one row per (period_sortable, section_id). Owns authoritative raw enrollment/flags, section-scope dimensions, and the assigned-enrollment value/provenance; master_section and material_costs consume it while retaining their respective grains.'
+  Note: 'Created by 3b_material_costs.sql. Materialized one row per valid 2024+ (period_sortable, section_id), currently 23,580,550 rows. Owns the complete section population, authoritative raw enrollment/flags, section-scope dimensions, and assigned-enrollment value/provenance. material_costs consumes its section fields; master_section joins the retained material-bearing subset.'
 }
 
 // ---------------------------------------------------------------------------
@@ -412,7 +408,8 @@ Table current_mailing_other [note: 'view'] {
 }
 
 // ---------------------------------------------------------------------------
-// EDA — Aggregated Record Views (4_merged_records.sql)
+// EDA — Canonical material/cost and aggregated records (3b_material_costs.sql,
+// 4_merged_records.sql, and scripts/sql/models/)
 // ---------------------------------------------------------------------------
 
 Table material_costs {
@@ -529,7 +526,7 @@ Table material_costs {
   price_buy_max decimal
   has_pricing_match boolean [note: 'TRUE when the LEFT pricing_wide join found a section/ISBN row; independent of whether that row has a valid price_min']
 
-  Note: 'TABLE (materialized). One row per (period_sortable, section_id, isbn13) canonical Use item. Built from comprehensive_data and LEFT-enriched from pricing_wide, so items without usable prices remain. Catalog attributes are never sourced from reverse-enriched pricing fields. Expected current baseline: 12,806,060 rows; 7,476,130 pricing-row matches; 5,329,930 without a pricing-row match; 5,329,933 with NULL price_min.'
+  Note: 'Created by 3b_material_costs.sql. TABLE (materialized), one row per (period_sortable, section_id, isbn13) canonical Use item. Built from comprehensive_data and LEFT-enriched from pricing_wide, so items without usable prices remain. Catalog attributes are never sourced from reverse-enriched pricing fields. Expected current baseline: 12,806,060 rows; 7,476,130 pricing-row matches; 5,329,930 without a pricing-row match; 5,329,933 with NULL price_min.'
 }
 
 Table section_cost {
@@ -547,7 +544,7 @@ Table section_cost {
   required_priced_count integer
   optional_priced_count integer
 
-  Note: 'TABLE. One row per section_id represented by the #58 Use material spine. Consumes material_costs and aggregates DISTINCT section-term-ISBN items, required vs non-required via is_required_inferred. owned = buy-only. Feeds the full-spine master_section by LEFT JOIN and master_course cost rollup; it is not the approved item-level input.'
+  Note: 'TABLE. One row per (period_sortable, section_id) represented by canonical material_costs. Aggregates section-term-ISBN items, required vs non-required via is_required_inferred; owned = buy-only. Joins 1:1 into the material-bearing master_section and feeds master_course cost rollup; it is not the approved item-level input.'
 }
 
 Table master_section [note: 'table'] {
@@ -556,7 +553,7 @@ Table master_section [note: 'table'] {
   period varchar
   period_sortable varchar
   period_date date
-  // -- institution enrichment (ANY_VALUE; constant per unit_id -> per section_id) --
+  // -- material-owned institution fields plus exact section_enrollment dimensions --
   unit_id bigint
   state varchar
   control varchar
@@ -574,18 +571,18 @@ Table master_section [note: 'table'] {
   course_title varchar
   course_level varchar
   course_subject varchar
-  material_count integer [note: '#58: COUNT FILTER(is_course_material_use)']
-  required_count integer [note: 'COUNT FILTER(is_required_inferred AND is_course_material_use); A/B split key']
-  optional_count integer [note: 'COUNT FILTER(NOT is_required_inferred AND is_course_material_use)']
-  has_course_material_use boolean [note: 'Section has at least one canonical Use row']
-  course_material_use_count integer [note: 'Use catalog rows; equals material_count']
-  course_material_no_use_count integer [note: 'NoUse catalog rows retained for audit']
-  no_details_count integer [note: 'Rows with no_details, independent/overlapping exclusion audit']
-  no_materials_count integer [note: 'Rows with no_materials, independent/overlapping exclusion audit']
-  is_canada boolean [note: 'BOOL_OR(row is_canada); Canadian material rows are NoUse']
-  is_supply boolean [note: '#36: COALESCE(BOOL_OR(is_supply), FALSE) — section carries >=1 supply item. is_supply <=> supply_count > 0']
-  supply_count integer [note: '#36: COUNT FILTER(is_supply) — supply items on the section (excluded from material_count)']
-  is_oer boolean [note: 'COALESCE(BOOL_OR(is_oer), FALSE) over canonical Use materials']
+  material_count integer [note: 'COUNT of canonical material_costs section×ISBN items; always >0']
+  required_count integer [note: 'COUNT of material_costs items WHERE is_required_inferred; A/B split key']
+  optional_count integer [note: 'COUNT of material_costs items WHERE NOT is_required_inferred']
+  has_course_material_use boolean [note: 'Always true: membership requires at least one canonical Use item']
+  course_material_use_count integer [note: 'Canonical material items; equals material_count']
+  course_material_no_use_count integer [note: 'Co-occurring NoUse catalog rows for retained sections only; sidecar audit']
+  no_details_count integer [note: 'Co-occurring no_details rows for retained sections only; sidecar audit']
+  no_materials_count integer [note: 'Co-occurring no_materials rows for retained sections only; sidecar audit']
+  is_canada boolean [note: 'Co-occurring Canada row for a retained section; sidecar audit, not a full-population indicator']
+  is_supply boolean [note: '#36: co-occurring classified supply on a retained section; sidecar audit']
+  supply_count integer [note: '#36: co-occurring classified supply rows on a retained section; sidecar audit']
+  is_oer boolean [note: 'COALESCE(BOOL_OR(is_oer), FALSE) over canonical material_costs items']
   is_ia boolean
   oer_count integer
   ia_count integer
@@ -596,10 +593,10 @@ Table master_section [note: 'table'] {
   enrollments integer
   seats_taken integer
   // -- coverage (2026-06-04 notes): ISBN presence + OER/IA classifiability --
-  has_isbn boolean [note: 'BOOL_OR(ISBN13 IS NOT NULL) over section materials']
-  has_formattype boolean [note: 'BOOL_OR(FormatType present) — the OER/IA classifiability flag (is_oer/is_ia are NULL exactly when FormatType is absent)']
-  isbn_count integer [note: 'materials with an ISBN']
-  classified_count integer [note: 'materials carrying a FormatType']
+  has_isbn boolean [note: 'BOOL_OR(has_isbn) over canonical items; true under the current Use contract']
+  has_formattype boolean [note: 'BOOL_OR(FormatType present) over canonical items; OER/IA classifiability flag']
+  isbn_count integer [note: 'canonical ISBN items; currently equals material_count']
+  classified_count integer [note: 'canonical items carrying a FormatType']
   // -- enrollment fill-potential flags (diagnostic availability; raw enrollment is NOT imputed).
   //    has_enrollment_* are pure facts (decoupled from has_enrollment); assess a missing
   //    section via NOT has_enrollment AND has_enrollment_*. #32 adds the numeric fill below. --
@@ -626,7 +623,7 @@ Table master_section [note: 'table'] {
   required_priced_count integer [note: 'distinct required materials with ANY price (total coverage; NOT owned-only — can be >0 while owned cost is NULL when priced materials are rental-only)']
   optional_priced_count integer
 
-  Note: 'TABLE (materialized). One row per valid section_id (2024+) over the full section spine—not a Use-only row filter. Material/OER/coverage/publisher fields use canonical Use rows from comprehensive_data; all price/cost fields roll from material_costs via section_cost. Supply, NoUse, Canada, and placeholder audits retain source rows. Section/enrollment denominators remain full-spine; assigned enrollment is consumed from section_enrollment. MASTER-SECTION-DICTIONARY.md is the complete release-column contract.'
+  Note: 'TABLE (materialized), currently 6,983,049 rows. Exactly one row per distinct (period_sortable, section_id) in material_costs. Material/OER/coverage/publisher fields aggregate canonical material_costs items; price/cost fields join from section_cost; section dimensions and assigned enrollment join from section_enrollment. Supply, NoUse, Canada, and placeholder fields are comprehensive_data sidecar audits limited to retained material-bearing sections. Complete-population denominators remain in section_enrollment. MASTER-SECTION-DICTIONARY.md is the complete release-column contract.'
 }
 
 Table master_course [note: 'view'] {
@@ -683,7 +680,7 @@ Table master_course [note: 'view'] {
   all_publishers varchar [note: 'nested LIST of publisher arrays']
   unique_required_publishers integer
 
-  Note: 'One row per course-offering (2024+, rolled up from master_section). Cost rolled up from the material_costs path through section_cost via MIN/MAX/AVG.'
+  Note: 'One row per material-bearing course-offering (2024+, rolled up from master_section). Cost rolls up from material_costs through section_cost via MIN/MAX/AVG.'
 }
 
 Table master_course_material [note: 'view'] {
@@ -701,11 +698,11 @@ Table master_course_material [note: 'view'] {
   sections_using integer
   total_seats_affected integer
 
-  Note: 'One row per (course_id × period × publisher × book_status). Material distribution over the canonical #58 Use population, consistent with master_section counts.'
+  Note: 'One row per (course_id × period × publisher × book_status), consumed directly from material_costs. Material distribution uses the same canonical items as master_section counts.'
 }
 
 Table master_section_us_intro_fall2025 [note: 'view'] {
-  Note: 'BMG #38. Filtered projection of master_section (NO new columns, same schema): period_sortable=2025-4, required_count>=1 under the canonical #58 Use contract, course_level in {Introductory or general undergraduate, Intermediate undergraduate}, US only (state excludes CAN + blank). 773,613 sections after the #58 rebuild. Enrichment stays on master_section; this view only projects/filters.'
+  Note: 'BMG #38. Filtered projection of material-bearing master_section (NO new columns, same schema): period_sortable=2025-4, required_count>=1, course_level in {Introductory or general undergraduate, Intermediate undergraduate}, US only (state excludes CAN + blank). Current row count: 773,613. Enrichment stays on master_section; this view only projects/filters.'
 }
 
 Table master_institution {
@@ -731,8 +728,8 @@ Table master_institution {
   non_degree_credit_section_count bigint
   uncategorized_section_count bigint
   course_count bigint
-  material_section_count bigint [note: 'Sections with at least one canonical Use material']
-  required_section_count bigint [note: 'Sections with supply-aware raw section_book_status.has_required over the full section spine']
+  material_section_count bigint [note: 'Sections with at least one canonical Use material; equals section_count under the current Master Section population']
+  required_section_count bigint [note: 'Material-bearing sections with supply-aware raw section_book_status.has_required']
   inferred_required_section_count bigint [note: 'Sections with master_section.required_count > 0']
   optional_section_count bigint
   supply_section_count bigint
@@ -746,7 +743,7 @@ Table master_institution {
   enrollments_tot hugeint [note: 'SUM(enrollment_assigned)']
   seats_taken_tot hugeint [note: 'SUM(valid seats_taken)']
 
-  Note: 'Issue #54/#58. One row per term × institution key over the full 2024+ master_section spine. Section/enrollment and supply audit denominators remain full; material/pricing metrics are Use-derived.'
+  Note: 'Issue #54/#58. One row per term × institution key represented by material-bearing master_section. All section/enrollment/material/pricing denominators use that population. Supply metrics are retained-section sidecar audits. bookstore_url is the explicit metadata exception sourced from all same-term pricing_wide rows.'
 }
 
 Table master_isbn {
@@ -799,12 +796,12 @@ Table master_isbn {
 }
 
 Table sample10_section_ids {
-  section_id varchar [note: 'Canonical sampling unit; one selected row per master_section key']
+  section_id varchar [note: 'Canonical sampling unit; one selected row per full section_enrollment key']
   period_sortable varchar
   section_hash ubigint [note: 'First 64 bits of MD5(section_id), interpreted unsigned']
   sample_bucket utinyint [note: 'section_hash modulo 10; always 0 in this membership table']
 
-  Note: 'Issue #53. Deterministic md5-prefix64-mod10-v1 membership table. All sampled stages join this table so whole section clusters and identical membership are preserved.'
+  Note: 'Issue #53. Deterministic md5-prefix64-mod10-v1 membership over the complete section_enrollment population: 2,359,278 current members with the preserved fingerprint. All sampled stages join this table so whole section clusters and identical membership are preserved; the current Master Section intersection is 698,578 rows.'
 }
 
 // ---------------------------------------------------------------------------
@@ -840,7 +837,9 @@ Ref: pricing_wide.section_id > section_book_status.section_id
 
 // canonical material-cost path (composite material keys are documented in table notes)
 // material_costs is built from comprehensive_data and LEFT-enriched by pricing_wide;
-// section_cost and master_isbn consume material_costs.
+// section_cost and master_isbn consume material_costs. Distinct material_costs
+// (period_sortable, section_id) keys define master_section exactly; master_section then
+// joins section_enrollment on that explicit key and section_cost 1:1.
 Ref: section_enrollment.section_id > section_book_status.section_id
 Ref: material_costs.section_id > section_book_status.section_id
 

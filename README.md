@@ -22,7 +22,7 @@ CSVs live under `data/<date>/`; paths are configured in `scripts/dot.env`.
 | `OptOut_*.csv` | `opt_out` | variable |
 | `panel_*.csv` | `panel` | variable |
 | `format_type_lookup.tsv` | `format_type_classification` | 69 |
-| `BookPricing.Historical_*.csv` | `pricing_historical` | ~11K |
+| `BookPricing.Historical_*.csv` | `pricing_historical` | snapshot-dependent (~27.3M current rows) |
 
 ## Running the pipeline
 
@@ -62,9 +62,10 @@ and is re-runnable.
 - **`section_cost`** — section-level required/optional cost rollups consumed from
   `material_costs`; it is not the item-level input.
 - **`master_section`** (materialized TABLE) / **`master_course`** (view) — one row per
-  section-offering / course-offering (2024+). The deliberately broader complete section and
-  enrollment spine is retained; non-cost material fields use canonical Use rows from
-  `comprehensive_data`, while all price/cost fields roll from `material_costs` via `section_cost`.
+  material-bearing section-offering / course-offering (2024+). Master Section is the section-level
+  rollup of canonical `material_costs` items, with section dimensions and assigned enrollment from
+  `section_enrollment`; all price/cost fields roll through `section_cost`. The independent
+  `section_enrollment` table retains the complete valid section population.
 - **`pricing_wide`** (all priced materials) / **`pricing_wide_filtered`** (required subset) —
   reverse-enrichment compatibility views/tables with 18 price columns pivoted per
   `(section_id, isbn13)`. They remain useful for raw pricing DQ, not canonical item ownership.
@@ -84,9 +85,10 @@ scripts/export_cmm_masters.sh 2025-4
 ```
 
 Each selected term emits `master_section`, `master_institution`, `master_isbn`, and
-`material_costs` CSVs under `output/cmm/`. Master Section and Institution preserve all valid
-2024+ section/enrollment denominators while Master ISBN and all material/pricing metrics use the
-#58 Use population.
+`material_costs` CSVs under `output/cmm/`. All four releases follow the canonical Use/material
+population: Master Section and Institution contain sections represented by `material_costs`,
+including sections whose Use items have no pricing match or valid price. Complete catalog and
+enrollment populations remain available upstream in `comprehensive_data` and `section_enrollment`.
 The material-cost baseline is expected to contain **12,806,060** Use rows: **7,476,130**
 have a pricing-row match and **5,329,930** do not. **5,329,933** rows have no valid
 `price_min`, including three matched pricing rows. Per-term files are direct filters of the

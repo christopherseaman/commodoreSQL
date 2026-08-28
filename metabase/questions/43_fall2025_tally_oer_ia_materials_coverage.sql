@@ -1,6 +1,6 @@
 -- name: Fall 2025 — OER/IA Adoption & Material Coverage by Control x Level x Set
 -- display: table
--- description: Per-section tally over master_section (BMG scope, Fall 2025 / period 2025-4) showing OER and Inclusive Access adoption, material load, and ISBN/format-type coverage, grouped by institution control x level (2yr/4yr) x A/B set (A = >=1 required item, B = no required item). Grain is one row per (control, lvl, set); rates are unweighted shares of sections (fractions, 3 dp) and the *_count_avg columns are unweighted mean items per section (2 dp), not enrollment-weighted. Caveats: Set B has no required item by definition (required_count_avg = 0, optional load only); has_isbn_rate = 1.0 for Set B is expected because the optional-only flagging path implies an ISBN. Small cells (Private for-profit 2yr A = 8, Private not-for-profit 2yr B = 8) make their rates statistically noisy.
+-- description: Per-section tally over material-bearing Master Section rows in the Fall-2025 BMG scope, showing OER/IA adoption, material load, and ISBN/FormatType coverage by institution control × level × A/B set. Rates are unweighted retained-section shares and *_count_avg columns are unweighted item counts per retained section. Set B is optional-only by definition; all rows carry at least one canonical material_costs item. Treat small institution-class cells as statistically noisy.
 WITH scope AS (
   SELECT * FROM master_section
   WHERE period_sortable = '2025-4'

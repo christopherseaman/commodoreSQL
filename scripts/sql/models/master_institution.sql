@@ -1,26 +1,27 @@
 -- Canonical Master Institution model query (#54).
 --
--- Grain: one row per (period_sortable, unit_id) represented by master_section.
--- The export intentionally includes the NULL unit_id bucket: those section rows are
--- present in master_section, but have no institution key with which to resolve a URL.
+-- Grain: one row per (period_sortable, unit_id) represented by material-bearing
+-- master_section. The export intentionally includes the NULL unit_id bucket: those
+-- retained section rows have no institution key with which to resolve a URL.
 -- run_sql.sh materializes this bare SELECT as table master_institution.
 --
 -- Source decisions (the supplied workbook and processing notes disagree in places):
--- * The section/enrollment spine, raw required flag, and supply audit retain every
---   valid 2024+ section. Material, inferred-required/optional, OER/IA, ISBN, and
---   pricing measures are derived from master_section's canonical Use-filtered fields
---   (#58). Keeping raw required separate from inferred required preserves the source
---   contract and exposes the effect of the inference rule.
+-- * Every rollup count is over material-bearing Master Section rows. Enrollment
+--   fields still come from the complete section_enrollment source; raw required is
+--   joined when available, and the comprehensive-data supply audit covers excluded
+--   rows co-occurring with retained sections. Keeping raw required separate from
+--   inferred required preserves the source contract and exposes the inference rule.
 -- * required_priced_section_count and optional_priced_section_count follow the actual
 --   required/optional status. The source labels Req_priced_count/Opt_priced_count
 --   describe the opposite status in their prose; status-aligned names avoid that trap.
 -- * assigned enrollment is authoritative for enrollment_section_count and its total;
 --   raw enrollments is not re-imputed here. seats_taken=9999 is the documented invalid
 --   sentinel, so it is excluded from seat counts and totals.
--- * bookstore_url is a metadata exception to the Use-derived pricing measures: it is
---   selected from all pricing_wide rows for the same period. For each
---   unit, the URL occurring on the most priced-material rows wins; lexical ordering is
---   the deterministic tie-break. URLs are not inferred for NULL unit_id.
+-- * bookstore_url is an institution-metadata exception to the canonical material
+--   flow. It is selected from all same-term pricing rows so institutions do not
+--   lose a known URL merely because those priced items fall outside canonical Use.
+--   The URL occurring on the most pricing rows wins; lexical ordering is the
+--   deterministic tie-break. URLs are not inferred for NULL unit_id.
 WITH section_flags AS (
     SELECT
         ms.*,
@@ -44,16 +45,14 @@ WITH section_flags AS (
 ),
 url_counts AS (
     SELECT
-        -- section_id embeds period_sortable as its final component. Using that
-        -- stable key avoids a second full master_section scan solely for URLs.
-        REGEXP_EXTRACT(pw.section_id, '::([0-9]{4}-[1-4])$', 1) AS period_sortable,
-        pw.unit_id,
-        pw.bookstore_url,
-        COUNT(*) AS priced_material_rows
-    FROM pricing_wide pw
-    WHERE pw.unit_id IS NOT NULL
-      AND pw.bookstore_url IS NOT NULL
-      AND pw.bookstore_url <> ''
+        REGEXP_EXTRACT(pricing.section_id, '::([0-9]{4}-[1-4])$', 1) AS period_sortable,
+        pricing.unit_id,
+        pricing.bookstore_url,
+        COUNT(*) AS pricing_rows
+    FROM pricing_wide pricing
+    WHERE pricing.unit_id IS NOT NULL
+      AND pricing.bookstore_url IS NOT NULL
+      AND pricing.bookstore_url <> ''
     GROUP BY 1, 2, 3
 ),
 ranked_urls AS (
@@ -61,7 +60,7 @@ ranked_urls AS (
         *,
         ROW_NUMBER() OVER (
             PARTITION BY period_sortable, unit_id
-            ORDER BY priced_material_rows DESC, bookstore_url ASC
+            ORDER BY pricing_rows DESC, bookstore_url ASC
         ) AS url_rank
     FROM url_counts
 ),

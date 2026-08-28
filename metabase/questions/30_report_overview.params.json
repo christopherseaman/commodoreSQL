@@ -11,5 +11,5 @@
   "course_subject":  { "display-name": "Course Subject",      "field": "master_section.course_subject" },
   "course_id":       { "display-name": "Course Code",         "field": "master_section.course_id" },
   "period_sortable": { "display-name": "Term",                "field": "master_section.period_sortable" },
-  "material":        { "display-name": "Material status",     "field": "comprehensive_data.book_status" }
+  "material":        { "display-name": "Material status",     "field": "material_costs.book_status" }
 }

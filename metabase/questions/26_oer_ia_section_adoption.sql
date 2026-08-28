@@ -1,6 +1,6 @@
 -- name: OER/IA Section Adoption Over Time (2024+)
 -- display: line
--- description: Share of course-sections with any OER / any Inclusive-Access material, by period (from master_section).
+-- description: Share of material-bearing course sections with any OER / any Inclusive-Access canonical item, by period (from master_section). This is not a full section_enrollment denominator.
 
 SELECT
     period_date,

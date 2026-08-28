@@ -8,7 +8,7 @@ SELECT
     COUNT(*) FILTER (WHERE is_ia IS NOT NULL) AS classified_materials,
     ROUND(100.0 * COUNT(*) FILTER (WHERE is_oer) / NULLIF(COUNT(*) FILTER (WHERE is_oer IS NOT NULL), 0), 2) AS pct_oer_of_classified,
     ROUND(100.0 * COUNT(*) FILTER (WHERE is_ia)  / NULLIF(COUNT(*) FILTER (WHERE is_ia  IS NOT NULL), 0), 2) AS pct_ia_of_classified
-FROM comprehensive_data
-WHERE is_course_material_use
+FROM material_costs
+WHERE has_formattype
 GROUP BY period_date, period_sortable
 ORDER BY period_date

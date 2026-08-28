@@ -1,9 +1,10 @@
 # Master Section release dictionary
 
 This is the per-column contract for the release-facing `master_section` table. Its grain is one
-row per period-specific `section_id` for valid 2024+ catalog sections. “Full spine” below means
-all such sections, including sections with no canonical Course Materials Use rows. “Use” means
-the issue-#58 material population documented in `CMM-ETL.md`.
+row per distinct `(period_sortable, section_id)` represented by canonical `material_costs` for
+2024+ terms. “Material-section population” below means those sections; the independent
+`section_enrollment` table retains the complete valid section population, including no-ISBN and
+no-adoption sections. “Use” means the issue-#58 material population documented in `CMM-ETL.md`.
 
 DuckDB reports every materialized-table column as nullable at the schema level. The NULL column
 below describes the semantic contract produced by the SQL, rather than that generic catalog
@@ -13,28 +14,28 @@ metadata. Counts and definitive booleans are non-NULL unless explicitly noted.
 
 | Column | Business label | Source / derivation | Population / denominator | NULL meaning |
 |---|---|---|---|---|
-| `section_id` | Section-offering ID | Group key from `comprehensive_data`; includes term | Full spine | Not produced; NULL keys are excluded |
-| `course_id` | Course ID | `ANY_VALUE(course_id)`; source composite omits section and term | Full spine | Not expected; missing source segments are encoded as `UNKNOWN` |
-| `period` | Academic period | `ANY_VALUE(period)` from catalog | Full spine | Not expected because valid sortable periods are required |
-| `period_sortable` | Sortable term | `ANY_VALUE(period_sortable)`; `YYYY-N` | Full spine | Not produced; NULL terms are excluded |
-| `period_date` | Canonical term date | `ANY_VALUE(period_date)` from normalized period | Full spine, restricted to 2024+ | Not produced by the retained scope |
-| `unit_id` | IPEDS institution ID | `ANY_VALUE(unit_id)` from catalog | Full spine | Source institution ID missing |
-| `state` | State/province code | `ANY_VALUE(state)` from the normalized catalog source | Full spine | No source geography |
-| `control` | Institution control | `ANY_VALUE(control)` from IPEDS | Full spine | No matching IPEDS institution |
-| `level` | Institution level | `ANY_VALUE(level)` from IPEDS | Full spine | No matching IPEDS institution |
-| `size` | Institution size band | `ANY_VALUE(size)` from IPEDS | Full spine | No matching IPEDS institution |
-| `sector` | IPEDS sector | `ANY_VALUE(sector)` from IPEDS | Full spine | No matching IPEDS institution |
-| `institution_name` | Institution name | `ANY_VALUE(institution_name)` from IPEDS | Full spine | No matching IPEDS institution |
-| `institution_type` | Institution type | `ANY_VALUE(institution_type)` from IPEDS | Full spine | No matching IPEDS institution/type |
-| `enrollment_2024` | Institution enrollment, 2024 | `ANY_VALUE(enrollment_2024)` from IPEDS | Full spine | No matching IPEDS value |
-| `distance_enrollment_2024` | Institution distance enrollment, 2024 | `ANY_VALUE(distance_enrollment_2024)` from IPEDS | Full spine | No matching IPEDS value |
-| `school` | School/college | Most-frequent non-NULL catalog value via `mode()` | All catalog rows in the section | No non-NULL source value |
-| `department` | Department | Most-frequent non-NULL catalog value via `mode()` | All catalog rows in the section | No non-NULL source value |
-| `course_number` | Course number | Most-frequent non-NULL catalog value via `mode()` | All catalog rows in the section | No non-NULL source value |
-| `section` | Source section code | Most-frequent non-NULL catalog value via `mode()` | All catalog rows in the section | No non-NULL source value |
-| `course_title` | Course title | Most-frequent non-NULL catalog value via `mode()` | All catalog rows in the section | No non-NULL source value |
-| `course_level` | BMG course level | Most-frequent non-NULL catalog value via `mode()` | All catalog rows in the section | No non-NULL source value |
-| `course_subject` | Course subject | Most-frequent non-NULL catalog value via `mode()` | All catalog rows in the section | No non-NULL source value |
+| `section_id` | Section-offering ID | Group key from `material_costs`; includes term | Material-section population | Not produced |
+| `course_id` | Course ID | Exact section value from `section_enrollment`; source composite omits section and term | Material-section population | Not expected; missing source segments are encoded as `UNKNOWN` |
+| `period` | Academic period | `ANY_VALUE(period)` from `material_costs` | Material-section population | Not expected because valid sortable periods are required |
+| `period_sortable` | Sortable term | Group key from `material_costs`; `YYYY-N` | Material-section population | Not produced |
+| `period_date` | Canonical term date | `ANY_VALUE(period_date)` from `material_costs` | Material-section population, restricted to 2024+ | Not produced by the retained scope |
+| `unit_id` | IPEDS institution ID | `ANY_VALUE(unit_id)` from `material_costs` | Material-section population | Source institution ID missing |
+| `state` | State/province code | `ANY_VALUE(state)` from `material_costs` | Material-section population | No source geography |
+| `control` | Institution control | Exact section value from `section_enrollment` | Material-section population | No matching IPEDS institution |
+| `level` | Institution level | Exact section value from `section_enrollment` | Material-section population | No matching IPEDS institution |
+| `size` | Institution size band | `ANY_VALUE(size)` from `material_costs` | Material-section population | No matching IPEDS institution |
+| `sector` | IPEDS sector | Exact section value from `section_enrollment` | Material-section population | No matching IPEDS institution |
+| `institution_name` | Institution name | `ANY_VALUE(institution_name)` from `material_costs` | Material-section population | No matching IPEDS institution |
+| `institution_type` | Institution type | `ANY_VALUE(institution_type)` from `material_costs` | Material-section population | No matching IPEDS institution/type |
+| `enrollment_2024` | Institution enrollment, 2024 | `ANY_VALUE(enrollment_2024)` from `material_costs` | Material-section population | No matching IPEDS value |
+| `distance_enrollment_2024` | Institution distance enrollment, 2024 | `ANY_VALUE(distance_enrollment_2024)` from `material_costs` | Material-section population | No matching IPEDS value |
+| `school` | School/college | Most-frequent non-NULL `material_costs` value via `mode()` | Canonical items in the section | No non-NULL source value |
+| `department` | Department | Most-frequent non-NULL `material_costs` value via `mode()` | Canonical items in the section | No non-NULL source value |
+| `course_number` | Course number | Most-frequent non-NULL `material_costs` value via `mode()` | Canonical items in the section | No non-NULL source value |
+| `section` | Source section code | Most-frequent non-NULL `material_costs` value via `mode()` | Canonical items in the section | No non-NULL source value |
+| `course_title` | Course title | Most-frequent non-NULL `material_costs` value via `mode()` | Canonical items in the section | No non-NULL source value |
+| `course_level` | BMG course level | Exact section value from `section_enrollment` | Material-section population | No non-NULL source value |
+| `course_subject` | Course subject | Most-frequent non-NULL `material_costs` value via `mode()` | Canonical items in the section | No non-NULL source value |
 
 `mode()` intentionally flattens occasional within-section source conflicts. The pipeline logs the
 number of divergent sections separately for each descriptor; it does not silently deduplicate the
@@ -44,46 +45,46 @@ underlying catalog rows.
 
 | Column | Business label | Source / derivation | Population / denominator | NULL meaning |
 |---|---|---|---|---|
-| `material_count` | Course-material row count | `COUNT(*) FILTER (is_course_material_use)` | Use catalog rows in the section | Never NULL; zero means no Use row |
-| `required_count` | Required material row count | Count of Use rows where `is_required_inferred` | Use catalog rows in the section | Never NULL; zero means none |
-| `optional_count` | Optional/supplemental material row count | Count of Use rows where not `is_required_inferred` | Use catalog rows in the section | Never NULL; zero means none |
-| `has_course_material_use` | Has an included material | `BOOL_OR(is_course_material_use)`, coalesced false | All catalog rows in the section | Never NULL; false means no Use row |
-| `course_material_use_count` | Included material audit count | Count of `is_course_material_use` rows; equals `material_count` | All catalog rows in the section | Never NULL; zero means none |
-| `course_material_no_use_count` | Excluded material audit count | Count of `is_course_material_no_use` rows | All catalog rows in the section | Never NULL; zero means none |
-| `no_details_count` | No-book-details marker count | Count of exact `*No Book Details*` rows | All catalog rows in the section; reasons may overlap | Never NULL; zero means marker absent |
-| `no_materials_count` | No-material marker count | Count of exact `*No Books Required*` or `placeholder_no_material` rows | All catalog rows in the section; reasons may overlap | Never NULL; zero means marker absent |
-| `is_canada` | Canadian section indicator | `BOOL_OR(state='CAN')`, coalesced false | All catalog rows in the section | Never NULL; false means no Canadian row |
-| `is_supply` | Has a classified supply | `BOOL_OR(is_supply)`, coalesced false | All catalog rows in the section | Never NULL; false means no classified supply |
-| `supply_count` | Classified supply row count | Count of `is_supply` rows | All catalog rows in the section | Never NULL; zero means none |
-| `is_oer` | Has OER material | `BOOL_OR(is_oer)` over Use rows, coalesced false | Use rows in the section | Never NULL; false includes no Use/classifiable OER row |
-| `is_ia` | Has inclusive-access material | `BOOL_OR(is_ia)` over Use rows, coalesced false | Use rows in the section | Never NULL; false includes no Use/classifiable IA row |
-| `oer_count` | OER material row count | Count of Use rows with `is_oer=true` | Use rows in the section | Never NULL; zero means none |
-| `ia_count` | Inclusive-access material row count | Count of Use rows with `is_ia=true` | Use rows in the section | Never NULL; zero means none |
-| `publishers` | Distinct material publishers | `LIST(DISTINCT publisher)` for non-NULL publishers | Use rows in the section | No Use row with a publisher |
-| `required_publishers` | Distinct required publishers | `LIST(DISTINCT publisher)` where `is_required_inferred` | Required Use rows in the section | No required Use row with a publisher |
-| `required_publisher_count` | Required publisher count | `COUNT(DISTINCT publisher)` where required | Required Use rows in the section | Never NULL; zero means none |
-| `optional_publisher_count` | Optional publisher count | `COUNT(DISTINCT publisher)` where not required | Optional Use rows in the section | Never NULL; zero means none |
-| `has_isbn` | Has an included ISBN | `BOOL_OR(has_isbn)` over Use rows, coalesced false | Use rows in the section | Never NULL; false means no Use row |
-| `has_formattype` | Has a classifiable material | `BOOL_OR(has_formattype)` over Use rows, coalesced false | Use rows in the section | Never NULL; false means no nonblank FormatType on Use rows |
-| `isbn_count` | ISBN-bearing material row count | Count of Use rows with `has_isbn`; currently equals `material_count` | Use catalog rows, not distinct ISBNs | Never NULL; zero means none |
-| `classified_count` | FormatType-classifiable material row count | Count of Use rows with nonblank `FormatType` | Use catalog rows | Never NULL; zero means none |
+| `material_count` | Course-material item count | `COUNT(*)` over deduplicated `material_costs` | Canonical section×ISBN items | Never NULL or zero |
+| `required_count` | Required material item count | Count of `material_costs` rows where `is_required_inferred` | Canonical items in the section | Never NULL; zero means none |
+| `optional_count` | Optional/supplemental material item count | Count of `material_costs` rows where not `is_required_inferred` | Canonical items in the section | Never NULL; zero means none |
+| `has_course_material_use` | Has an included material | Constant true for a retained material section | Material-section population | Never NULL or false |
+| `course_material_use_count` | Included material audit count | Count of canonical items; equals `material_count` | Canonical items in the section | Never NULL or zero |
+| `course_material_no_use_count` | Co-occurring excluded-row audit | Count of `comprehensive_data.is_course_material_no_use` rows | Source rows for retained material sections only | Never NULL; zero means none |
+| `no_details_count` | Co-occurring no-book-details audit | Count of exact `*No Book Details*` rows in the sidecar | Source rows for retained material sections only; reasons may overlap | Never NULL; zero means marker absent |
+| `no_materials_count` | Co-occurring no-material audit | Count of exact `*No Books Required*` or `placeholder_no_material` rows in the sidecar | Source rows for retained material sections only; reasons may overlap | Never NULL; zero means marker absent |
+| `is_canada` | Co-occurring Canadian-row indicator | `BOOL_OR(state='CAN')` in the sidecar | Source rows for retained material sections only | Never NULL; false means no Canadian row |
+| `is_supply` | Has a co-occurring classified supply | `BOOL_OR(is_supply)` in the sidecar | Source rows for retained material sections only | Never NULL; false means no classified supply |
+| `supply_count` | Co-occurring classified supply row count | Count of `is_supply` rows in the sidecar | Source rows for retained material sections only | Never NULL; zero means none |
+| `is_oer` | Has OER material | `BOOL_OR(is_oer)` over `material_costs`, coalesced false | Canonical items in the section | Never NULL; false means no classified OER item |
+| `is_ia` | Has inclusive-access material | `BOOL_OR(is_ia)` over `material_costs`, coalesced false | Canonical items in the section | Never NULL; false means no classified IA item |
+| `oer_count` | OER material item count | Count of canonical items with `is_oer=true` | Canonical items in the section | Never NULL; zero means none |
+| `ia_count` | Inclusive-access material item count | Count of canonical items with `is_ia=true` | Canonical items in the section | Never NULL; zero means none |
+| `publishers` | Distinct material publishers | `LIST(DISTINCT publisher)` for non-NULL `material_costs` publishers | Canonical items in the section | No canonical item has a publisher |
+| `required_publishers` | Distinct required publishers | `LIST(DISTINCT publisher)` where `is_required_inferred` | Required canonical items in the section | No required item has a publisher |
+| `required_publisher_count` | Required publisher count | `COUNT(DISTINCT publisher)` where required | Required canonical items in the section | Never NULL; zero means none |
+| `optional_publisher_count` | Optional publisher count | `COUNT(DISTINCT publisher)` where not required | Optional canonical items in the section | Never NULL; zero means none |
+| `has_isbn` | Has an included ISBN | `BOOL_OR(has_isbn)` over `material_costs` | Canonical items in the section | Never NULL; true under the current Use contract |
+| `has_formattype` | Has a classifiable material | `BOOL_OR(has_formattype)` over `material_costs` | Canonical items in the section | Never NULL; false means no nonblank FormatType |
+| `isbn_count` | ISBN-bearing material item count | Count of canonical items with `has_isbn`; currently equals `material_count` | Canonical section×ISBN items | Never NULL or zero |
+| `classified_count` | FormatType-classifiable material item count | Count of canonical items with nonblank `FormatType` | Canonical items in the section | Never NULL; zero means none |
 
 `required_count + optional_count = material_count = course_material_use_count` is a checked
-invariant. Supply, Canada, and placeholder counts deliberately use the full source-row population
-so excluded evidence remains visible.
+invariant. Supply, Canada, NoUse, and placeholder counts are sidecar evidence only for retained
+sections; use `comprehensive_data` or `section_enrollment` for complete-population analysis.
 
 ## Enrollment and fill provenance
 
 | Column | Business label | Source / derivation | Population / denominator | NULL meaning |
 |---|---|---|---|---|
-| `enrollments` | Reported section enrollment | `MAX(enrollments)` across source rows | All catalog rows in the section | No reported enrollment |
-| `seats_taken` | Reported seats taken | `MAX(seats_taken)` across source rows; raw 9999 sentinel retained | All catalog rows in the section | No reported seats value |
-| `has_enrollment` | Has own enrollment | `MAX(enrollments) IS NOT NULL` | Full spine | Never NULL |
-| `has_enrollment_sibling` | Sibling has enrollment | Another section with the same course and term has enrollment | Full spine | Never NULL |
-| `has_enrollment_own_seats` | Has usable own seats | `MAX(seats_taken)` is non-NULL and below 9999 | Full spine | Never NULL |
-| `has_enrollment_sibling_seats` | Sibling has usable seats | Another section with the same course and term has seats below 9999 | Full spine | Never NULL |
-| `enrollment_assigned` | Assigned section enrollment | First available of own enrollment, own seats, sibling medians, control×level median, or level median; rounded integer | Full spine; medians use the documented per-term BMG reference population | No rung produced a value (`enrollment_source='none'`) |
-| `enrollment_source` | Enrollment provenance | Label for the selected fill rung | Full spine | Never NULL; `none` means unassigned |
+| `enrollments` | Reported section enrollment | Exact section value from `section_enrollment` | Material-section rows; computed upstream over the full section population | No reported enrollment |
+| `seats_taken` | Reported seats taken | Exact section value from `section_enrollment`; raw 9999 sentinel retained | Material-section rows; computed upstream over the full section population | No reported seats value |
+| `has_enrollment` | Has own enrollment | Exact flag from `section_enrollment` | Material-section rows | Never NULL |
+| `has_enrollment_sibling` | Sibling has enrollment | Exact flag from `section_enrollment` | Material-section rows; sibling search occurs upstream over the full population | Never NULL |
+| `has_enrollment_own_seats` | Has usable own seats | Exact flag from `section_enrollment` | Material-section rows | Never NULL |
+| `has_enrollment_sibling_seats` | Sibling has usable seats | Exact flag from `section_enrollment` | Material-section rows; sibling search occurs upstream over the full population | Never NULL |
+| `enrollment_assigned` | Assigned section enrollment | Exact assignment from `section_enrollment`; first available of own enrollment, own seats, sibling medians, control×level median, or level median | Material-section rows; medians use the documented per-term full reference population | No rung produced a value (`enrollment_source='none'`) |
+| `enrollment_source` | Enrollment provenance | Exact label from `section_enrollment` | Material-section rows | Never NULL; `none` means unassigned |
 
 Valid `enrollment_source` values are `own`, `own_seats`, `sibling_enroll`, `sibling_seats`,
 `class_median`, `level_median`, and `none`. Raw enrollment fields are never overwritten.
@@ -108,8 +109,8 @@ not an arithmetic mean.
 | `required_cost_avg` | Required all-options midpoint | (`required_cost_total_min` + `required_cost_total_max`) / 2 | Same priced required population as the total bounds | Either total bound is NULL |
 | `required_cost_owned_avg` | Required buy-only midpoint | (`required_cost_owned_min` + `required_cost_owned_max`) / 2 | Same buy-priced required population as the owned bounds | Either owned bound is NULL |
 | `optional_cost_avg` | Optional all-options midpoint | (`optional_cost_total_min` + `optional_cost_total_max`) / 2 | Same priced optional population as the total bounds | Either total bound is NULL |
-| `required_priced_count` | Required priced material count | Distinct required Use ISBNs with non-NULL `price_min` | Required Use materials in the section | NULL only when the section has no Use row; zero means Use rows exist but none are priced |
-| `optional_priced_count` | Optional priced material count | Distinct optional Use ISBNs with non-NULL `price_min` | Optional Use materials in the section | NULL only when the section has no Use row; zero means Use rows exist but none are priced |
+| `required_priced_count` | Required priced material count | Required canonical ISBN items with non-NULL `price_min` | Required items in the section | Never NULL; zero means none has a valid price |
+| `optional_priced_count` | Optional priced material count | Optional canonical ISBN items with non-NULL `price_min` | Optional items in the section | Never NULL; zero means none has a valid price |
 
 ## Release and validation
 
@@ -118,8 +119,10 @@ the canonical materialized table, filters only `period_sortable`, orders by `sec
 `master_section_<YYYY_N>_<YYYYMMDD>.csv`. It does not reimplement any population or aggregation.
 
 The executable DQ in `scripts/sql/4_merged_records.sql` checks section-key uniqueness, encoded-term
-agreement, source/master row conservation, Use/NoUse conservation, required/optional partitioning,
-boolean/count agreement, cost bounds, and the Canada subset invariant. Cross-model and deterministic
-sample reconciliation is in `scripts/sql/exports/37_sample10_reconciliation.sql`; exact current-state
-release and key-set reconciliation is in `scripts/sql/exports/38_cmm_release_reconciliation.sql`
-and `39_cmm_release_key_reconciliation.sql`.
+agreement, exact `material_costs` section-key conservation, required/optional partitioning,
+boolean/count agreement, cost bounds, and retained-section sidecar invariants. Full-population
+checks remain on `comprehensive_data`/`section_enrollment`. Cross-model and deterministic sample
+reconciliation is in `scripts/sql/exports/37_sample10_reconciliation.sql`; exact current-state
+release and material-section key-set reconciliation is in
+`scripts/sql/exports/38_cmm_release_reconciliation.sql` and
+`39_cmm_release_key_reconciliation.sql`.

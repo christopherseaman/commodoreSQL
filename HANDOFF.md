@@ -11,7 +11,7 @@ A DuckDB pipeline (`duckdb/commodore.duckdb`, ~71 GB) that joins course-catalog 
 (~103M rows) with IPEDS, bookstore pricing, and opt-out/panel lists, plus a
 **Metabase config-as-code** reporting layer (`metabase/`) and a GitHub Projects board.
 
-- Branch: **`cmm-spring-2026`** (push to it, **no PR** — team convention).
+- Branch: **`cmm-spring-2026`**; PR **#62** targets `main`.
 - Board lifecycle: Todo → On Deck → In Progress → **Review** → Done. **Review = human
   review**; the implementing agent sets Review only after self-validating, and the human owns
   Review → Done.
@@ -28,26 +28,27 @@ A DuckDB pipeline (`duckdb/commodore.duckdb`, ~71 GB) that joins course-catalog 
   `scripts/sql/models/`, combined export
   wrappers in `scripts/sql/exports/`, and all four exported tables are release-split by
   `scripts/export_cmm_masters.sh`; institution/ISBN are Metabase Models 170/171. The rebuilt
-  models contain 15,698 institution-term rows and 1,713,368 ISBN-term rows; Fall 2025 has
-  2,373 and 335,157 respectively. New-input readiness remains pending #51.
-- **#58 IMPLEMENTED AND REBUILT** — `comprehensive_data` now owns non-null row flags
+  models contain 14,336 material-bearing institution-term rows and 1,713,368 ISBN-term rows;
+  Fall 2025 has 2,216 and 335,157 respectively. New-input readiness remains pending #51.
+- **#58 population contract + #59/#63 whiteboard flow IMPLEMENTED AND REBUILT** —
+  `comprehensive_data` owns non-null row flags
   and the exact post-2024 Use/NoUse partition. Use excludes Canada, NULL ISBN, supplies,
-  `*No Book Details*`, and explicit no-material placeholders. `master_section` deliberately keeps
-  the complete valid 2024+ section/enrollment spine (the #20 retention decision), while all
-  material/publisher/OER/IA/coverage/cost aggregates, `master_course_material`, and `master_isbn`
-  use the canonical flag. Supply audit remains all-row (#36); legitimate pseudo-SKUs remain
-  eligible unless the existing classifier catches them (#41). Observed counts are 31,506,574
-  post-2024 rows = 13,650,872 Use + 17,855,702 NoUse, including 1,058,295 Canada rows. The
-  23,580,550-section spine and 599,778,117 assigned-enrollment total are unchanged. Assigned
-  enrollment is owned by `section_enrollment`; `section_cost` rolls up canonical `material_costs`
-  items and keeps items without valid prices out of priced-count/dollar numerators.
+  `*No Book Details*`, and explicit no-material placeholders. `master_section` now follows the
+  whiteboard flow exactly: canonical `material_costs` determines its 6,983,049-section population,
+  `section_cost` supplies price/cost rollups, and `section_enrollment` supplies section dimensions
+  and assigned enrollment. The broader 23,580,550-row section/enrollment spine remains upstream in
+  `section_enrollment` for #20 and full-population analysis. Material/publisher/OER/IA/coverage,
+  `master_course_material`, and `master_isbn` all use canonical material items. Supply, NoUse,
+  placeholder, and Canada fields on Master Section are sidecar audits for retained sections only;
+  use `comprehensive_data` for complete audits. Legitimate pseudo-SKUs remain eligible unless the
+  classifier catches them (#41). Current Master Section assigned enrollment totals 201,053,497.
 - Deterministic 10% work uses `sample10_section_ids` and rule
   `md5-prefix64-mod10-v1`; join this membership table at every stage. Do not reintroduce
   independent `hash()`/Bernoulli predicates or multiply distinct institution/ISBN domains by ten.
-  `37_sample10_reconciliation.sql` emits 160 additive checks: 159 pass, 0 fail, and the single
-  2024-1 no-material row is explicitly not testable because it is absent from the sample. The 16
-  institution/ISBN metrics are coverage-only. Sample membership remains 2,359,278 sections with
-  the pre-rebuild hash fingerprint unchanged.
+  `37_sample10_reconciliation.sql` emits 192 checks, including 176 additive checks: zero fail and
+  one sparse source cell is explicitly not testable. Sample membership remains 2,359,278 sections
+  from the complete `section_enrollment` population with the pre-rebuild hash fingerprint
+  unchanged; the material-bearing Master Section intersection is 698,578 rows.
   The 25-institution fixture remains blocked on the promised ID list.
 - The current local source/DB ends at `2025-4`. Spring 2026 catalog/pricing, `cmm_discipline`,
   updated mailing history, 25 IPEDS IDs/sample pricing, updated IPEDS, external pricing, and
@@ -57,10 +58,11 @@ A DuckDB pipeline (`duckdb/commodore.duckdb`, ~71 GB) that joins course-catalog 
   NULL `price_min` because three matched rows also lack a valid price. This is a refresh
   baseline, not evidence that Spring 2026 or `cmm_discipline` has landed.
 - Current gitignored release artifacts were regenerated from the rebuilt database on 2026-08-27:
-  Fall 2025 Set A/B Parquets, the 2,359,278-row deterministic sample CSV.gz, and the 2025-4
-  Master Section (5,007,488 rows), Master Institution (2,373), and Master ISBN (335,157) CSVs.
+  Fall 2025 Set A/B Parquets, the 698,578-row Master Section sample intersection, and the 2025-4
+  Master Section (1,509,634 rows), Master Institution (2,216), Master ISBN (335,157), and Material
+  Costs (2,754,111) CSVs.
   Metabase config was synced afterward and the local service reports healthy. The #61 migration
-  now routes release-facing cards through canonical Use/full-spine models, labels raw/DQ
+  now routes release-facing cards through canonical item/material-section models, labels raw/DQ
   exceptions explicitly, and binds both report cards directly to `master_section` dimensions.
 - The actionable current-data portion of #59 now has a complete 66-column Master Section release
   dictionary (`MASTER-SECTION-DICTIONARY.md`) and an exact cross-model reconciliation export
@@ -78,7 +80,7 @@ Fixed initial-analysis scope: **Fall 2025** (`period_sortable='2025-4'`). Everyt
 
 | # | Deliverable | Where |
 |---|---|---|
-| #35 | A/B subsets (Set A = ≥1 required, Set B = none), 5 tallies, enrollment assignment | Metabase cards **126/127**, **128–132**, **133/134**; questions `35`,`37`–`45`; `scripts/export_fall2025_subsets.sh` → Parquet |
+| #35 | A/B subsets (Set A = ≥1 required, Set B = optional-only), 5 tallies, enrollment assignment | Metabase cards **126/127**, **128–132**, **133/134**; questions `35`,`37`–`45`; `scripts/export_fall2025_subsets.sh` → Parquet |
 | #37 | Master ISBN dataset (one row per ISBN13×Title×Author×Format×FormatType) | card **157**, question `46_master_isbn_fall2025.sql` |
 | #38 | `master_section` US intro/intermediate required VIEW | DB view **`master_section_us_intro_fall2025`** (in `4_merged_records.sql`), GUI-queryable in Metabase |
 | #36 | Supply-vs-course-material ISBN classifier + **model integration** | `scripts/sql/lookups/supply_keywords.tsv` (97 incl + 26 excl), `1a_supply_classification.sql`; `is_supply`/`supply_category` on `comprehensive_data`, `is_supply`/`supply_count` on `master_section` |
@@ -88,12 +90,13 @@ Fixed initial-analysis scope: **Fall 2025** (`period_sortable='2025-4'`). Everyt
 Scope filter (Set A/B): `course_level IN` {intro/general undergrad, intermediate undergrad,
 non-degree credit, uncategorized} AND `sector` = the 6 real teaching sectors (IPEDS 1–6).
 "Required" = **`is_required_inferred`** (inferred is_required, #1; renamed from `filter_include`, #34).
-Current magnitudes under the **#58 canonical Use** material contract: A=**858,147** /
-B=**1,795,014** (the full 2,653,161-section scope is conserved). The prior post-#36/#40/#41
-split was 2,520,108 / 133,053.
-Enrollment fill reproduces cards 133/134 exactly (own=1,825,095; raw 52.8M → assigned 74.0M; 28.6%
-imputed; 0 unassigned in scope). All nine merged-model reconciliation checks report 0 violations
-(seven `master_section`, two `master_course`).
+Current material-bearing magnitudes under the **#58 canonical Use** contract:
+A=**858,147** / B=**126,441 optional-only**, for **984,588** sections. Assigned enrollment is
+**29,040,503**; **29.22% of assigned enrollment** derives from imputed section values,
+**33.30% of sections** are imputed, and **23.27%** use the `class_median` rung.
+The former 2,653,161-section denominator and its 1,795,014-row no-required Set B included
+no-adoption/full-spine sections and are historical, not current release values. All current merged
+model and release reconciliation checks report zero violations.
 
 ### Done in this pass (#32 / #36 integration / #39)
 
@@ -133,14 +136,17 @@ counts/costs with `is_supply`/`supply_count` audit columns; classification spans
 
 ### Held / pending decisions (do NOT start without sign-off)
 
-- _(none open — the BMG initial-analysis backlog #32/#34/#35/#36/#37/#38/#39/#40/#41 is complete
-  and marked Done. The enrollment-weighted hypothesis test has been run.)_
+- The BMG initial-analysis backlog #32/#34/#35/#36/#37/#38/#39/#40/#41 is complete and marked
+  Done, and the enrollment-weighted hypothesis test has been run. **#26 remains a held PI
+  decision**: confirm whether “owned cost” means the buy-priced subset and approve its release
+  label before changing that contract.
 
 **Ownership principle (important):** `comprehensive_data` owns enriched/raw catalog rows and
 canonical Use flags; `section_enrollment` owns exact assigned enrollment; and `material_costs`
-owns the canonical Use item spine plus pricing enrichment. `master_section` deliberately keeps
-the broader complete 2024+ section spine and rolls price/cost fields from `material_costs` via
-`section_cost`; downstream views project/filter these canonical tables.
+owns the canonical Use item spine plus pricing enrichment. `master_section` is exactly the
+material-bearing section rollup, enriched from `section_enrollment`, with price/cost fields from
+`material_costs` via `section_cost`; downstream views project/filter these canonical tables. The
+complete 2024+ section population remains independently available in `section_enrollment`.
 
 ### Documentation surface — Notion (living)
 
@@ -161,7 +167,8 @@ SQL
 **Full pipeline** (`scripts/run_sql.sh`, stages skippable via `NO_IMPORT`/`NO_EDA`/`NO_EXPORT`).
 Single file: `.temp/run_one.sh <file.sql>` (envsubst + duckdb). `${CONFIG}` = `sql/config.sql`.
 `MEM_LIMIT` and `NUM_THREADS` supplied in the process environment override `scripts/dot.env`.
-The 23.6M-row `master_section` rebuild was validated with `MEM_LIMIT=16GB NUM_THREADS=1`; its
+The 6.98M-row material-bearing `master_section` rebuild was validated with
+`MEM_LIMIT=16GB NUM_THREADS=1`; its
 narrow staged TEMP aggregates peaked at about 17GB resident memory and avoid the prior 89.5GB OOM.
 
 **Writes to the DB require stopping Metabase** (it holds the file lock):
@@ -185,7 +192,7 @@ DB id = **2**. Questions = SQL + `-- name:`/`-- display:`/`-- description:` fron
 ```bash
 scripts/classify_supplies.sh          # -> output/fall2025_supply_isbns.parquet + prevalence/impact
 scripts/export_fall2025_subsets.sh    # -> output/fall2025_set{A,B}_*.parquet
-scripts/export_cmm_masters.sh 2025-4  # -> output/cmm/master_{section,institution,isbn}_2025_4_<date>.csv
+scripts/export_cmm_masters.sh 2025-4  # -> four dated Master Section/Institution/ISBN/Material Costs CSVs
 ```
 
 ## Gotchas (bite people)
@@ -199,7 +206,8 @@ scripts/export_cmm_masters.sh 2025-4  # -> output/cmm/master_{section,institutio
 - `master_section` is a **materialized TABLE** (window + LIST aggs too costly as a view). Cheap to
   `SELECT *`; don't rebuild casually (heavy). It carries institution enrichment + coverage +
   `has_enrollment_*`; exact assigned enrollment comes from `section_enrollment`, and price/cost
-  columns roll through `material_costs` → `section_cost`.
+  columns roll through `material_costs` → `section_cost`. Its population is material-bearing;
+  query `section_enrollment` for no-adoption and other full-section denominators.
 - `seats_taken` = 9999 is an invalid sentinel; `pricing` sentinel prices ≥ 9999 are nulled in `pricing_wide`.
 - Catalog duplicates collapse at `(period_sortable, section_id, isbn13)` for `material_costs`;
   variant counts/conflict signals remain available for DQ. Pricing duplicates collapse at the
@@ -212,4 +220,5 @@ scripts/export_cmm_masters.sh 2025-4  # -> output/cmm/master_{section,institutio
 - `BMG-SUMMARY.md` — decisions / outputs (grouped) / review notes for the BMG analysis (the reference).
 - `BMG-2026-07-09-CALL.md` — same format for the 2026-07-09 call round (#42–#49: analyses + index fix).
 - `CLAUDE.md` — naming standards + gotchas. `260529-DECISIONS.md` — historical design decisions (May 2026).
-- GitHub Issues #1–#41 are the backlog/tracker (TODO.md was removed — its items are #19–#22).
+- GitHub Issues and Project 2 are the current backlog/tracker; this handoff records implementation
+  context, not authoritative issue status.

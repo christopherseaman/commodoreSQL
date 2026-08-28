@@ -1,7 +1,7 @@
 [
   { "__meta__": {
       "name": "OER/IA Adoption",
-      "description": "OER / Inclusive-Access adoption. Cards 31/32 use canonical #58 Course Materials Use rows: card 31's OER/IA rate denominator is classified Use materials (FormatType present), while card 32's coverage denominator is all Use material rows. Card 26 divides section adoption by the complete valid master_section spine; card 05 counts inferred-required Use rows. FormatType coverage falls 75.27% (2024-1) to 57.86% (2025-4), so absolute IA counts must be read with coverage; the classified-material rate is comparatively flat."
+      "description": "OER / Inclusive-Access adoption. Cards 31/32 use canonical Course Materials Use rows: card 31's OER/IA rate denominator is classified Use materials (FormatType present), while card 32's coverage denominator is all Use material rows. Card 26 divides section adoption by material-bearing master_section rows; card 05 counts inferred-required Use rows. Read absolute IA counts alongside FormatType coverage."
   } },
   { "question": "31_oer_ia_rate_among_classified", "row": 0,  "col": 0, "size_x": 24, "size_y": 7 },
   { "question": "32_formattype_coverage_over_time", "row": 7,  "col": 0, "size_x": 24, "size_y": 7 },

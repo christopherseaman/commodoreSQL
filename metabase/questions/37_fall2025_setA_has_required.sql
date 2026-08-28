@@ -1,6 +1,6 @@
 -- name: Fall 2025 Analysis — Set A: ≥1 required item (BMG grant scope)
 -- display: table
--- description: BMG grant initial-analysis subset (issue #35), SET A. One row per Fall-2025 course section (period 2025-4) in the agreed 4-course-level × 6-teaching-sector scope. SET A has at least one required canonical-Use material: required_count > 0, where required combines is_required_inferred (#1) with is_course_material_use (#58). The full Master Section columns and audit fields are retained. 858,147 sections; disjoint from Set B and together exhaustive over the 2,653,161-section scope. Use scripts/export_fall2025_subsets.sh for the full Parquet.
+-- description: BMG grant initial-analysis subset (issue #35), SET A. One row per material-bearing Fall-2025 course section (period 2025-4) in the agreed 4-course-level × 6-teaching-sector scope. SET A has at least one required canonical material_costs item: required_count > 0 under is_required_inferred (#1). All Master Section columns and retained-section audit fields are included. Set A is disjoint from Set B and together they exhaust the material-bearing Master Section scope; no-adoption/NoUse-only sections are outside this model. Use scripts/export_fall2025_subsets.sh for the full Parquet.
 SELECT *
 FROM master_section
 WHERE period_sortable = '2025-4'
