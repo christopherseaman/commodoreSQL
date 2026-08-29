@@ -1,3 +1,9 @@
+---
+notion-id: 3cbd9fdd-1a1a-8082-b697-ca7f5ef1d6ed
+notion-url: https://app.notion.com/p/sqrlly/Data-Dictionary-3cbd9fdd1a1a8082b697ca7f5ef1d6ed
+notion-sync: push
+---
+
 # Master Section release dictionary
 
 This is the per-column contract for the release-facing `master_section` table. Its grain is one

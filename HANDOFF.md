@@ -167,11 +167,33 @@ material-bearing section rollup, enriched from `section_enrollment`, with price/
 `material_costs` via `section_cost`; downstream views project/filter these canonical tables. The
 complete 2024+ section population remains independently available in `section_enrollment`.
 
-### Documentation surface — Notion (living)
+### Documentation surface — Notion
 
-Page **"26.06.26 · Fall 2025 Subsets A/B (BMG)"** = `38bd9fdd-1a1a-81f9-b094-c13ba9cfbedf`
-(under the "📁 CommodoreSQL" project page). Sub-page **"Supply keyword lists (#36)"**. Update it
-at each major step + wrap, autonomously, as long as decisions/assumptions/tradeoffs are captured.
+The Notion project home is [**Courses & Materials**](https://app.notion.com/p/sqrlly/CommodoreSQL-23ad9fdd1a1a81768f4ec604dfc5639f).
+Its three Overview destinations are:
+
+- **Data Lineage** — `3cbd9fdd-1a1a-8086-b499-daa92a739c9f` — sourced from the tagged
+  `SCHEMA.md`.
+- **Data Dictionary** — `3cbd9fdd-1a1a-8082-b697-ca7f5ef1d6ed` — sourced from the tagged
+  `MASTER-SECTION-DICTIONARY.md`.
+- **Dashboards & Reports** — `3cbd9fdd-1a1a-80ee-884d-f4c7003aaf44` — sourced from the tagged
+  `DASHBOARDS-REPORTS.md` inventory.
+
+`CMM-ETL.md` is linked supporting authority for Data Lineage and is not a separate synced page.
+Only those three explicitly tagged documents are intended sync inputs; repo-only guidance,
+historical notes, and `comms/` source captures are not automatic inputs. Preview the explicit sync
+(read-only by default):
+
+```bash
+python3 scripts/sync_notion_docs.py SCHEMA.md MASTER-SECTION-DICTIONARY.md DASHBOARDS-REPORTS.md
+```
+
+Add `--apply` to push. Apply is non-transactional, so each document update must be treated
+independently. The initial 2026-08-29 push was read back successfully with all three page titles
+and Overview-block parents unchanged and no truncated or unknown blocks. The legacy build-log
+page **"26.06.26 · Fall 2025 Subsets A/B (BMG)"**
+(`38bd9fdd-1a1a-81f9-b094-c13ba9cfbedf`) remains linked as historical context, including its
+**"Supply keyword lists (#36)"** sub-page.
 
 ## How to run things
 

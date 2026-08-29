@@ -1,3 +1,9 @@
+---
+notion-id: 3cbd9fdd-1a1a-8086-b499-daa92a739c9f
+notion-url: https://app.notion.com/p/sqrlly/Data-Lineage-3cbd9fdd1a1a8086b499daa92a739c9f
+notion-sync: push
+---
+
 # CommodoreSQL Database Schema
 
 DuckDB pipeline integrating course-catalog data (~103M rows) with institutional
@@ -497,8 +503,10 @@ Sentinel prices ≥ 9999 are nulled (#27).
 
 ## Metabase
 
-Reporting is config-as-code: 61 SQL questions (frontmatter: `-- name:`/`-- display:`/
+Reporting is config-as-code: 62 SQL questions (frontmatter: `-- name:`/`-- display:`/
 `-- description:`) in `metabase/questions/`, dashboard JSON in `metabase/dashboards/`, IDs in
-`metabase/ids.json` (keyed by filename stem), synced via `metabase/sync.py` (DB id 2). The local
-image is built/launched by `metabase.sh`; it connects to `duckdb/commodore.duckdb` and holds a
-read lock (DB writes require `docker stop metabase` — see `HANDOFF.md`).
+`metabase/ids.json` (keyed by filename stem), synced via `metabase/sync.py` (DB id 2). The generated
+[`DASHBOARDS-REPORTS.md`](DASHBOARDS-REPORTS.md) inventory groups the dashboards conceptually and
+lists each dashboard card as a subsection, plus standalone cards and models. The local image is
+built/launched by `metabase.sh`; it connects to `duckdb/commodore.duckdb` and holds a read lock (DB
+writes require `docker stop metabase` — see `HANDOFF.md`).
