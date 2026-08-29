@@ -36,7 +36,7 @@ snapshot is currently asserted by this repository.
 
 The runnable order is `0_setup.sql`, `0b_state_region.sql`, `1_bookprices_import.sql`,
 `1a_supply_classification.sql`, `1b_section_filter.sql`, `2_oer_classification.sql`,
-`2c_pricing_wide.sql`, `2d_data_quality.sql`, then EDA
+`2b_course_materials.sql`, `2c_pricing_wide.sql`, `2d_data_quality.sql`, then EDA
 (`3_mailing_lists.sql`, `3b_material_costs.sql`, `4_merged_records.sql`), auto-discovered analysis models in
 `scripts/sql/models/`, and discovered exports. The pipeline is envsubst-templated, uses
 replace/recreate semantics, and is intended to be re-runnable;
@@ -49,7 +49,10 @@ see the exact execution and file-output diagrams in
    and emails, parse enrollment/seats, and derive `course_id`, `section_id`,
    `period_sortable`, and `period_date`. Load IPEDS, opt-out, and panel snapshots.
    `comprehensive_data` is initially the catalog left-joined to IPEDS by `unit_id`,
-   opt-out and panel by cleaned email; format and supply fields are added in stage 2.
+   opt-out and the one-row-per-email `panel_email` lookup. The raw `panel` table remains
+   available at source-row grain for mailing/history analysis and DQ; this lookup prevents
+   repeated panel responses from multiplying enriched catalog rows. Format and supply fields
+   are added in stage 2.
 2. **State lookup (`0b_state_region.sql`).** Build a query-time state-to-Census-region/division
    lookup; `CAN` is explicitly mapped to `Other`. No canonical materialized table is enriched with
    these columns: the Metabase report questions join this table when a region filter is needed.
@@ -67,41 +70,48 @@ see the exact execution and file-output diagrams in
    `has_required = BOOL_OR(book_status='required' AND NOT is_supply)`. This stage does not
    mutate source-owned pricing; stage 2 uses the status table when recreating the catalog join.
 6. **Catalog classification (`2_oer_classification.sql`).** Join the FormatType lookup,
-   supply ISBN table, IPEDS, panel, opt-out, and section status into
+   supply ISBN table, IPEDS, `panel_email`, opt-out, and section status into
    `comprehensive_data`. OER/IA are NULL when FormatType is absent; category fields
-   default to `unknown` when there is no lookup match. This stage owns the enriched/raw
-   catalog rows and the row-level post-2024 Use/NoUse/Canada contract and creates four
-   direct population views (#58).
-7. **Pricing wide form (`2c_pricing_wide.sql`).** Pivot the source-owned
+   default to `unknown` when there is no lookup match. This stage leaves
+   `comprehensive_data` at exactly the enriched, normalized BMG source-row grain.
+7. **Canonical Course Materials (`2b_course_materials.sql`).** Preserve
+   `comprehensive_data` as the source-row table for mailing, faculty, and raw DQ consumers;
+   build `section_enrollment` at one `(period_sortable, section_id)` and `course_materials`
+   as the first canonical processed table at one `(period_sortable, section_id, isbn13)`.
+   Duplicate/variant/conflict evidence, source counts, population flags, and the single
+   NULL-ISBN audit row per section (when present) are retained. Create the canonical
+   `course_materials_post_2024`, `course_materials_use`, `course_materials_no_use`, and
+   `course_materials_canada` views.
+8. **Pricing wide form (`2c_pricing_wide.sql`).** Pivot the source-owned
    `pricing_historical` table to one row per `(section_id, isbn13)`, preserving source/provenance
    fields, 18 price cells, option availability, price/buy bounds, and rental-term range. It does
    not copy required-inference, OER/IA, or IPEDS/catalog enrichment into pricing, and it does not
    create a required-only pricing view.
-8. **Import-stage DQ snapshot (`2d_data_quality.sql`).** Materialize the scalar metric surface and
+9. **Import-stage DQ snapshot (`2d_data_quality.sql`).** Materialize the scalar metric surface and
    named drill-down/distribution tables over the final catalog/pricing import state. Exact
    pricing-to-catalog comparisons happen here without mutating either source-owned pricing table.
    This runs before the EDA tables and does not silently become a release denominator.
-9. **Mailing stage (`3_mailing_lists.sql`).** Build one-row-per-cleaned-email `master_mailing`,
+10. **Mailing stage (`3_mailing_lists.sql`).** Build one-row-per-cleaned-email `master_mailing`,
    the newest-12-period `current_mailing`, and CA/TX/FL/NY/other views. Current source-row selection
    orders by newest period, largest enrollment, then `RANDOM()`; the pending history refresh and a
    deterministic final tie-break belong to #56.
-10. **Canonical material stage (`3b_material_costs.sql`).** Build materialized `section_enrollment` (the exact section
-   assignment owner) and `material_costs`, one row per
-   `(period_sortable, section_id, isbn13)` canonical Use item. `material_costs` is LEFT-enriched
-   from `pricing_wide`, so items without a pricing-row match or valid price remain; catalog-owned fields come from
-   `comprehensive_data`, while pricing fields include bookstore URL, all 18 cells, format/price
+11. **Material costs (`3b_material_costs.sql`).** Build `material_costs` as the only LEFT pricing
+   enrichment of `course_materials_use`, one row per
+   `(period_sortable, section_id, isbn13)` canonical Use item. The join uses the implemented
+   exact section×ISBN edge (see the centralized issue #21 limitation). Items without a pricing-row match
+   or valid price remain; catalog-owned fields come from `course_materials`, while pricing fields include bookstore URL, all 18 cells, format/price
    bounds, rental range, and buy bounds.
-11. **Aggregation (`4_merged_records.sql`).** Build `section_cost` from `material_costs`, then
+12. **Aggregation (`4_merged_records.sql`).** Build `section_cost` from `material_costs`, then
    materialize `master_section` and views `master_course`, `master_course_material`, and the
    Fall 2025 BMG scope projection. `master_section` is exactly the one-row-per-section rollup of
    canonical `material_costs`; it joins section dimensions and assigned enrollment from the
    independent full-population `section_enrollment` table, and every price/cost field from
    `section_cost`.
-12. **Release rollups and sample membership (`scripts/sql/models/`).** The runner materializes
+13. **Release rollups and sample membership (`scripts/sql/models/`).** The runner materializes
    the canonical bare SELECTs as `master_institution`, `master_isbn`, and
    `sample10_section_ids`. Export wrappers and Metabase Models select these tables rather
    than carrying independent copies of their aggregation or sampling logic.
-13. **Automatic exports (`scripts/sql/exports/`).** Unless `NO_EXPORT` is set, the runner executes
+14. **Automatic exports (`scripts/sql/exports/`).** Unless `NO_EXPORT` is set, the runner executes
     all 21 top-level wrappers in lexical order and writes `output/<SQL basename>.csv`. The exact
     source, filter, and artifact inventory is in
     [`SCHEMA.md`](SCHEMA.md#automatic-export-inventory). Per-term CMM releases and the Fall 2025
@@ -120,17 +130,19 @@ business-label mapping is [`MASTER-SECTION-DICTIONARY.md`](MASTER-SECTION-DICTIO
 |---|---|---|---|
 | `course_catalog_20251215` | one source catalog row | `unit_id` INTEGER; `period_sortable` `YYYY-N`; `course_id`, `section_id` VARCHAR | BMG DiscoveryExtract; adoption and coverage denominators |
 | `ipeds_data` | one institution (`unitid`) | `sector`, `iclevel`, `control`, `instsize` VARCHAR descriptors; enrollment INTEGER | IPEDS snapshot; institution stratification |
-| `opt_out` / `panel` | one cleaned email per source row | `email` VARCHAR lowercase/trimmed; response year VARCHAR | BVA/CMM mailing enrichment and exclusions |
+| `opt_out` / `panel` | one cleaned email per source row | `email` VARCHAR lowercase/trimmed; response year VARCHAR | BVA/CMM mailing enrichment and exclusions; raw panel history remains retained |
+| `panel_email` | one row per cleaned email | `email`, latest `panel_response_year`, source-row and response-year variant counts | One-row enrichment lookup; prevents panel-history multiplication while preserving `panel` |
 | `state_region` | one state/province code | `state`, `region`, `division` VARCHAR | Static Census-style geography enrichment and QA reference |
 | `format_type_classification` | one FormatType | `is_oer`, `is_ia` BOOLEAN; category VARCHAR | CMM lookup; OER/IA classification |
 | `supply_isbn_classification` | one classified ISBN | `isbn13` VARCHAR; category VARCHAR | CMM keyword lookup; supply audit |
 | `section_book_status` | one `section_id` | `has_required` BOOLEAN | Catalog + supply classification; catalog-side required inference |
-| `comprehensive_data` | catalog/adoption row | source fields plus classification, coverage, enrollment, placeholder, geography, and Use/NoUse booleans | Catalog × IPEDS × email × FormatType × section status; authoritative enriched/raw catalog rows and row population |
-| `course_materials_post_2024` / `course_materials_use` / `course_materials_no_use` / `course_materials_canada` | catalog/adoption row | direct filtered projections of `comprehensive_data` | Stable release populations; Canada is a post-2024 NoUse subset |
+| `comprehensive_data` | exactly one enriched, normalized BMG source row | catalog source fields plus IPEDS, panel/opt-out, classification, coverage, enrollment, placeholder, geography, and Use/NoUse booleans | Source for mailing, faculty, and raw DQ; source-row denominators are preserved |
+| `course_materials` | one `(period_sortable, section_id, isbn13)` canonical item; one NULL-ISBN audit row per section when present | representative catalog metadata, term/ISBN metadata, source/variant/conflict counts, population flags, and enrollment assignment | First canonical processed table from `comprehensive_data`; retains excluded/no-adoption audit rows |
+| `course_materials_post_2024` / `course_materials_use` / `course_materials_no_use` / `course_materials_canada` | filtered projections of canonical `course_materials` | stored canonical flags; Canada is a post-2024 NoUse subset | Stable release populations and standalone exports |
 | `pricing_historical` | `(section_id, isbn13, book_option, book_condition, book_format, rental_days)` | source/provenance fields; option `buy`/`rental`; condition `new`/`used`/NULL; format `physical`/`digital`/NULL; price DECIMAL | Source-owned BVA pricing snapshot after import/dedupe, with indexes; per-term price analysis |
 | `pricing_wide` | one `(section_id, isbn13)` | source/provenance fields; 18 option/condition/format price cells; `format_count`, `price_min/max`, `rental_days_min/max` | Source-owned pricing pivot and raw pricing DQ; no catalog/IPEDS classification enrichment |
-| `section_enrollment` | one `(period_sortable, section_id)` | authoritative raw enrollment/flags, scope dimensions, exact `enrollment_assigned`, `enrollment_source` | Enriched catalog section spine; authoritative section-enrollment owner |
-| `material_costs` | one `(period_sortable, section_id, isbn13)` canonical Use item | catalog-owned item metadata/flags; term/ISBN metadata contract; bookstore URL; all 18 price cells; format/price bounds; rental range; buy bounds; `has_pricing_match`; conflict signals | `comprehensive_data` Use spine LEFT-enriched from `pricing_wide`; retains items without a pricing row or valid price |
+| `section_enrollment` | one `(period_sortable, section_id)` | authoritative raw enrollment/flags, scope dimensions, exact `enrollment_assigned`, `enrollment_source` | Built in stage 2b from the full valid 2024+ section spine; authoritative section-enrollment owner |
+| `material_costs` | one `(period_sortable, section_id, isbn13)` canonical Use item | `course_materials` item metadata/flags, term/ISBN metadata, source/variant/conflict signals; bookstore URL; all 18 price cells; format/price bounds; rental range; buy bounds; `has_pricing_match` | Only LEFT pricing enrichment of `course_materials_use` from `pricing_wide`; retains items without a pricing row or valid price |
 | `section_cost` | one `(period_sortable, section_id)` represented by `material_costs` | required/optional total and buy-only bounds; priced counts | `material_costs`; section cost coverage; downstream aggregate, not item input |
 | `master_section` | one `(period_sortable, section_id)` represented by `material_costs` | canonical material counts, OER/IA, retained-section sidecar audits, coverage, enrollment fill, costs | `material_costs` + `section_cost`, with section/enrollment fields from `section_enrollment`; material-bearing release population |
 | `master_course` | one `(course_id, period_sortable)` | section/material/enrollment rollups; course cost rollup | `master_section`/`section_cost`; course-level analysis |
@@ -152,7 +164,8 @@ Pricing source duplicates collapse in `pricing_historical` in three stages: byte
 rows, rows differing only by instructor, and latest `pricing_date` at the natural pricing key.
 The resulting indexed table remains source-owned. Residual pricing multiplicity is expected for
 rental terms and is collapsed by the source-owned `pricing_wide` transformation.
-Catalog rows collapse to one `material_costs` row per `(period_sortable, section_id, isbn13)`.
+Catalog rows collapse in `course_materials` to one row per `(period_sortable, section_id, isbn13)`;
+`material_costs` carries the Use subset forward for pricing enrichment.
 Variant counts and metadata-conflict flags expose disagreements in catalog title, author,
 publisher, format, or FormatType; canonical catalog values are selected deterministically from
 catalog values, never copied from source-owned pricing fields. These signals are DQ evidence,
@@ -163,8 +176,11 @@ not silent deduplication.
 - `section_id` is `unit_id::dept_code::course_number::section::period_sortable`; the
   period is part of the key. `course_id` omits section and period. A section means one
   section offering in one period, not a cross-period course.
-- `master_section` is one row for every distinct `(period_sortable, section_id)` represented by a
-  canonical Use item in `material_costs`. The current snapshot has 6,983,049 such sections.
+- `course_materials` is the first canonical processed table: one row per
+  `(period_sortable, section_id, isbn13)`, plus one NULL-ISBN audit row per section when
+  source rows with NULL ISBN exist. `material_costs` is its Use-only pricing enrichment.
+  `master_section` is one row for every distinct `(period_sortable, section_id)` represented by a
+  canonical Use item in `material_costs`. The established snapshot has 6,983,049 such sections.
   `section_enrollment` independently preserves all valid 2024+ section/enrollment denominators,
   including no-ISBN and no-adoption sections retained by #20.
 - At row grain, Use means post-2024, not Canada, non-null ISBN, not supply, not
@@ -178,7 +194,7 @@ not silent deduplication.
 - Supplies remain auditable across all source rows in `comprehensive_data` (#36), while all master
   material, OER/IA, publisher, ISBN/FormatType, and cost measures consume `material_costs`.
   Master Section's supply/NoUse/placeholder/Canada fields are sidecar audits limited to excluded
-  source rows that co-occur with a retained material-bearing section. The classifier is
+  canonical `course_materials` rows that co-occur with a retained material-bearing section. The classifier is
   precision-oriented and keyword-bounded, not an exhaustive supply census. It performs lowercase
   substring matching over every nonblank 2024+ title variant: at least one include match and no
   exclude match flags the title; the longest matching include pattern supplies the representative
@@ -210,7 +226,7 @@ not silent deduplication.
   canonical metadata is lexical `MIN`, while variant counts and `metadata_conflict` retain DQ.
 - `material_costs` is the approved item-level input: one row per
   `(period_sortable, section_id, isbn13)` after the canonical Use predicate. It is built from
-  catalog-owned `comprehensive_data` fields and LEFT-enriched from `pricing_wide`, so every Use
+  catalog-owned `course_materials` fields and LEFT-enriched from `pricing_wide`, so every Use
   item survives, including items with no pricing match. `section_cost` and `master_isbn` consume
   this table; `master_section` is its exact section-key rollup and receives all price/cost fields
   from `section_cost`.
@@ -218,7 +234,8 @@ not silent deduplication.
   It contains only sections represented by the canonical Use/material population. Issue #58 is
   implemented by this release contract, while full section/enrollment analysis remains upstream
   and new-input readiness remains tracked in #51.
-- Mailing outputs deduplicate by cleaned email, exclude opt-outs, choose the most
+- Mailing outputs retain `comprehensive_data` as their source, deduplicate by cleaned email,
+  exclude opt-outs, choose the most
   recent period, and have state-specific views. Tie-breaking and mailing-history
   updates require confirmation when a source has multiple equally eligible rows.
 
@@ -233,7 +250,7 @@ not silent deduplication.
 | `is_post_2024`, `has_isbn`, `has_formattype`, `has_enrollment`, `has_enrollment_own_seats` | Row facts: 2024+ date, non-NULL ISBN, nonblank FormatType, non-NULL enrollment, and usable non-NULL seats below 9999. Section coverage/enrollment flags retain their documented aggregate meaning. |
 | `no_details`, `no_materials`, `is_canada` | Independent row booleans defined by exact placeholder titles/category and `state='CAN'`; they can overlap. |
 | `is_course_material_use`, `is_course_material_no_use` | Exact post-2024 partition defined above; both false pre-2024. |
-| `enrollment_assigned`, `enrollment_source` | Owned by `section_enrollment`. Raw section signals use `MAX(enrollments)` and `MAX(seats_taken)`; course level uses `mode(course_level)`. Assignment order is own enrollment, usable own `seats_taken < 9999`, course×period median enrollment, course×period median usable seats, control×level×period median enrollment, then level×period median enrollment. Every median is `quantile_cont(..., 0.5)` over the four BMG levels × exact six-sector reference population and is rounded/cast to integer at assignment. Source is `own`, `own_seats`, `sibling_enroll`, `sibling_seats`, `class_median`, `level_median`, or `none`; raw values remain unchanged. |
+| `enrollment_assigned`, `enrollment_source` | Owned by `section_enrollment`. Raw section signals use `MAX(enrollments)` and `MAX(seats_taken)`; course level uses `mode(course_level ORDER BY course_level)`, making equally frequent labels resolve lexically instead of by scan order. Assignment order is own enrollment, usable own `seats_taken < 9999`, course×period median enrollment, course×period median usable seats, control×level×period median enrollment, then level×period median enrollment. Every median is `quantile_cont(..., 0.5)` over the four BMG levels × exact six-sector reference population and is rounded/cast to integer at assignment. Source is `own`, `own_seats`, `sibling_enroll`, `sibling_seats`, `class_median`, `level_median`, or `none`; raw values remain unchanged. |
 | `format_count`, `has_buy`, `has_rent` | `format_count` counts distinct offered `(book_option, book_condition, book_format)` tuples for `buy`/`rental`, independent of price validity; it can therefore be positive while every price cell and `price_min` are NULL. `has_buy`/`has_rent` likewise mean option presence, not a valid price. |
 | `price_min`, `price_max` | Bounds over valid prices for a section/ISBN; prices `>= 9999` are nulled as sentinels. |
 | `price_avg` and `*_cost_avg` | Legacy midpoint `(min + max) / 2.0`, not an arithmetic mean. Label this explicitly in every release/export. |
@@ -261,8 +278,9 @@ Repository names remain snake_case and make the aggregation grain explicit:
 Always state the denominator and grain with every percentage or crosstab:
 
 1. **Catalog coverage:** denominator = catalog rows or distinct `section_id`s, as labelled.
-   `comprehensive_data` retains NoUse/no-ISBN rows; Use-based section coverage numerators are
-   `isbn_count` and `classified_count`.
+  `comprehensive_data` retains every enriched source row; `course_materials` retains valid-key
+  canonical items and its NULL-ISBN audit rows. Use-based section coverage numerators are
+  `isbn_count` and `classified_count`.
 2. **Pricing coverage:** denominator = distinct `(section_id, ISBN13)` course-material
    keys in the selected catalog slice; numerator = `required_priced_count` or
    `optional_priced_count` (a valid `price_min` exists). Report total-price and
@@ -313,7 +331,7 @@ membership is a deterministic hash partition, treat the band as a pipeline-drift
 not a formal repeated-sampling confidence interval. The current reconciliation emits 192 checks:
 176 additive checks, zero failures, and one sparse source cell explicitly marked not testable.
 
-The four canonical materialized export tables retain `period_sortable`;
+The canonical materialized export tables retain `period_sortable`;
 `scripts/export_cmm_masters.sh` splits `master_section`, `master_institution`, and
 `master_isbn`, and `material_costs` without changing filters or calculations into four
 release-dated CSVs per material-bearing term. Its default term discovery is based on 2024+ terms in
@@ -323,7 +341,9 @@ release-dated CSVs per material-bearing term. Its default term discovery is base
 `scripts/sql/exports/40_material_costs_by_term.sql` provides the combined all-term
 material-cost export. All four per-term files follow the #58 population contract. Full exports retain
 `period_sortable` and combine all available terms without changing grain; per-term files are
-direct term filters. The expected current `material_costs` baseline is 12,806,060 rows.
+direct term filters. The established current `material_costs` baseline is 12,806,060 rows;
+the validated rebuilt `comprehensive_data` and `course_materials` counts are 102,885,609 and
+96,663,781 rows, respectively.
 Pricing-match evidence and future join proposals are centralized under the
 [current section-matching limitation](#current-limitation--pricing-to-catalog-section-matching-issue-21).
 Source-readiness remains pending #51.
@@ -336,7 +356,16 @@ value is required to be true.
 The default 21-file export stage and every current standalone exporter are enumerated in
 [`SCHEMA.md`](SCHEMA.md#automatic-export-inventory). The implemented
 `course_materials_post_2024`, `course_materials_use`, `course_materials_no_use`, and
-`course_materials_canada` views are **not currently written to files** by either export path.
+`course_materials_canada` views are exported by the standalone
+`scripts/export_course_materials.sh` command. It writes five CSVs under
+`COURSE_MATERIALS_OUTPUT_DIR` (or `output/course_materials`):
+`course_materials_<YYYYMMDD>.csv`, `course_materials_post_2024_<YYYYMMDD>.csv`,
+`course_materials_use_post_2024_<YYYYMMDD>.csv`,
+`course_materials_nouse_post_2024_<YYYYMMDD>.csv`, and
+`course_materials_can_post_2024_<YYYYMMDD>.csv`. An optional `YYYY-N` filters all five
+to one term and inserts `_YYYY_N` before the date; an optional leading `YYYYMMDD`
+controls the release date. The command is read-only, stages all five files, refuses to overwrite
+existing output files, and is not part of `run_sql.sh`.
 Likewise, current mailing exports cover CA/TX/FL/NY but not the existing `other` view, and no PA or
 Canada partition exists. Those are current implementation gaps, not implied outputs; mailing
 refresh/partition work is owned by #56.
@@ -370,9 +399,9 @@ release definition.
 
 ### CURRENT LIMITATION — pricing-to-catalog section matching (issue #21)
 
-The current executable contract is deliberately catalog-owned: `comprehensive_data` defines
-the canonical Use items, and `material_costs` retains one row per
-`(period_sortable, section_id, isbn13)` from that population. It only LEFT-enriches those rows
+The current executable contract is deliberately canonical-table-owned: `course_materials`
+defines the canonical item rows and `material_costs` retains one row per
+`(period_sortable, section_id, isbn13)` from its `course_materials_use` projection. It only LEFT-enriches those rows
 from `pricing_wide` on exact `(section_id, isbn13)`. Raw and wide pricing rows do not add to or
 redefine the canonical material population. Both
 `pricing_historical` and `pricing_wide` now remain source-owned; `2d_data_quality.sql` performs
@@ -441,7 +470,7 @@ the configured pricing CSV is rebuilt into a latest-row-per-logical-key `pricing
 Retention scope and snapshot identity must be defined before changing that behavior.
 
 Before a Spring 2026 release, confirm source filenames/snapshot dates, institution-ID
-coverage, pricing-to-catalog key normalization, discipline join key, and bookstore URL
+coverage, pricing-to-catalog key normalization (see the issue #21 limitation above), discipline join key, and bookstore URL
 availability. The `no_details`/`no_materials` and Use/NoUse population rules are implemented
 in the authoritative row flags. `#26` (whether “owned cost” covers all
 required materials or only the buy-priced subset and how to label it) remains a PI

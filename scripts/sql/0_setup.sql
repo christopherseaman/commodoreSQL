@@ -14,6 +14,7 @@ DROP TABLE IF EXISTS ${SURVEY_TABLE};
 DROP TABLE IF EXISTS ${IPEDS_TABLE};
 DROP TABLE IF EXISTS ${OPTOUT_TABLE};
 DROP TABLE IF EXISTS ${PANEL_TABLE};
+DROP TABLE IF EXISTS panel_email;
 -- Import and normalize course catalog data
 CREATE TABLE ${SURVEY_TABLE} AS
 SELECT
@@ -153,6 +154,19 @@ FROM read_csv('${PANEL_CSV}',
     delim=',',
     nullstr=['N/A', '', 'Not applicable']);
 
+-- Preserve the mailing-history source at source-row grain, and expose a
+-- one-row-per-email lookup for catalog enrichment. Joining the raw history
+-- directly can multiply catalog rows when an email has responses in multiple
+-- years.
+CREATE TABLE panel_email AS
+SELECT
+    email,
+    MAX(response_year) AS panel_response_year,
+    COUNT(*) AS panel_source_row_count,
+    COUNT(DISTINCT response_year) AS panel_response_year_variant_count
+FROM ${PANEL_TABLE}
+GROUP BY email;
+
 -- Export email cleaning audit to TSV (import artifact, not a persistent table)
 COPY (
     WITH raw_emails AS (
@@ -210,11 +224,13 @@ SELECT
     i.inst_type,
     CASE WHEN o.email IS NOT NULL THEN 1 ELSE 0 END AS is_opted_out,
     o.source AS opt_out_source,
-    p.response_year AS panel_response_year
+    p.panel_response_year,
+    p.panel_source_row_count,
+    p.panel_response_year_variant_count
 FROM ${SURVEY_TABLE} c
 LEFT JOIN ${IPEDS_TABLE} i ON c.unit_id = i.unitid
 LEFT JOIN ${OPTOUT_TABLE} o ON c.email = o.email
-LEFT JOIN ${PANEL_TABLE} p ON c.email = p.email;
+LEFT JOIN panel_email p ON c.email = p.email;
 
 COMMIT;
 
@@ -223,11 +239,32 @@ ANALYZE ${SURVEY_TABLE};
 ANALYZE ${IPEDS_TABLE};
 ANALYZE ${OPTOUT_TABLE};
 ANALYZE ${PANEL_TABLE};
+ANALYZE panel_email;
 ANALYZE comprehensive_data;
 
 -- =====================================================================
 -- Data Quality checks (console-only — see TODO.md for persistent logging)
 -- =====================================================================
+
+-- DQ: lookup multiplicity must remain visible in the raw history while the
+-- catalog enrichment stays exactly one row per normalized catalog source row.
+SELECT
+    'Panel lookup multiplicity' AS metric,
+    (SELECT COUNT(*) FROM ${PANEL_TABLE}) AS panel_source_rows,
+    (SELECT COUNT(*) FROM panel_email) AS panel_distinct_emails,
+    (SELECT COUNT(*) FROM ${PANEL_TABLE})
+      - (SELECT COUNT(*) FROM panel_email) AS panel_duplicate_email_rows,
+    (SELECT COUNT(*) FROM panel_email WHERE panel_source_row_count > 1)
+        AS panel_emails_with_multiple_rows,
+    (SELECT COUNT(*) FROM panel_email WHERE panel_response_year_variant_count > 1)
+        AS panel_emails_with_multiple_years;
+
+SELECT
+    'Provisional catalog enrichment one-to-one' AS metric,
+    (SELECT COUNT(*) FROM ${SURVEY_TABLE}) AS catalog_source_rows,
+    (SELECT COUNT(*) FROM comprehensive_data) AS enriched_rows,
+    (SELECT COUNT(*) FROM comprehensive_data)
+      - (SELECT COUNT(*) FROM ${SURVEY_TABLE}) AS row_difference;
 
 -- DQ: 'UNKNOWN' segments in composite IDs (silent missing-source-data signal)
 SELECT

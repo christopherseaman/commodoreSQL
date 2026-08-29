@@ -82,8 +82,9 @@ confirmed), it is marked **[assumed]** and is open to revision in the issue's Re
   required-only `pricing_wide` lacked. `pricing_wide_filtered` preserves prior semantics for
   existing consumers (`2d_data_quality.sql`); verified its row count matches the old
   `pricing_wide` (5,972,929).
-- Non-required pricing carries the documented `section_id`↔catalog match caveat (#21); affected
-  materials simply get NULL cost (coverage visible via `*_priced_count`).
+- This historical pricing-layer description has since been superseded. The current matching
+  contract and evidence live only in the
+  [CMM-ETL issue #21 limitation](CMM-ETL.md#current-limitation--pricing-to-catalog-section-matching-issue-21).
 
 ---
 
@@ -133,9 +134,9 @@ error-prone to hand-author). Assumed scope:
   rows (`*No Book Details*` ~92%, `*No Books Required*` ~7.4%, `*Bad Course*` ~0.03%) — none are
   "real missing". **Rule:** NULL-ISBN = no book adopted; retain for section/enrollment counts,
   exclude from ISBN-level joins (already done via `ISBN13 IS NOT NULL` in `section_cost`).
-- **#21 pricing↔catalog `section_id` normalization — deferred.** Conditional in the issue ("if
-  pre-2024 pricing becomes a use case"). 2024+ filtered analysis is unaffected (filter_include=
-  TRUE pricing is 100% matched). No action until pre-2024 pricing is needed.
+- **#21 pricing↔catalog `section_id` normalization — superseded here.** See the current contract,
+  evidence, and pending alternatives only in the
+  [CMM-ETL issue #21 limitation](CMM-ETL.md#current-limitation--pricing-to-catalog-section-matching-issue-21).
 - **#23 contemporaneous Amazon prices — deferred (someday).** Needs an external data source;
   out of scope for the current dataset.
 - **#24 merged-records consistency follow-ups:**

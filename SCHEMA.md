@@ -35,7 +35,8 @@ Run via `scripts/run_sql.sh`. Three stages, each skippable by flag
 | `1_bookprices_import.sql` | `pricing_historical` | Load and dedupe source-owned bookstore pricing; derive provenance keys/source `required`; create pricing indexes |
 | `1a_supply_classification.sql` | `supply_isbn_classification` | ISBN-level supply flag from title keywords (#36); built here so `has_required` (1b_) can be supply-aware (#40) |
 | `1b_section_filter.sql` | `section_book_status` | One row per section: supply-aware `has_required` flag (#40); pricing remains untouched |
-| `2_oer_classification.sql` | `format_type_classification`, (re)builds `comprehensive_data`, four `course_materials_*` views | OER/IA lookup, master join, row flags, and canonical post-2024 Use/NoUse/Canada population (#58) |
+| `2_oer_classification.sql` | `format_type_classification`, (re)builds `comprehensive_data` | OER/IA lookup, enriched normalized BMG source-row table, and row flags |
+| `2b_course_materials.sql` | `section_enrollment`, `course_materials`, four `course_materials_*` views | First canonical processed item table; one section×ISBN row plus one NULL-ISBN audit row per section when present; source/variant/conflict fields and canonical population views |
 | `2c_pricing_wide.sql` | **`pricing_wide`** (TABLE) | Source-owned pivot with provenance, 18 price cols, `has_buy`/`has_rent`, and fact aggregates; no catalog/IPEDS enrichment |
 | `2d_data_quality.sql` | `__data_quality_*` tables | Materialized, non-mutating DQ snapshots including exact pricing-to-catalog comparisons |
 
@@ -44,7 +45,7 @@ Run via `scripts/run_sql.sh`. Three stages, each skippable by flag
 | SQL file | Creates | Purpose |
 |----------|---------|---------|
 | `3_mailing_lists.sql` | `master_mailing`, `current_mailing`, 5 state views | Deduplicated instructor mailing lists |
-| `3b_material_costs.sql` | **`section_enrollment`**, **`material_costs`** (TABLEs) | Exact section enrollment assignment; canonical Use item spine, LEFT-enriched from `pricing_wide` |
+| `3b_material_costs.sql` | **`material_costs`** (TABLE) | Only LEFT pricing enrichment of canonical `course_materials_use`; retains unmatched/unpriced Use items |
 | `4_merged_records.sql` | **`section_cost`** (table), **`master_section`** (TABLE), `master_course` (view), `master_course_material` (view), `master_section_us_intro_fall2025` (view) | Material-cost section rollups, material-bearing Master Section, and BMG report view |
 | `models/*.sql` | **`master_institution`**, **`master_isbn`**, **`sample10_section_ids`** (TABLEs) | Canonical term rollups and deterministic section-sample membership; `master_isbn` consumes `material_costs`; auto-discovered and materialized by `run_sql.sh` after the EDA SQL files |
 
@@ -58,6 +59,8 @@ subsets and supply classification are separate re-runnable scripts —
 `output/`. `scripts/export_cmm_masters.sh` is also separate from `run_sql.sh`; it writes one
 release-dated CSV per material-bearing term from the materialized Material Costs, Master Section,
 Master Institution, and Master ISBN tables.
+`scripts/export_course_materials.sh` is a separate read-only exporter for the five canonical
+Course Materials relations, with optional term filtering.
 `38_cmm_release_reconciliation.sql` and `39_cmm_release_key_reconciliation.sql` check the canonical
 population, material-cost, section, institution, ISBN, and exact section-key paths by term after
 those tables are materialized. They are split to keep the two high-cardinality states sequential.
@@ -68,11 +71,18 @@ rows.
 
 ## Key tables
 
-- **`comprehensive_data`** — the master join (catalog × IPEDS × opt-out × panel × format-type ×
-  section status), ~103M rows. Owns all row-level population booleans, including the authoritative
-  `is_course_material_use` / `is_course_material_no_use` partition (#58). The rerunnable
-  `course_materials_post_2024`, `course_materials_use`, `course_materials_no_use`, and
-  `course_materials_canada` views expose those populations without reimplementing predicates.
+- **`comprehensive_data`** — exactly one enriched, normalized BMG source row (catalog × IPEDS ×
+  opt-out × panel lookup × format-type × section status), validated at 102,885,609 rows. It
+  remains the source for mailing, faculty, and
+  raw DQ consumers, and owns row-level population booleans.
+- **`panel` / `panel_email`** — raw panel source rows remain retained; `panel_email` is the
+  one-row-per-cleaned-email enrichment lookup with latest response and multiplicity counts, so
+  panel history cannot multiply `comprehensive_data` rows.
+- **`course_materials`** — first canonical processed table, one row per
+  `(period_sortable, section_id, isbn13)` plus one NULL-ISBN audit row per section when present.
+  It carries representative catalog metadata, source counts, variant/conflict evidence, flags,
+  and assigned enrollment, validated at 96,663,781 rows. The four
+  `course_materials_*` views are direct canonical projections.
 - **`pricing_historical`** — indexed, deduplicated source-owned pricing at the source logical
   grain; no catalog classification is written back after import.
 - **`pricing_wide`** — one row per `(section_id, isbn13)`: source/provenance fields, 18 price
@@ -82,10 +92,11 @@ rows.
   [issue #21 limitation](CMM-ETL.md#current-limitation--pricing-to-catalog-section-matching-issue-21).
 - **`section_enrollment`** — exact one row per `(period_sortable, section_id)` with authoritative
   raw enrollment/flags, section-scope dimensions, assigned enrollment, and `enrollment_source`.
-  `master_section` and `material_costs` consume it so raw inputs, flags, and assignment agree.
+  Built in stage 2b, it owns the complete valid 2024+ section population; `course_materials`,
+  `material_costs`, and `master_section` consume it so raw inputs, flags, and assignment agree.
 - **`material_costs`** — materialized one row per `(period_sortable, section_id, isbn13)`
   canonical Use item. It retains items without a pricing row or valid price and uses catalog-owned title/author/publisher,
-  format, FormatType, status, and flags from `comprehensive_data`; a LEFT join to `pricing_wide`
+  format, FormatType, status, and flags from `course_materials`; a LEFT join to `pricing_wide`
   contributes bookstore URL, all 18 price cells, `format_count`, price bounds, rental range,
   and buy bounds. Term/ISBN compatibility metadata needed by `master_isbn` is also persisted here,
   so that rollup does not return to raw catalog rows. Expected current baseline: 12,806,060 rows.
@@ -97,8 +108,8 @@ rows.
   rows). Material/required/optional counts, OER/IA, publishers, ISBN/FormatType, and coverage
   derive from deduplicated `material_costs`; price/cost fields join from `section_cost`; section
   dimensions, enrollment flags, and exact assigned enrollment join from `section_enrollment`.
-  Compact NoUse/placeholder/Canada/supply fields are sidecar audits over source rows for retained
-  material-bearing sections only—not full-population denominators. Complete valid section and
+  Compact NoUse/placeholder/Canada/supply fields are sidecar audits over canonical `course_materials`
+  rows for retained material-bearing sections only—not full-population denominators. Complete valid section and
   enrollment coverage remains upstream in `section_enrollment`.
 - **`master_course`** — view: one row per `(course_id, period)`, rollups of the above.
 - **`master_institution`** — table: one row per `(period_sortable, unit_id)` represented by a
@@ -142,18 +153,19 @@ flowchart TD
         i10 --> i1a["04 · 1a_supply_classification.sql"]
         i1a --> i1b["05 · 1b_section_filter.sql"]
         i1b --> i20["06 · 2_oer_classification.sql"]
-        i20 --> i2c["07 · 2c_pricing_wide.sql"]
-        i2c --> i2d["08 · 2d_data_quality.sql"]
+        i20 --> i2b["07 · 2b_course_materials.sql"]
+        i2b --> i2c["08 · 2c_pricing_wide.sql"]
+        i2c --> i2d["09 · 2d_data_quality.sql"]
     end
 
     i2d --> e30
     i2d -. "NO_EDA" .-> x01
     subgraph eda["EDA + models — unless NO_EDA"]
-        e30["09 · 3_mailing_lists.sql"] --> e3b["10 · 3b_material_costs.sql"]
-        e3b --> e40["11 · 4_merged_records.sql"]
-        e40 --> m01["12 · models/master_institution.sql"]
-        m01 --> m02["13 · models/master_isbn.sql"]
-        m02 --> m03["14 · models/sample10_section_ids.sql"]
+        e30["10 · 3_mailing_lists.sql"] --> e3b["11 · 3b_material_costs.sql"]
+        e3b --> e40["12 · 4_merged_records.sql"]
+        e40 --> m01["13 · models/master_institution.sql"]
+        m01 --> m02["14 · models/master_isbn.sql"]
+        m02 --> m03["15 · models/sample10_section_ids.sql"]
     end
 
     m03 --> x01
@@ -200,6 +212,7 @@ flowchart TD
     ipeds_csv["IPEDS CSV"] --> ipeds["ipeds_data<br/>one institution"]
     optout_csv["OptOut CSV"] --> optout["opt_out<br/>cleaned email rows"]
     panel_csv["panel CSV"] --> panel["panel<br/>cleaned email rows"]
+    panel --> panel_email["panel_email<br/>one row per email<br/>latest response + multiplicity counts"]
     pricing_csv["BookPricing CSV"] --> pricing["pricing_historical<br/>section × ISBN × option × condition × format × rental days<br/>latest logical-key snapshot"]
     format_tsv["format_type_lookup.tsv"] --> ftc["format_type_classification"]
     supply_tsv["supply_keywords.tsv"] --> supply["supply_isbn_classification<br/>2024+ ISBN title variants"]
@@ -208,7 +221,7 @@ flowchart TD
     catalog --> cd0["provisional comprehensive_data<br/>0_setup.sql; replaced at step 6"]
     ipeds --> cd0
     optout --> cd0
-    panel --> cd0
+    panel_email --> cd0
     cd0 --> region_check["state_region coverage console check"]
     region --> region_check
     catalog --> supply
@@ -217,15 +230,16 @@ flowchart TD
     catalog --> cd["comprehensive_data<br/>catalog/adoption-row grain"]
     ipeds --> cd
     optout --> cd
-    panel --> cd
+    panel_email --> cd
     ftc --> cd
     supply --> cd
     sbs --> cd
 
-    cd --> post24["course_materials_post_2024<br/>WHERE is_post_2024"]
-    cd --> use["course_materials_use<br/>post-2024 + non-Canada + ISBN + non-supply<br/>+ not no-details/no-materials"]
-    cd --> nouse["course_materials_no_use<br/>exact post-2024 complement of Use"]
-    cd --> canada["course_materials_canada<br/>post-2024 AND state = CAN"]
+    cd --> cm["course_materials<br/>one period × section × ISBN<br/>+ one NULL-ISBN audit row/section"]
+    cm --> post24["course_materials_post_2024<br/>WHERE is_post_2024"]
+    cm --> use["course_materials_use<br/>post-2024 + non-Canada + ISBN + non-supply<br/>+ not no-details/no-materials"]
+    cm --> nouse["course_materials_no_use<br/>exact post-2024 complement of Use"]
+    cm --> canada["course_materials_canada<br/>post-2024 AND state = CAN"]
     canada -. "subset" .-> nouse
     pricing --> pw["pricing_wide<br/>one section × ISBN; 18 price cells"]
     cd --> dq["__data_quality_* snapshot tables"]
@@ -234,8 +248,9 @@ flowchart TD
     pw --> dq
 ```
 
-The final `comprehensive_data`, `pricing_wide`, and `section_book_status` nodes repeat below as
-connectors into EDA; they are not rebuilt between diagrams.
+The final `comprehensive_data`, `panel_email`, `course_materials`, `section_enrollment`,
+`pricing_wide`, and `section_book_status` nodes repeat below as connectors into EDA; they are not
+rebuilt between diagrams.
 
 #### EDA and model dependencies
 
@@ -244,7 +259,8 @@ flowchart TD
     cd["comprehensive_data<br/>catalog/adoption-row grain"]
     pw["pricing_wide<br/>one section × ISBN"]
     sbs["section_book_status<br/>one section"]
-    use["course_materials_use view<br/>same stored predicate; not read downstream"]
+    cm["course_materials<br/>one period × section × ISBN<br/>canonical processed items"]
+    use["course_materials_use view<br/>canonical Use projection"]
 
     cd --> mailing["master_mailing<br/>one selected row per eligible email"]
     cd --> recent["recent_periods<br/>latest 12 periods"]
@@ -253,16 +269,18 @@ flowchart TD
     cd -->|"MAX panel year per email"| current
     current --> mailing_views["CA / TX / FL / NY / other views"]
     cd --> se["section_enrollment<br/>one period × section; 2024+ non-null section/term spine"]
-    cd -->|"WHERE is_course_material_use;<br/>collapse catalog duplicates"| costs["material_costs<br/>one period × section × ISBN"]
-    use -. "logical Use population" .-> costs
-    se -->|"assigned enrollment + section fields"| costs
-    pw -->|"LEFT JOIN; retain unpriced Use items"| costs
+    cd -->|"canonicalize source rows"| cm
+    cm --> use
+    use -->|"only LEFT pricing enrichment"| costs["material_costs<br/>one period × section × ISBN"]
+    se -->|"assigned enrollment + section fields"| cm
+    se -->|"section dimensions + enrollment"| costs
+    pw -->|"LEFT JOIN on exact section × ISBN; retain unpriced Use items<br/>see CMM-ETL issue #21 limitation"| costs
 
     costs --> sc["section_cost<br/>one material-bearing period × section"]
     costs --> ms["master_section<br/>one material-bearing period × section"]
     se -->|"section dimensions + enrollment"| ms
     sc -->|"required/optional price rollups"| ms
-    cd -->|"retained-section NoUse sidecar audit"| ms
+    cm -->|"retained-section excluded-item sidecar audit"| ms
 
     ms --> mc["master_course<br/>one course × period"]
     sc --> mc
@@ -299,10 +317,11 @@ flowchart TD
     core --> checks["37_sample10 / 38_release / 39_key reconciliation CSVs"]
     checks -. "next" .-> costs["material_costs"]
     costs --> costs_export["40_material_costs_by_term.csv"]
-    costs_export -. "next" .-> final_source["comprehensive_data + material_costs + master_section"]
-    final_source --> final_check["41_material_costs_reconciliation.csv"]
+    costs_export -. "next" .-> final_source["comprehensive_data + course_materials + material_costs + master_section"]
+    final_source --> final_check["41_material_costs_reconciliation.csv<br/>raw → canonical → cost reconciliation"]
 
     standalone["material_costs + three master tables"] -. "export_cmm_masters.sh" .-> terms["four release-dated CSVs per selected term"]
+    canonical["course_materials + four canonical views"] -. "export_course_materials.sh<br/>optional YYYY-N term filter" .-> canonical_files["five dated Course Materials CSVs"]
     standalone2["master_section"] -. "export_fall2025_subsets.sh" .-> ab["Fall 2025 Set A / Set B Parquet"]
     standalone3["comprehensive_data + supply keywords"] -. "classify_supplies.sh" .-> supply["Fall 2025 supply-ISBN Parquet"]
 ```
@@ -347,13 +366,15 @@ These commands are implemented and re-runnable, but **do not run as part of `scr
 | Command | Current files |
 |---|---|
 | `scripts/export_cmm_masters.sh [terms…]` | Four release-dated CSVs per selected material-bearing term under `output/cmm/`: `master_section`, `master_institution`, `master_isbn`, and `material_costs` |
+| `scripts/export_course_materials.sh [YYYYMMDD] [YYYY-N]` | Five dated CSVs under `output/course_materials` (or `COURSE_MATERIALS_OUTPUT_DIR`): `course_materials`, `course_materials_post_2024`, `course_materials_use_post_2024`, `course_materials_nouse_post_2024`, and `course_materials_can_post_2024`; the term argument is optional; stages all five and refuses overwrite |
 | `scripts/export_fall2025_subsets.sh` | `output/fall2025_setA_required.parquet` and `output/fall2025_setB_no_required.parquet` |
 | `scripts/classify_supplies.sh` | `output/fall2025_supply_isbns.parquet`; subsequent statements print classification/cost diagnostics |
 | `scripts/export_all.sh` | Alternate CSV runner for the same 21 SQL wrappers under `output/exports/` |
 | `scripts/export_all_parquet.sh` | Noncanonical recursive Parquet runner under `output/`: the 21 top-level wrappers plus eight `exports/optional/*.sql` legacy summary queries, with numeric prefixes removed. The optional queries depend on `5_`/`6_` summary views that `run_sql.sh` does not rebuild. |
 
-The four `course_materials_*` population views and `current_mailing_other` are queryable but have no
-automatic SQL export wrapper today. Pennsylvania and Canada mailing partitions are also not
+The five Course Materials exports are standalone only and are not automatic SQL wrappers; they
+accept a release date and optional `YYYY-N` term filter. `current_mailing_other` is queryable but
+has no automatic export wrapper today. Pennsylvania and Canada mailing partitions are also not
 implemented; their source refresh and final partition contract remain tracked in issue #56.
 `scripts/classify_supplies.sh` independently reclassifies Fall 2025 for an audit extract; it is not
 the all-2024+ `supply_isbn_classification` table consumed by the canonical pipeline.
@@ -367,7 +388,7 @@ files, grains, keys, and semantics are validated. The whiteboard note “Keep Hi
 an implemented cross-snapshot retention layer: `1_bookprices_import.sql` drops/recreates the
 source-owned `pricing_historical`, keeps only the latest row at each logical pricing key within the
 configured input snapshot, and builds its indexes. Pricing-to-catalog matching remains an exact,
-non-mutating DQ comparison.
+non-mutating DQ comparison; see the issue #21 limitation in `CMM-ETL.md`.
 
 ## Key concepts
 
@@ -416,7 +437,7 @@ barely moves class medians but removes the high-price tail.
 
 ### Course-material population contract (issue #58)
 
-`comprehensive_data` owns non-null row booleans. `is_post_2024` means
+`comprehensive_data` owns non-null row booleans at enriched source-row grain. `is_post_2024` means
 `period_date >= DATE '2024-01-01'`; `has_isbn` is `ISBN13 IS NOT NULL` (the imported
 numeric column maps blank source cells to NULL while retaining nonstandard numeric pseudo-SKUs);
 `has_formattype` means nonblank `FormatType`; enrollment flags test non-null enrollment and
@@ -429,8 +450,9 @@ its exact post-2024 complement; both are false pre-2024, and Canada is a NoUse s
 exclusion-reason field is stored because the reason booleans can overlap. Non-978/979 pseudo-SKUs
 remain eligible unless the existing supply classifier catches them (#41).
 
-The `master_section` row population is the distinct set of canonical Use/material keys in
-`material_costs`, one row per period-specific section. `master_course` and `master_institution`
+The `course_materials` row population is the first canonical item set: one row per valid
+period/section/ISBN and one NULL-ISBN audit row per section when present. `material_costs` is the
+distinct canonical Use/material key set, one row per period-specific section/ISBN. `master_course` and `master_institution`
 roll up that same material-bearing population. No-ISBN, no-adoption, NoUse-only, Canada-only, and
 supply-only sections remain available in `comprehensive_data` and the complete
 `section_enrollment` spine; they do not create release-facing Master Section rows. Sidecar audit
@@ -443,8 +465,8 @@ denominator, and NULL meaning, see [`MASTER-SECTION-DICTIONARY.md`](MASTER-SECTI
 ### Canonical material-cost spine
 
 `material_costs` is the approved item-level input: one material row per
-`(period_sortable, section_id, isbn13)` after the `comprehensive_data.is_course_material_use`
-predicate. Catalog duplicates at that key collapse before enrichment; source disagreement is
+`(period_sortable, section_id, isbn13)` after the `course_materials_use` projection. Catalog
+duplicates at that key collapse in `course_materials` before enrichment; source disagreement is
 retained as explicit variant/conflict signals (for example title, author, publisher, format, or
 FormatType variant counts) rather than silently choosing a pricing value. A LEFT join to the
 one-row-per-key `pricing_wide` table preserves every Use item.

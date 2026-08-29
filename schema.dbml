@@ -97,10 +97,19 @@ Table opt_out {
 }
 
 Table panel {
-  email varchar [pk]
+  email varchar
   response_year varchar
 
-  Note: 'Source: panel CSV. LEFT JOINed into comprehensive_data on email.'
+  Note: 'Source-row history from panel CSV. Raw rows are retained; panel_email is the one-row-per-email enrichment lookup.'
+}
+
+Table panel_email {
+  email varchar [pk]
+  panel_response_year varchar
+  panel_source_row_count bigint
+  panel_response_year_variant_count bigint
+
+  Note: 'Materialized by 0_setup.sql. One row per cleaned email, with latest response year and source multiplicity counts; prevents panel-history joins from multiplying comprehensive_data.'
 }
 
 Table format_type_classification {
@@ -281,6 +290,8 @@ Table comprehensive_data {
   institution_type varchar
   // -- Panel / opt-out --
   panel_response_year varchar
+  panel_source_row_count bigint [note: 'number of retained raw panel rows for this email']
+  panel_response_year_variant_count bigint [note: 'number of distinct response years for this email']
   is_opted_out boolean
   opt_out_source varchar
   // -- Filter --
@@ -296,23 +307,524 @@ Table comprehensive_data {
   is_course_material_use boolean [note: '#58: post-2024, not Canada, has ISBN, not supply, not no_details, not no_materials']
   is_course_material_no_use boolean [note: '#58: post-2024 complement of is_course_material_use; both flags false pre-2024']
 
-  Note: '~103M rows. Master join and authoritative row-level population contract (#58). No lossy exclusion-reason field is stored because exclusion booleans can overlap.'
+  Note: '102,885,609 rows after the validated #65 rebuild: exact one-to-one enrichment of the normalized BMG source rows. Master join and authoritative row-level population contract (#58). No lossy exclusion-reason field is stored because exclusion booleans can overlap.'
 }
 
+Table course_materials [note: 'table'] {
+  isbn13 bigint [note: 'canonical numeric ISBN13; NULL only for audit rows']
+  book_title varchar
+  author varchar
+  publisher varchar
+  imprint varchar
+  book_format varchar
+  format_type varchar
+  book_status varchar
+  isbn_book_title varchar
+  isbn_author varchar
+  isbn_publisher varchar
+  isbn_title_variant_count bigint
+  isbn_author_variant_count bigint
+  isbn_publisher_variant_count bigint
+  unit_id bigint
+  school varchar
+  state varchar
+  dept_code varchar
+  department varchar
+  dept_description varchar
+  course_number varchar
+  section varchar
+  course_title varchar
+  course_level varchar
+  course_subject varchar
+  period varchar
+  enrollments integer
+  seats_taken integer
+  instructor varchar
+  first_name varchar
+  last_name varchar
+  email varchar
+  course_id varchar
+  section_id varchar [note: 'period-specific section key']
+  period_sortable varchar [note: 'YYYY-N']
+  period_date date
+  is_oer boolean
+  oer_category varchar
+  is_ia boolean
+  ia_category varchar
+  is_supply boolean
+  supply_category varchar
+  institution_name varchar
+  sector varchar
+  level varchar
+  control varchar
+  size varchar
+  enrollment_2024 integer
+  distance_enrollment_2024 integer
+  institution_type varchar
+  panel_response_year varchar
+  panel_source_row_count bigint
+  panel_response_year_variant_count bigint
+  is_opted_out boolean
+  opt_out_source varchar
+  is_required_inferred boolean
+  is_post_2024 boolean
+  has_isbn boolean
+  has_formattype boolean
+  has_enrollment boolean
+  has_enrollment_own_seats boolean
+  no_details boolean
+  no_materials boolean
+  is_canada boolean
+  is_course_material_use boolean
+  is_course_material_no_use boolean
+  has_enrollment_sibling boolean
+  has_enrollment_sibling_seats boolean
+  enrollment_assigned integer
+  enrollment_source varchar
+  has_book_status_required boolean
+  has_book_status_optional_recommended boolean
+  source_row_count bigint
+  title_variant_count bigint
+  author_variant_count bigint
+  publisher_variant_count bigint
+  imprint_variant_count bigint
+  book_format_variant_count bigint
+  format_type_variant_count bigint
+  book_status_variant_count bigint
+  catalog_metadata_conflict boolean
+  is_required_inferred_conflict boolean
+  is_oer_conflict boolean
+  is_ia_conflict boolean
+  use_source_row_count bigint
+  no_use_source_row_count bigint
+  has_use_source_row boolean
+  has_no_use_source_row boolean
+  population_classification_conflict boolean
+  instructor_variant_count bigint
+  email_variant_count bigint
+  contact_metadata_conflict boolean
+  is_supply_conflict boolean
+  no_details_conflict boolean
+  no_materials_conflict boolean
+  is_canada_conflict boolean
+  is_null_isbn_audit boolean
+  has_nonnull_isbn_in_section boolean
+  is_no_adoption_section boolean
+
+  Note: 'Created by 2b_course_materials.sql. First canonical processed table: 96,663,781 rows, one row per (period_sortable, section_id, isbn13), plus one NULL-ISBN audit row per section when present. Built from comprehensive_data and section_enrollment; retains source/variant/conflict evidence and canonical population flags. The validated source_row_count sum is 102,885,609.'
+}
+
+// Canonical Course Materials views have the same columns as course_materials.
 Table course_materials_post_2024 [note: 'view'] {
-  Note: 'comprehensive_data WHERE is_post_2024; same columns as comprehensive_data.'
+  isbn13 bigint
+  book_title varchar
+  author varchar
+  publisher varchar
+  imprint varchar
+  book_format varchar
+  format_type varchar
+  book_status varchar
+  isbn_book_title varchar
+  isbn_author varchar
+  isbn_publisher varchar
+  isbn_title_variant_count bigint
+  isbn_author_variant_count bigint
+  isbn_publisher_variant_count bigint
+  unit_id bigint
+  school varchar
+  state varchar
+  dept_code varchar
+  department varchar
+  dept_description varchar
+  course_number varchar
+  section varchar
+  course_title varchar
+  course_level varchar
+  course_subject varchar
+  period varchar
+  enrollments integer
+  seats_taken integer
+  instructor varchar
+  first_name varchar
+  last_name varchar
+  email varchar
+  course_id varchar
+  section_id varchar
+  period_sortable varchar
+  period_date date
+  is_oer boolean
+  oer_category varchar
+  is_ia boolean
+  ia_category varchar
+  is_supply boolean
+  supply_category varchar
+  institution_name varchar
+  sector varchar
+  level varchar
+  control varchar
+  size varchar
+  enrollment_2024 integer
+  distance_enrollment_2024 integer
+  institution_type varchar
+  panel_response_year varchar
+  panel_source_row_count bigint
+  panel_response_year_variant_count bigint
+  is_opted_out boolean
+  opt_out_source varchar
+  is_required_inferred boolean
+  is_post_2024 boolean
+  has_isbn boolean
+  has_formattype boolean
+  has_enrollment boolean
+  has_enrollment_own_seats boolean
+  no_details boolean
+  no_materials boolean
+  is_canada boolean
+  is_course_material_use boolean
+  is_course_material_no_use boolean
+  has_enrollment_sibling boolean
+  has_enrollment_sibling_seats boolean
+  enrollment_assigned integer
+  enrollment_source varchar
+  has_book_status_required boolean
+  has_book_status_optional_recommended boolean
+  source_row_count bigint
+  title_variant_count bigint
+  author_variant_count bigint
+  publisher_variant_count bigint
+  imprint_variant_count bigint
+  book_format_variant_count bigint
+  format_type_variant_count bigint
+  book_status_variant_count bigint
+  catalog_metadata_conflict boolean
+  is_required_inferred_conflict boolean
+  is_oer_conflict boolean
+  is_ia_conflict boolean
+  use_source_row_count bigint
+  no_use_source_row_count bigint
+  has_use_source_row boolean
+  has_no_use_source_row boolean
+  population_classification_conflict boolean
+  instructor_variant_count bigint
+  email_variant_count bigint
+  contact_metadata_conflict boolean
+  is_supply_conflict boolean
+  no_details_conflict boolean
+  no_materials_conflict boolean
+  is_canada_conflict boolean
+  is_null_isbn_audit boolean
+  has_nonnull_isbn_in_section boolean
+  is_no_adoption_section boolean
+  Note: 'Direct projection of course_materials WHERE is_post_2024.'
 }
 
 Table course_materials_use [note: 'view'] {
-  Note: 'comprehensive_data WHERE is_course_material_use; canonical material/pricing population.'
+  isbn13 bigint
+  book_title varchar
+  author varchar
+  publisher varchar
+  imprint varchar
+  book_format varchar
+  format_type varchar
+  book_status varchar
+  isbn_book_title varchar
+  isbn_author varchar
+  isbn_publisher varchar
+  isbn_title_variant_count bigint
+  isbn_author_variant_count bigint
+  isbn_publisher_variant_count bigint
+  unit_id bigint
+  school varchar
+  state varchar
+  dept_code varchar
+  department varchar
+  dept_description varchar
+  course_number varchar
+  section varchar
+  course_title varchar
+  course_level varchar
+  course_subject varchar
+  period varchar
+  enrollments integer
+  seats_taken integer
+  instructor varchar
+  first_name varchar
+  last_name varchar
+  email varchar
+  course_id varchar
+  section_id varchar
+  period_sortable varchar
+  period_date date
+  is_oer boolean
+  oer_category varchar
+  is_ia boolean
+  ia_category varchar
+  is_supply boolean
+  supply_category varchar
+  institution_name varchar
+  sector varchar
+  level varchar
+  control varchar
+  size varchar
+  enrollment_2024 integer
+  distance_enrollment_2024 integer
+  institution_type varchar
+  panel_response_year varchar
+  panel_source_row_count bigint
+  panel_response_year_variant_count bigint
+  is_opted_out boolean
+  opt_out_source varchar
+  is_required_inferred boolean
+  is_post_2024 boolean
+  has_isbn boolean
+  has_formattype boolean
+  has_enrollment boolean
+  has_enrollment_own_seats boolean
+  no_details boolean
+  no_materials boolean
+  is_canada boolean
+  is_course_material_use boolean
+  is_course_material_no_use boolean
+  has_enrollment_sibling boolean
+  has_enrollment_sibling_seats boolean
+  enrollment_assigned integer
+  enrollment_source varchar
+  has_book_status_required boolean
+  has_book_status_optional_recommended boolean
+  source_row_count bigint
+  title_variant_count bigint
+  author_variant_count bigint
+  publisher_variant_count bigint
+  imprint_variant_count bigint
+  book_format_variant_count bigint
+  format_type_variant_count bigint
+  book_status_variant_count bigint
+  catalog_metadata_conflict boolean
+  is_required_inferred_conflict boolean
+  is_oer_conflict boolean
+  is_ia_conflict boolean
+  use_source_row_count bigint
+  no_use_source_row_count bigint
+  has_use_source_row boolean
+  has_no_use_source_row boolean
+  population_classification_conflict boolean
+  instructor_variant_count bigint
+  email_variant_count bigint
+  contact_metadata_conflict boolean
+  is_supply_conflict boolean
+  no_details_conflict boolean
+  no_materials_conflict boolean
+  is_canada_conflict boolean
+  is_null_isbn_audit boolean
+  has_nonnull_isbn_in_section boolean
+  is_no_adoption_section boolean
+  Note: 'Direct projection of course_materials WHERE is_course_material_use.'
 }
 
 Table course_materials_no_use [note: 'view'] {
-  Note: 'comprehensive_data WHERE is_course_material_no_use; exact post-2024 complement of Use.'
+  isbn13 bigint
+  book_title varchar
+  author varchar
+  publisher varchar
+  imprint varchar
+  book_format varchar
+  format_type varchar
+  book_status varchar
+  isbn_book_title varchar
+  isbn_author varchar
+  isbn_publisher varchar
+  isbn_title_variant_count bigint
+  isbn_author_variant_count bigint
+  isbn_publisher_variant_count bigint
+  unit_id bigint
+  school varchar
+  state varchar
+  dept_code varchar
+  department varchar
+  dept_description varchar
+  course_number varchar
+  section varchar
+  course_title varchar
+  course_level varchar
+  course_subject varchar
+  period varchar
+  enrollments integer
+  seats_taken integer
+  instructor varchar
+  first_name varchar
+  last_name varchar
+  email varchar
+  course_id varchar
+  section_id varchar
+  period_sortable varchar
+  period_date date
+  is_oer boolean
+  oer_category varchar
+  is_ia boolean
+  ia_category varchar
+  is_supply boolean
+  supply_category varchar
+  institution_name varchar
+  sector varchar
+  level varchar
+  control varchar
+  size varchar
+  enrollment_2024 integer
+  distance_enrollment_2024 integer
+  institution_type varchar
+  panel_response_year varchar
+  panel_source_row_count bigint
+  panel_response_year_variant_count bigint
+  is_opted_out boolean
+  opt_out_source varchar
+  is_required_inferred boolean
+  is_post_2024 boolean
+  has_isbn boolean
+  has_formattype boolean
+  has_enrollment boolean
+  has_enrollment_own_seats boolean
+  no_details boolean
+  no_materials boolean
+  is_canada boolean
+  is_course_material_use boolean
+  is_course_material_no_use boolean
+  has_enrollment_sibling boolean
+  has_enrollment_sibling_seats boolean
+  enrollment_assigned integer
+  enrollment_source varchar
+  has_book_status_required boolean
+  has_book_status_optional_recommended boolean
+  source_row_count bigint
+  title_variant_count bigint
+  author_variant_count bigint
+  publisher_variant_count bigint
+  imprint_variant_count bigint
+  book_format_variant_count bigint
+  format_type_variant_count bigint
+  book_status_variant_count bigint
+  catalog_metadata_conflict boolean
+  is_required_inferred_conflict boolean
+  is_oer_conflict boolean
+  is_ia_conflict boolean
+  use_source_row_count bigint
+  no_use_source_row_count bigint
+  has_use_source_row boolean
+  has_no_use_source_row boolean
+  population_classification_conflict boolean
+  instructor_variant_count bigint
+  email_variant_count bigint
+  contact_metadata_conflict boolean
+  is_supply_conflict boolean
+  no_details_conflict boolean
+  no_materials_conflict boolean
+  is_canada_conflict boolean
+  is_null_isbn_audit boolean
+  has_nonnull_isbn_in_section boolean
+  is_no_adoption_section boolean
+  Note: 'Direct projection of course_materials WHERE is_course_material_no_use.'
 }
 
 Table course_materials_canada [note: 'view'] {
-  Note: 'Post-2024 comprehensive_data rows WHERE is_canada; subset of course_materials_no_use.'
+  isbn13 bigint
+  book_title varchar
+  author varchar
+  publisher varchar
+  imprint varchar
+  book_format varchar
+  format_type varchar
+  book_status varchar
+  isbn_book_title varchar
+  isbn_author varchar
+  isbn_publisher varchar
+  isbn_title_variant_count bigint
+  isbn_author_variant_count bigint
+  isbn_publisher_variant_count bigint
+  unit_id bigint
+  school varchar
+  state varchar
+  dept_code varchar
+  department varchar
+  dept_description varchar
+  course_number varchar
+  section varchar
+  course_title varchar
+  course_level varchar
+  course_subject varchar
+  period varchar
+  enrollments integer
+  seats_taken integer
+  instructor varchar
+  first_name varchar
+  last_name varchar
+  email varchar
+  course_id varchar
+  section_id varchar
+  period_sortable varchar
+  period_date date
+  is_oer boolean
+  oer_category varchar
+  is_ia boolean
+  ia_category varchar
+  is_supply boolean
+  supply_category varchar
+  institution_name varchar
+  sector varchar
+  level varchar
+  control varchar
+  size varchar
+  enrollment_2024 integer
+  distance_enrollment_2024 integer
+  institution_type varchar
+  panel_response_year varchar
+  panel_source_row_count bigint
+  panel_response_year_variant_count bigint
+  is_opted_out boolean
+  opt_out_source varchar
+  is_required_inferred boolean
+  is_post_2024 boolean
+  has_isbn boolean
+  has_formattype boolean
+  has_enrollment boolean
+  has_enrollment_own_seats boolean
+  no_details boolean
+  no_materials boolean
+  is_canada boolean
+  is_course_material_use boolean
+  is_course_material_no_use boolean
+  has_enrollment_sibling boolean
+  has_enrollment_sibling_seats boolean
+  enrollment_assigned integer
+  enrollment_source varchar
+  has_book_status_required boolean
+  has_book_status_optional_recommended boolean
+  source_row_count bigint
+  title_variant_count bigint
+  author_variant_count bigint
+  publisher_variant_count bigint
+  imprint_variant_count bigint
+  book_format_variant_count bigint
+  format_type_variant_count bigint
+  book_status_variant_count bigint
+  catalog_metadata_conflict boolean
+  is_required_inferred_conflict boolean
+  is_oer_conflict boolean
+  is_ia_conflict boolean
+  use_source_row_count bigint
+  no_use_source_row_count bigint
+  has_use_source_row boolean
+  has_no_use_source_row boolean
+  population_classification_conflict boolean
+  instructor_variant_count bigint
+  email_variant_count bigint
+  contact_metadata_conflict boolean
+  is_supply_conflict boolean
+  no_details_conflict boolean
+  no_materials_conflict boolean
+  is_canada_conflict boolean
+  is_null_isbn_audit boolean
+  has_nonnull_isbn_in_section boolean
+  is_no_adoption_section boolean
+  Note: 'Direct projection of course_materials WHERE is_course_material_no_use AND is_canada.'
 }
 
 Table section_enrollment {
@@ -322,7 +834,7 @@ Table section_enrollment {
   control varchar [note: 'section-canonical scope dimension reused by material_costs']
   level varchar [note: 'section-canonical scope dimension reused by material_costs']
   sector varchar [note: 'section-canonical scope dimension reused by material_costs']
-  course_level varchar [note: 'section mode; reused by material_costs for section-scope consistency']
+  course_level varchar [note: 'section mode with lexical tie-break; reused by material_costs for section-scope consistency']
   enrollments integer [note: 'raw catalog enrollment; never overwritten']
   seats_taken integer [note: 'raw catalog seats; 9999 is invalid']
   has_enrollment boolean
@@ -332,7 +844,7 @@ Table section_enrollment {
   enrollment_assigned integer [note: 'Exact section enrollment after the documented own/seats/sibling/median hierarchy; NULL only when no rung is available']
   enrollment_source varchar [note: 'own | own_seats | sibling_enroll | sibling_seats | class_median | level_median | none']
 
-  Note: 'Created by 3b_material_costs.sql. Materialized one row per valid 2024+ (period_sortable, section_id), currently 23,580,550 rows. Owns the complete section population, authoritative raw enrollment/flags, section-scope dimensions, and assigned-enrollment value/provenance. material_costs consumes its section fields; master_section joins the retained material-bearing subset.'
+  Note: 'Created by 2b_course_materials.sql. Materialized one row per valid 2024+ (period_sortable, section_id), currently 23,580,550 rows. Owns the complete section population, authoritative raw enrollment/flags, section-scope dimensions, and assigned-enrollment value/provenance. course_materials and material_costs consume its section fields; master_section joins the retained material-bearing subset.'
 }
 
 // ---------------------------------------------------------------------------
@@ -402,15 +914,16 @@ Table current_mailing_other [note: 'view'] {
 }
 
 // ---------------------------------------------------------------------------
-// EDA — Canonical material/cost and aggregated records (3b_material_costs.sql,
+// EDA — Canonical material/cost and aggregated records (2b_course_materials.sql,
+// 3b_material_costs.sql,
 // 4_merged_records.sql, and scripts/sql/models/)
 // ---------------------------------------------------------------------------
 
 Table material_costs {
   isbn13 bigint [pk, note: 'non-NULL catalog ISBN13; part of the canonical material key']
-  book_title varchar [note: 'catalog-owned; sourced from comprehensive_data, never copied from pricing_wide']
-  author varchar [note: 'catalog-owned; sourced from comprehensive_data, never copied from pricing_wide']
-  publisher varchar [note: 'catalog-owned; sourced from comprehensive_data, never copied from pricing_wide']
+  book_title varchar [note: 'catalog-owned; sourced from course_materials, never copied from pricing_wide']
+  author varchar [note: 'catalog-owned; sourced from course_materials, never copied from pricing_wide']
+  publisher varchar [note: 'catalog-owned; sourced from course_materials, never copied from pricing_wide']
   imprint varchar [note: 'catalog-owned']
   book_format varchar [note: 'catalog-owned Format value']
   format_type varchar [note: 'catalog-owned FormatType classification input']
@@ -443,7 +956,6 @@ Table material_costs {
   section_id varchar [pk, note: 'period-specific section key; part of the canonical material key']
   period_sortable varchar [pk, note: 'YYYY-N; part of the canonical material key']
   period_date date
-  is_required_inferred boolean [note: 'catalog-owned canonical required inference']
   is_oer boolean [note: 'catalog-owned definitive BOOL_OR over Use catalog rows']
   oer_category varchar
   is_ia boolean [note: 'catalog-owned definitive BOOL_OR over Use catalog rows']
@@ -461,6 +973,7 @@ Table material_costs {
   panel_response_year varchar
   is_opted_out boolean
   opt_out_source varchar
+  is_required_inferred boolean [note: 'catalog-owned canonical required inference']
   is_post_2024 boolean
   has_isbn boolean
   has_formattype boolean
@@ -519,8 +1032,25 @@ Table material_costs {
   price_buy_min decimal
   price_buy_max decimal
   has_pricing_match boolean [note: 'TRUE when the LEFT pricing_wide join found a section/ISBN row; independent of whether that row has a valid price_min']
+  panel_source_row_count bigint [note: 'appended canonical panel multiplicity audit from panel_email']
+  panel_response_year_variant_count bigint [note: 'appended canonical panel response-year variant audit']
+  use_source_row_count bigint [note: 'appended canonical Use source-row count']
+  no_use_source_row_count bigint [note: 'appended canonical NoUse source-row count']
+  has_use_source_row boolean [note: 'appended source Use evidence flag']
+  has_no_use_source_row boolean [note: 'appended source NoUse evidence flag']
+  population_classification_conflict boolean [note: 'appended Use/NoUse disagreement across source rows']
+  instructor_variant_count bigint [note: 'appended distinct nonblank instructor count']
+  email_variant_count bigint [note: 'appended distinct nonblank email count']
+  contact_metadata_conflict boolean [note: 'appended instructor/email conflict signal']
+  is_supply_conflict boolean [note: 'appended supply flag conflict signal']
+  no_details_conflict boolean [note: 'appended no-details flag conflict signal']
+  no_materials_conflict boolean [note: 'appended no-materials flag conflict signal']
+  is_canada_conflict boolean [note: 'appended Canada flag conflict signal']
+  is_null_isbn_audit boolean [note: 'appended one-NULL-ISBN-row audit marker']
+  has_nonnull_isbn_in_section boolean [note: 'appended section has another non-NULL ISBN']
+  is_no_adoption_section boolean [note: 'appended section has no non-NULL ISBN adoption']
 
-  Note: 'Created by 3b_material_costs.sql. TABLE (materialized), one row per (period_sortable, section_id, isbn13) canonical Use item. Built from the catalog Use spine and LEFT-enriched from source-owned pricing_wide on the current exact section × ISBN join, so items without usable prices remain. Catalog attributes are never sourced from pricing. Expected current baseline: 12,806,060 rows. Detailed matching evidence and redesign proposals are centralized in CMM-ETL.md issue #21 limitation.'
+  Note: 'Created by 3b_material_costs.sql. TABLE (materialized), one row per (period_sortable, section_id, isbn13) canonical Use item. Built from course_materials_use and LEFT-enriched from source-owned pricing_wide on the current exact section × ISBN join, so items without usable prices remain. Catalog attributes are never sourced from pricing. The 17 canonical panel/audit fields above append after has_pricing_match (129 total columns). Established current baseline: 12,806,060 rows. Detailed matching evidence is centralized in CMM-ETL.md issue #21 limitation.'
 }
 
 Table section_cost {
@@ -617,13 +1147,13 @@ Table master_section [note: 'table'] {
   required_priced_count integer [note: 'distinct required materials with ANY price (total coverage; NOT owned-only — can be >0 while owned cost is NULL when priced materials are rental-only)']
   optional_priced_count integer
 
-  Note: 'TABLE (materialized), currently 6,983,049 rows. Exactly one row per distinct (period_sortable, section_id) in material_costs. Material/OER/coverage/publisher fields aggregate canonical material_costs items; price/cost fields join from section_cost; section dimensions and assigned enrollment join from section_enrollment. Supply, NoUse, Canada, and placeholder fields are comprehensive_data sidecar audits limited to retained material-bearing sections. Complete-population denominators remain in section_enrollment. MASTER-SECTION-DICTIONARY.md is the complete release-column contract.'
+  Note: 'TABLE (materialized), currently 6,983,049 rows. Exactly one row per distinct (period_sortable, section_id) in material_costs. Material/OER/coverage/publisher fields aggregate canonical material_costs items; price/cost fields join from section_cost; section dimensions and assigned enrollment join from section_enrollment. Supply, NoUse, Canada, and placeholder fields are course_materials sidecar audits limited to retained material-bearing sections. Validated post-#65 canonical sidecar totals: NoUse 78,230; no_details 25,993; no_materials 145; supply 52,237. Complete-population denominators remain in section_enrollment. MASTER-SECTION-DICTIONARY.md is the complete release-column contract.'
 }
 
 Table master_course [note: 'view'] {
   course_id varchar
-  period varchar
   period_sortable varchar
+  period varchar
   period_date date
   // -- institution enrichment (ANY_VALUE; constant per unit_id -> per course) --
   unit_id bigint
@@ -660,6 +1190,8 @@ Table master_course [note: 'view'] {
   has_enrollment_sibling_sections integer [note: 'sections with a sibling carrying enrollment']
   has_enrollment_own_seats_sections integer [note: 'sections with usable own seats_taken']
   has_enrollment_sibling_seats_sections integer [note: 'sections with a sibling carrying usable seats_taken']
+  all_publishers varchar [note: 'nested LIST of publisher arrays']
+  unique_required_publishers integer
   required_cost_total_min decimal [note: 'MIN(min) across sections — cost rolls up MIN/MAX/AVG, NOT SUM (sections share materials)']
   required_cost_total_max decimal
   optional_cost_total_min decimal
@@ -671,8 +1203,6 @@ Table master_course [note: 'view'] {
   required_cost_avg decimal [note: 'AVG of section (min+max)/2']
   required_cost_owned_avg decimal
   optional_cost_avg decimal
-  all_publishers varchar [note: 'nested LIST of publisher arrays']
-  unique_required_publishers integer
 
   Note: 'One row per material-bearing course-offering (2024+, rolled up from master_section). Cost rolls up from material_costs through section_cost via MIN/MAX/AVG.'
 }
@@ -814,6 +1344,7 @@ Ref: comprehensive_data.unit_id > ipeds_data.unitid
 Ref: comprehensive_data.section_id > section_book_status.section_id
 Ref: comprehensive_data.email > opt_out.email
 Ref: comprehensive_data.email > panel.email
+Ref: comprehensive_data.email > panel_email.email
 
 // mailing list chain (email is unique via DISTINCT ON)
 Ref: current_mailing.email > master_mailing.email
@@ -823,13 +1354,15 @@ Ref: current_mailing_fl.email > current_mailing.email
 Ref: current_mailing_ny.email > current_mailing.email
 Ref: current_mailing_other.email > current_mailing.email
 
-// canonical material-cost path (composite material keys are documented in table notes)
-// material_costs is built from comprehensive_data and LEFT-enriched by pricing_wide;
+// canonical Course Materials path (composite material keys are documented in table notes)
+// course_materials is built from comprehensive_data and material_costs is LEFT-enriched by pricing_wide;
 // section_cost and master_isbn consume material_costs. Distinct material_costs
 // (period_sortable, section_id) keys define master_section exactly; master_section then
 // joins section_enrollment on that explicit key and section_cost 1:1.
 Ref: section_enrollment.section_id > section_book_status.section_id
+Ref: course_materials.section_id > section_enrollment.section_id
 Ref: material_costs.section_id > section_book_status.section_id
+Ref: material_costs.section_id > course_materials.section_id
 
 // aggregated views
 Ref: master_section.section_id > section_book_status.section_id
@@ -845,6 +1378,7 @@ TableGroup import_sources {
   ipeds_data
   opt_out
   panel
+  panel_email
   format_type_classification
   pricing_historical
 }
@@ -855,6 +1389,7 @@ TableGroup import_derived {
   state_region
   pricing_wide
   comprehensive_data
+  course_materials
   course_materials_post_2024
   course_materials_use
   course_materials_no_use

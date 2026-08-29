@@ -48,7 +48,7 @@ GROUP BY period_sortable, section_id;
 -- (period_sortable, section_id). material_costs determines the population and all
 -- material-facing descriptors/aggregates. Cost columns (#2/#3/#4) join 1:1 on the
 -- same explicit key. Enrichment columns live HERE, not in downstream tables:
--- retained-section comprehensive-data audits (#58/#36) and enrollment fill
+-- retained-section canonical Course Materials audits (#58/#36) and enrollment fill
 -- (#32: enrollment_assigned / enrollment_source from section_enrollment).
 -- Materialized as a TABLE (not a VIEW). The build is deliberately staged through
 -- narrow TEMP tables: keeping multiple mode() states, publisher lists, and scalar
@@ -71,7 +71,7 @@ DROP TABLE IF EXISTS _ms_mode_course_subject;
 DROP TABLE IF EXISTS _ms_publishers;
 DROP TABLE IF EXISTS _ms_required_publishers;
 DROP TABLE IF EXISTS _ms_publisher_counts;
-DROP TABLE IF EXISTS _ms_comprehensive_audit;
+DROP TABLE IF EXISTS _ms_course_material_audit;
 DROP TABLE IF EXISTS _ms_enriched;
 
 -- Fixed-size aggregates over canonical Material Costs rows. Descriptive modes and
@@ -160,10 +160,12 @@ SELECT
 FROM material_costs
 GROUP BY period_sortable, section_id;
 
--- comprehensive_data sidecar: these columns audit excluded/noisy catalog rows
--- that co-occur with a retained canonical material-bearing section. They do not
--- define Master Section membership or any material-facing aggregate.
-CREATE TEMP TABLE _ms_comprehensive_audit AS
+-- Canonical Course Materials sidecar: these columns audit excluded/noisy item
+-- keys (including the per-section NULL-ISBN audit row) that co-occur with a
+-- retained material-bearing section. They do not define Master Section
+-- membership or any material-facing aggregate. Raw source-row evidence remains
+-- in comprehensive_data and its DQ/mailing/faculty consumers.
+CREATE TEMP TABLE _ms_course_material_audit AS
 WITH retained_section_keys AS (
     SELECT period_sortable, section_id
     FROM material_costs
@@ -178,7 +180,7 @@ SELECT
     COALESCE(BOOL_OR(c.is_canada), FALSE) AS is_canada,
     COALESCE(BOOL_OR(c.is_supply), FALSE) AS is_supply,
     COUNT(*) FILTER (WHERE c.is_supply) AS supply_count
-FROM comprehensive_data c
+FROM course_materials c
 JOIN retained_section_keys retained
   ON c.period_sortable = retained.period_sortable
  AND c.section_id = retained.section_id
@@ -260,7 +262,7 @@ LEFT JOIN _ms_required_publishers required_publishers
 LEFT JOIN _ms_publisher_counts publisher_counts
   ON publisher_counts.period_sortable = s.period_sortable
  AND publisher_counts.section_id = s.section_id
-JOIN _ms_comprehensive_audit audit
+JOIN _ms_course_material_audit audit
   ON audit.period_sortable = s.period_sortable AND audit.section_id = s.section_id
 JOIN section_enrollment enrollment
   ON enrollment.period_sortable = s.period_sortable AND enrollment.section_id = s.section_id;
@@ -275,7 +277,7 @@ DROP TABLE _ms_mode_course_subject;
 DROP TABLE _ms_publishers;
 DROP TABLE _ms_required_publishers;
 DROP TABLE _ms_publisher_counts;
-DROP TABLE _ms_comprehensive_audit;
+DROP TABLE _ms_course_material_audit;
 
 CREATE TABLE master_section AS
 SELECT
@@ -577,16 +579,17 @@ FROM catalog_by_term catalog
 FULL OUTER JOIN enrollment_by_term enrollment USING (period_sortable)
 ORDER BY period_sortable;
 
--- Informational excluded-row sidecar mix among retained material-bearing sections.
+-- Informational excluded canonical-item sidecar mix among retained
+-- material-bearing sections.
 SELECT
-    'master_section comprehensive-data sidecar mix' AS metric,
+    'master_section course-material sidecar mix' AS metric,
     period_sortable,
     COUNT(*) FILTER (WHERE course_material_no_use_count = 0) AS canonical_only_sections,
     COUNT(*) FILTER (WHERE course_material_no_use_count > 0) AS sections_with_no_use_rows,
-    SUM(course_material_no_use_count) AS audited_no_use_rows,
-    SUM(no_details_count) AS audited_no_details_rows,
-    SUM(no_materials_count) AS audited_no_materials_rows,
-    SUM(supply_count) AS audited_supply_rows,
+    SUM(course_material_no_use_count) AS audited_no_use_items,
+    SUM(no_details_count) AS audited_no_details_items,
+    SUM(no_materials_count) AS audited_no_materials_items,
+    SUM(supply_count) AS audited_supply_items,
     COUNT(*) FILTER (WHERE is_canada) AS sections_with_canada_rows
 FROM master_section
 GROUP BY period_sortable
@@ -679,8 +682,9 @@ SELECT 'OER/IA + ISBN coverage' AS note,
        SUM(classified_count) AS classified_materials
 FROM master_section;
 
--- Supply exclusion summary (informational, #36): supply is the comprehensive-data
--- sidecar for excluded rows co-occurring with retained material-bearing sections.
+-- Supply exclusion summary (informational, #36): supply is the canonical
+-- Course Materials sidecar for excluded items co-occurring with retained
+-- material-bearing sections.
 SELECT 'supply exclusion (sections)' AS note,
        COUNT(*) FILTER (WHERE is_supply) AS sections_with_supply,
        SUM(supply_count)                 AS supply_materials,

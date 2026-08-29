@@ -50,12 +50,12 @@ underlying catalog rows.
 | `optional_count` | Optional/supplemental material item count | Count of `material_costs` rows where not `is_required_inferred` | Canonical items in the section | Never NULL; zero means none |
 | `has_course_material_use` | Has an included material | Constant true for a retained material section | Material-section population | Never NULL or false |
 | `course_material_use_count` | Included material audit count | Count of canonical items; equals `material_count` | Canonical items in the section | Never NULL or zero |
-| `course_material_no_use_count` | Co-occurring excluded-row audit | Count of `comprehensive_data.is_course_material_no_use` rows | Source rows for retained material sections only | Never NULL; zero means none |
-| `no_details_count` | Co-occurring no-book-details audit | Count of exact `*No Book Details*` rows in the sidecar | Source rows for retained material sections only; reasons may overlap | Never NULL; zero means marker absent |
-| `no_materials_count` | Co-occurring no-material audit | Count of exact `*No Books Required*` or `placeholder_no_material` rows in the sidecar | Source rows for retained material sections only; reasons may overlap | Never NULL; zero means marker absent |
-| `is_canada` | Co-occurring Canadian-row indicator | `BOOL_OR(state='CAN')` in the sidecar | Source rows for retained material sections only | Never NULL; false means no Canadian row |
-| `is_supply` | Has a co-occurring classified supply | `BOOL_OR(is_supply)` in the sidecar | Source rows for retained material sections only | Never NULL; false means no classified supply |
-| `supply_count` | Co-occurring classified supply row count | Count of `is_supply` rows in the sidecar | Source rows for retained material sections only | Never NULL; zero means none |
+| `course_material_no_use_count` | Co-occurring excluded-row audit | Count of `course_materials.is_course_material_no_use` rows | Canonical rows for retained material sections only | Never NULL; zero means none |
+| `no_details_count` | Co-occurring no-book-details audit | Count of exact `*No Book Details*` rows in the sidecar | Canonical `course_materials` rows for retained material sections only; reasons may overlap | Never NULL; zero means marker absent |
+| `no_materials_count` | Co-occurring no-material audit | Count of exact `*No Books Required*` or `placeholder_no_material` rows in the sidecar | Canonical `course_materials` rows for retained material sections only; reasons may overlap | Never NULL; zero means marker absent |
+| `is_canada` | Co-occurring Canadian-row indicator | `BOOL_OR(state='CAN')` in the sidecar | Canonical `course_materials` rows for retained material sections only | Never NULL; false means no Canadian row |
+| `is_supply` | Has a co-occurring classified supply | `BOOL_OR(is_supply)` in the sidecar | Canonical `course_materials` rows for retained material sections only | Never NULL; false means no classified supply |
+| `supply_count` | Co-occurring classified supply row count | Count of `is_supply` rows in the sidecar | Canonical `course_materials` rows for retained material sections only | Never NULL; zero means none |
 | `is_oer` | Has OER material | `BOOL_OR(is_oer)` over `material_costs`, coalesced false | Canonical items in the section | Never NULL; false means no classified OER item |
 | `is_ia` | Has inclusive-access material | `BOOL_OR(is_ia)` over `material_costs`, coalesced false | Canonical items in the section | Never NULL; false means no classified IA item |
 | `oer_count` | OER material item count | Count of canonical items with `is_oer=true` | Canonical items in the section | Never NULL; zero means none |
@@ -72,6 +72,10 @@ underlying catalog rows.
 `required_count + optional_count = material_count = course_material_use_count` is a checked
 invariant. Supply, Canada, NoUse, and placeholder counts are sidecar evidence only for retained
 sections; use `comprehensive_data` or `section_enrollment` for complete-population analysis.
+The validated canonical sidecar after the #65 rebuild totals
+`course_material_no_use_count=78,230`, `no_details_count=25,993`,
+`no_materials_count=145`, and `supply_count=52,237`; these replace the old raw-row comparisons
+for the retained material-bearing sections.
 
 ## Enrollment and fill provenance
 
@@ -121,7 +125,8 @@ the canonical materialized table, filters only `period_sortable`, orders by `sec
 The executable DQ in `scripts/sql/4_merged_records.sql` checks section-key uniqueness, encoded-term
 agreement, exact `material_costs` section-key conservation, required/optional partitioning,
 boolean/count agreement, cost bounds, and retained-section sidecar invariants. Full-population
-checks remain on `comprehensive_data`/`section_enrollment`. Cross-model and deterministic sample
+checks remain on `comprehensive_data`/`section_enrollment`; canonical item checks use
+`course_materials`. Cross-model and deterministic sample
 reconciliation is in `scripts/sql/exports/37_sample10_reconciliation.sql`; exact current-state
 release and material-section key-set reconciliation is in
 `scripts/sql/exports/38_cmm_release_reconciliation.sql` and

@@ -38,8 +38,8 @@ The runner loads `scripts/dot.env`, templates each `scripts/sql/*.sql` file (env
 
 | Stage | Flag to skip | What it does |
 |-------|--------------|--------------|
-| IMPORT | `NO_IMPORT` | Load CSVs; derive composite keys; build `comprehensive_data`; classify catalog OER/IA; build source-owned pricing history/wide tables and non-mutating DQ comparisons |
-| EDA | `NO_EDA` | Build mailing lists, exact `section_enrollment`, canonical `material_costs`, section/course records, and materialize `scripts/sql/models/*.sql` rollups |
+| IMPORT | `NO_IMPORT` | Load CSVs; derive composite keys; retain raw panel plus one-row-per-email `panel_email`; build enriched source-row `comprehensive_data`; classify catalog OER/IA; canonicalize `course_materials` and `section_enrollment`; build source-owned pricing history/wide tables and non-mutating DQ comparisons |
+| EDA | `NO_EDA` | Build mailing lists from `comprehensive_data`, canonical `material_costs` as the only pricing enrichment of `course_materials_use`, section/course records, and materialize `scripts/sql/models/*.sql` rollups |
 | EXPORT | `NO_EXPORT` | Auto-discover `scripts/sql/exports/*.sql`, wrap each in a temp table, `COPY` to CSV in `output/` |
 
 ```bash
@@ -51,14 +51,21 @@ and is re-runnable.
 
 ## Key outputs
 
-- **`comprehensive_data`** — the master join (catalog × IPEDS × opt-out × panel × format-type ×
-  section status), with row-level 2024+ Use/NoUse/Canada, coverage, enrollment, placeholder,
-  supply, required, and OER/IA flags. It owns the canonical Use/NoUse partition; the
-  `course_materials_*` views are direct projections of those flags.
-- **`section_enrollment`** — exact one-row-per-section enrollment assignment and provenance.
+- **`comprehensive_data`** — exactly one enriched, normalized BMG source row (catalog × IPEDS ×
+  opt-out × one-row-per-email panel lookup × format-type × section status), with row-level 2024+
+  Use/NoUse/Canada, coverage, enrollment, placeholder, supply, required, and OER/IA flags. It
+  remains the source for mailing, faculty, and raw DQ; the rebuilt source and enriched tables
+  each contain 102,885,609 rows.
+- **`course_materials`** — first canonical processed table at one
+  `(period_sortable, section_id, isbn13)`, plus one NULL-ISBN audit row per section when present;
+  source counts, representative fields, variants/conflicts, and population flags are retained.
+  It contains 96,663,781 rows; the four `course_materials_*` views are direct canonical
+  projections.
+- **`section_enrollment`** — exact one-row-per-section enrollment assignment and provenance,
+  built during canonical Course Materials stage and retaining the complete valid 2024+ spine.
 - **`material_costs`** (materialized TABLE) — one row per
   `(period_sortable, section_id, isbn13)` canonical Use item. It is the approved item input:
-  catalog-owned fields come from `comprehensive_data`, while a LEFT join to `pricing_wide`
+  catalog-owned fields come from `course_materials`, while a LEFT join to `pricing_wide`
   adds bookstore URL, all 18 price cells, format/price bounds, rental range, and buy bounds.
   Every Use item remains present, including items without a pricing-row match or valid price.
 - **`section_cost`** — section-level required/optional cost rollups consumed from
@@ -89,6 +96,18 @@ scripts/export_cmm_masters.sh
 scripts/export_cmm_masters.sh 2025-4
 ```
 
+To export the five canonical Course Materials relations (optionally for one `YYYY-N` term):
+
+```bash
+scripts/export_course_materials.sh              # all terms, date from today
+scripts/export_course_materials.sh 20250828      # all terms, explicit release date
+scripts/export_course_materials.sh 20250828 2025-4
+```
+
+Files are written under `output/course_materials` (configurable) as dated
+`course_materials`, `course_materials_post_2024`, `course_materials_use_post_2024`,
+`course_materials_nouse_post_2024`, and `course_materials_can_post_2024` CSVs.
+
 Each selected term emits `master_section`, `master_institution`, `master_isbn`, and
 `material_costs` CSVs under `output/cmm/`. All four releases follow the canonical Use/material
 population: Master Section and Institution contain sections represented by `material_costs`,
@@ -100,7 +119,8 @@ direct filters of the materialized masters; full Material Costs export is
 Full exports retain `period_sortable` and do not multiply rows across terms. Source/input readiness remains tracked in #51; Spring 2026 and
 `cmm_discipline` are external pending inputs, not landed local tables.
 Exact cross-model and key-set checks are exported by `38_cmm_release_reconciliation.sql` and
-`39_cmm_release_key_reconciliation.sql`; every row must match.
+`39_cmm_release_key_reconciliation.sql`; `41_material_costs_reconciliation.sql` reconciles raw
+source rows through canonical `course_materials` to `material_costs`; every row must match.
 
 ## Metabase
 

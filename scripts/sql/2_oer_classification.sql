@@ -33,7 +33,7 @@ FROM read_csv('${LOOKUP_DIR}/format_type_lookup.tsv',
 -- Check for non-empty FormatTypes that aren't in the lookup table
 WITH unmatched AS (
     SELECT c.FormatType, COUNT(*) as record_count
-    FROM course_catalog_20251215 c
+    FROM ${SURVEY_TABLE} c
     LEFT JOIN format_type_classification f ON c.FormatType = f.FormatType
     WHERE c.FormatType IS NOT NULL
       AND c.FormatType != ''
@@ -80,10 +80,12 @@ SELECT
     i.dist_enroll_24 AS distance_enrollment_2024,
     i.inst_type AS institution_type,
     -- Panel data
-    p.response_year AS panel_response_year,
+    p.panel_response_year,
+    p.panel_source_row_count,
+    p.panel_response_year_variant_count,
     -- Opt-out data
     CASE WHEN oo.email IS NOT NULL THEN true ELSE false END AS is_opted_out,
-    'opt_out' AS opt_out_source,
+    oo.source AS opt_out_source,
     -- is_required_inferred: period >= 2024 AND book_status matches has_required logic
     CASE
         WHEN c.period_date >= '2024-01-01'
@@ -95,11 +97,11 @@ SELECT
         THEN TRUE
         ELSE FALSE
     END AS is_required_inferred
-FROM course_catalog_20251215 c
+FROM ${SURVEY_TABLE} c
 LEFT JOIN format_type_classification f ON c.FormatType = f.FormatType
 LEFT JOIN supply_isbn_classification si ON c."ISBN13" = si.isbn13
 LEFT JOIN ipeds_data i ON c.unit_id = i.unitid
-LEFT JOIN panel p ON c.email = p.email
+LEFT JOIN panel_email p ON c.email = p.email
 LEFT JOIN opt_out oo ON c.email = oo.email
 LEFT JOIN section_book_status s ON c.section_id = s.section_id
 ),
@@ -138,20 +140,6 @@ SELECT
         )
     ) AS is_course_material_no_use
 FROM row_flags;
-
--- Stable population views for releases and downstream ad-hoc analysis. Canada is
--- a post-2024 subset and is also part of NoUse; the sets intentionally overlap.
-CREATE VIEW course_materials_post_2024 AS
-SELECT * FROM comprehensive_data WHERE is_post_2024;
-
-CREATE VIEW course_materials_use AS
-SELECT * FROM comprehensive_data WHERE is_course_material_use;
-
-CREATE VIEW course_materials_no_use AS
-SELECT * FROM comprehensive_data WHERE is_course_material_no_use;
-
-CREATE VIEW course_materials_canada AS
-SELECT * FROM comprehensive_data WHERE is_post_2024 AND is_canada;
 
 -- Validation: Check distribution of OER/IA classifications including NULLs
 SELECT
@@ -255,29 +243,20 @@ WHERE is_post_2024
 GROUP BY period_sortable, is_canada, has_isbn, is_supply, no_details, no_materials
 ORDER BY period_sortable, record_count DESC;
 
--- The stable views must remain direct projections of their owning booleans.
-WITH flag_counts AS (
-    SELECT
-        COUNT(*) FILTER (WHERE is_post_2024) AS post_2024_rows,
-        COUNT(*) FILTER (WHERE is_course_material_use) AS use_rows,
-        COUNT(*) FILTER (WHERE is_course_material_no_use) AS no_use_rows,
-        COUNT(*) FILTER (WHERE is_post_2024 AND is_canada) AS canada_rows
-    FROM comprehensive_data
-), view_counts AS (
-    SELECT
-        (SELECT COUNT(*) FROM course_materials_post_2024) AS post_2024_rows,
-        (SELECT COUNT(*) FROM course_materials_use) AS use_rows,
-        (SELECT COUNT(*) FROM course_materials_no_use) AS no_use_rows,
-        (SELECT COUNT(*) FROM course_materials_canada) AS canada_rows
-)
+-- The enriched raw table must remain exactly one row per normalized catalog
+-- source row even when the preserved mailing-history source has repeat emails.
 SELECT
-    'Course-material population view conservation' AS validation_status,
-    ABS(v.post_2024_rows - f.post_2024_rows) AS post_2024_violations,
-    ABS(v.use_rows - f.use_rows) AS use_violations,
-    ABS(v.no_use_rows - f.no_use_rows) AS no_use_violations,
-    ABS(v.canada_rows - f.canada_rows) AS canada_violations
-FROM flag_counts f
-CROSS JOIN view_counts v;
+    'Raw catalog enrichment one-to-one' AS validation_status,
+    (SELECT COUNT(*) FROM ${SURVEY_TABLE}) AS catalog_source_rows,
+    (SELECT COUNT(*) FROM comprehensive_data) AS enriched_source_rows,
+    (SELECT COUNT(*) FROM comprehensive_data)
+      - (SELECT COUNT(*) FROM ${SURVEY_TABLE}) AS row_difference,
+    (SELECT COUNT(*) FROM ${PANEL_TABLE}) AS panel_source_rows,
+    (SELECT COUNT(*) FROM panel_email) AS panel_distinct_emails,
+    (SELECT COUNT(*) FROM panel_email WHERE panel_source_row_count > 1)
+        AS panel_emails_with_multiple_rows,
+    (SELECT COUNT(*) FROM panel_email WHERE panel_response_year_variant_count > 1)
+        AS panel_emails_with_multiple_years;
 
 -- DQ (#41): required rows carrying a pseudo-SKU ISBN (non-978/979 EAN — internal
 -- bookstore codes). A MIX of legitimate non-book materials (access codes, digital

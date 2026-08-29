@@ -2,7 +2,7 @@
 
 > 🔗 **Living Notion build-log:** https://app.notion.com/p/38bd9fdd1a1a81f9b094c13ba9cfbedf
 
-Pickup context as of **2026-08-28**. Read this first, then `SCHEMA.md` (data model) and
+Pickup context as of **2026-08-29**. Read this first, then `SCHEMA.md` (data model) and
 `CLAUDE.md` (conventions). Work tracking is **GitHub Issues + Projects board**, not this file.
 
 ## What this repo is
@@ -25,18 +25,20 @@ A DuckDB pipeline (`duckdb/commodore.duckdb`, ~71 GB) that joins course-catalog 
   `section_book_status`, and `pricing_wide` contains only pricing source/provenance and price
   transformations. Required inference, OER/IA, and IPEDS enrichment stay catalog-owned; the old
   pricing-enrichment step and required-only pricing view are gone. `2d_data_quality.sql`
-  performs exact cross-source comparisons without mutating pricing. `material_costs` keeps the
-  catalog Use spine and current exact section×ISBN LEFT enrichment. Matching evidence and any
+  performs exact cross-source comparisons without mutating pricing. `course_materials` keeps the
+  canonical catalog item spine; `material_costs` is its current exact section×ISBN LEFT pricing
+  enrichment. Matching evidence and any
   future join-key design are centralized in the
   [issue #21 limitation](CMM-ETL.md#current-limitation--pricing-to-catalog-section-matching-issue-21).
 - **#64 lineage correction:** `SCHEMA.md` now separates exact `run_sql.sh` execution order from
   data-dependency lineage, carries the current automatic and standalone export layer through to
-  concrete files, and explicitly labels views without file exporters. `CMM-ETL.md` owns the linked
+  concrete files, and explicitly labels standalone canonical Course Materials exports. `CMM-ETL.md` owns the linked
   filter/derived-field semantics; pending sources remain outside the executable path. The alternate
   recursive Parquet wrapper now resolves repo-relative config/temp/output paths and fails if any
   export fails.
-- `material_costs` is the canonical materialized one-row-per-(period, section, ISBN) Use item
-  table. `section_enrollment` owns exact assigned enrollment. `section_cost` and `master_isbn`
+- `course_materials` is the first canonical materialized one-row-per-(period, section, ISBN) item
+  table; `material_costs` is the canonical Use item table with pricing enrichment. `section_enrollment`
+  owns exact assigned enrollment. `section_cost` and `master_isbn`
   consume `material_costs`; `master_section`, `master_institution`, and `master_isbn` are the
   three canonical materialized per-term release tables; `material_costs` is exported alongside
   them. The two rollup queries are in
@@ -45,18 +47,22 @@ A DuckDB pipeline (`duckdb/commodore.duckdb`, ~71 GB) that joins course-catalog 
   `scripts/export_cmm_masters.sh`; institution/ISBN are Metabase Models 170/171. The rebuilt
   models contain 14,336 material-bearing institution-term rows and 1,713,368 ISBN-term rows;
   Fall 2025 has 2,216 and 335,157 respectively. New-input readiness remains pending #51.
-- **#58 population contract + #59/#63 whiteboard flow IMPLEMENTED AND REBUILT** —
-  `comprehensive_data` owns non-null row flags
-  and the exact post-2024 Use/NoUse partition. Use excludes Canada, NULL ISBN, supplies,
-  `*No Book Details*`, and explicit no-material placeholders. `master_section` now follows the
-  whiteboard flow exactly: canonical `material_costs` determines its 6,983,049-section population,
-  `section_cost` supplies price/cost rollups, and `section_enrollment` supplies section dimensions
-  and assigned enrollment. The broader 23,580,550-row section/enrollment spine remains upstream in
-  `section_enrollment` for #20 and full-population analysis. Material/publisher/OER/IA/coverage,
-  `master_course_material`, and `master_isbn` all use canonical material items. Supply, NoUse,
-  placeholder, and Canada fields on Master Section are sidecar audits for retained sections only;
-  use `comprehensive_data` for complete audits. Legitimate pseudo-SKUs remain eligible unless the
-  classifier catches them (#41). Current Master Section assigned enrollment totals 201,053,497.
+- **#65 canonical Course Materials flow IMPLEMENTED AND VALIDATED** —
+  `comprehensive_data` remains exactly the enriched, normalized BMG source-row table and the
+  source for mailing, faculty, and raw DQ. Raw `panel` history is retained; `panel_email` is the
+  one-row-per-email lookup used for enrichment, preventing response-history multiplication.
+  `2b_course_materials.sql` now builds `section_enrollment` and the first canonical processed
+  `course_materials` table at one `(period_sortable, section_id, isbn13)`, including one NULL-ISBN
+  audit row per section when present, source/variant/conflict fields, and canonical
+  `post_2024`/`use`/`no_use`/`canada` views. `material_costs` is only the LEFT pricing enrichment
+  of `course_materials_use`; the established Material Costs and Master Section baselines remain
+  12,806,060 and 6,983,049 respectively. The rebuilt `comprehensive_data` and
+  `course_materials` counts are 102,885,609 and 96,663,781, with exact raw-row conservation.
+  Master Section's excluded-item sidecar reads canonical
+  `course_materials`; complete audits remain on `comprehensive_data` and `section_enrollment`.
+  All nine raw→canonical→Material Costs reconciliation rows match. A fresh temporary Fall 2025
+  run of the standalone exporter produced all five 99-column files with database-identical row
+  counts; the pre-existing dated release files were deliberately not overwritten.
 - Deterministic 10% work uses `sample10_section_ids` and rule
   `md5-prefix64-mod10-v1`; join this membership table at every stage. Do not reintroduce
   independent `hash()`/Bernoulli predicates or multiply distinct institution/ISBN domains by ten.
@@ -70,11 +76,13 @@ A DuckDB pipeline (`duckdb/commodore.duckdb`, ~71 GB) that joins course-catalog 
   campus IA inputs are not present locally; do not invent schemas or substitute old snapshots.
 - The expected current material-cost baseline is **12,806,060** canonical Use rows. This is a
   refresh baseline, not evidence that Spring 2026 or `cmm_discipline` has landed.
-- Current gitignored release artifacts were regenerated from the rebuilt database on 2026-08-27:
-  Fall 2025 Set A/B Parquets, the 698,578-row Master Section sample intersection, and the 2025-4
-  Master Section (1,509,634 rows), Master Institution (2,216), Master ISBN (335,157), and Material
-  Costs (2,754,111) CSVs.
-  Metabase config was synced afterward and the local service reports healthy. The #61 migration
+- Existing gitignored release artifacts date to 2026-08-27 and predate the #65 rebuild; regenerate
+  them from the current database before release rather than treating those files as validation
+  evidence. Their prior counts were the 698,578-row Master Section sample intersection and 2025-4
+  Master Section (1,509,634), Master Institution (2,216), Master ISBN (335,157), and Material Costs
+  (2,754,111).
+  Metabase config and schema were synced on 2026-08-29, the local service reports healthy, and
+  the lineage, bookstore-pair, and release-model cards execute successfully. The #61 migration
   now routes release-facing cards through canonical item/material-section models, labels raw/DQ
   exceptions explicitly, and binds both report cards directly to `master_section` dimensions.
 - The actionable current-data portion of #59 now has a complete 66-column Master Section release
@@ -151,9 +159,10 @@ counts/costs with `is_supply`/`supply_count` audit columns; classification spans
   decision**: confirm whether “owned cost” means the buy-priced subset and approve its release
   label before changing that contract.
 
-**Ownership principle (important):** `comprehensive_data` owns enriched/raw catalog rows and
-canonical Use flags; `section_enrollment` owns exact assigned enrollment; and `material_costs`
-owns the canonical Use item spine plus pricing enrichment. `master_section` is exactly the
+**Ownership principle (important):** `comprehensive_data` owns enriched/raw source-row data and
+row-level flags; `section_enrollment` owns exact assigned enrollment; `course_materials` owns the
+canonical processed item spine and audit/conflict evidence; and `material_costs`
+owns only pricing enrichment of canonical Use items. `master_section` is exactly the
 material-bearing section rollup, enriched from `section_enrollment`, with price/cost fields from
 `material_costs` via `section_cost`; downstream views project/filter these canonical tables. The
 complete 2024+ section population remains independently available in `section_enrollment`.
@@ -180,6 +189,9 @@ Single file: `.temp/run_one.sh <file.sql>` (envsubst + duckdb). `${CONFIG}` = `s
 The 6.98M-row material-bearing `master_section` rebuild was validated with
 `MEM_LIMIT=16GB NUM_THREADS=1`; its
 narrow staged TEMP aggregates peaked at about 17GB resident memory and avoid the prior 89.5GB OOM.
+The deterministic production #65 `2b_course_materials.sql` run completed in 51m32s at the same
+bound. It peaked at about 17GB resident memory and an observed 245GiB of DuckDB spill before merging the
+96,663,781-row canonical table; allow substantial local temp space for a full rebuild.
 
 **Writes to the DB require stopping Metabase** (it holds the file lock):
 ```bash
@@ -203,7 +215,10 @@ DB id = **2**. Questions = SQL + `-- name:`/`-- display:`/`-- description:` fron
 scripts/classify_supplies.sh          # -> output/fall2025_supply_isbns.parquet + prevalence/impact
 scripts/export_fall2025_subsets.sh    # -> output/fall2025_set{A,B}_*.parquet
 scripts/export_cmm_masters.sh 2025-4  # -> four dated Master Section/Institution/ISBN/Material Costs CSVs
+scripts/export_course_materials.sh 20250828 2025-4 # -> five dated canonical Course Materials CSVs
 ```
+
+The Course Materials exporter stages all five outputs and refuses to overwrite existing files.
 
 ## Gotchas (bite people)
 
@@ -223,6 +238,9 @@ scripts/export_cmm_masters.sh 2025-4  # -> four dated Master Section/Institution
   variant counts/conflict signals remain available for DQ. Pricing duplicates collapse at the
   documented historical pricing key, with rental-term multiplicity retained in raw history.
   Pricing tables are source-owned; do not write catalog classifications onto them.
+- `scripts/sql/exports/41_material_costs_reconciliation.sql` is the raw→canonical→cost audit;
+  its detailed pricing-match limitation is documented only in the issue #21 section of
+  `CMM-ETL.md`.
 - A heavy `SELECT *` on an **un-materialized** view once crashed the box — bound memory on big scans.
 
 ## Pointers
