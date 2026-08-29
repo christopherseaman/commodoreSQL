@@ -1,7 +1,6 @@
--- Build section-level filter based on catalog book_status
--- Sections with any Required rows: include only Required materials
--- Sections without Required rows: include only NULL-status materials
--- Only periods from 2024 onward
+-- Build the section-level catalog status used by downstream required inference.
+-- Sections with any required book use required materials; sections without one
+-- use NULL-status materials. The downstream catalog stage applies the period scope.
 
 ${CONFIG}
 
@@ -31,26 +30,6 @@ SELECT section_id, has_required FROM section_book_status_calc;
 
 CREATE INDEX idx_sbs_section ON section_book_status (section_id);
 
--- Add is_required_inferred to pricing_historical
--- (comprehensive_data gets is_required_inferred in 2_oer_classification.sql where it is recreated)
--- Idempotent: ADD COLUMN IF NOT EXISTS (not DROP+ADD — DuckDB refuses to DROP a column
--- on a table that has dependents), then reset every row to FALSE so the conditional
--- UPDATE below is a clean re-derivation that never retains a stale TRUE from a prior
--- has_required definition.
-ALTER TABLE pricing_historical ADD COLUMN IF NOT EXISTS is_required_inferred BOOLEAN DEFAULT FALSE;
-UPDATE pricing_historical SET is_required_inferred = FALSE;
-
-UPDATE pricing_historical p
-SET is_required_inferred = TRUE
-FROM section_book_status s
-WHERE p.section_id = s.section_id
-  AND p.period_date >= '2024-01-01'
-  AND (
-    (s.has_required = TRUE  AND p.book_status = 'required')
-    OR
-    (s.has_required = FALSE AND p.book_status IS NULL)
-  );
-
 COMMIT;
 
 -- Summary statistics
@@ -71,9 +50,6 @@ SELECT 'has_required supply-contamination corrected (#40)' AS metric,
 FROM section_book_status_calc;
 
 DROP TABLE IF EXISTS section_book_status_calc;
-
-SELECT 'pricing_historical is_required_inferred' AS table_name, is_required_inferred, COUNT(*)::VARCHAR AS row_count
-FROM pricing_historical GROUP BY is_required_inferred;
 
 -- DQ: section_book_status should cover every catalog section_id (built via GROUP BY catalog).
 -- Nonzero diff would indicate a code bug.

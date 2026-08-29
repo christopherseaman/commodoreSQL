@@ -1,14 +1,10 @@
 -- Wide pricing: one row per (section_id, isbn13).
--- 18 price columns (option × condition × format) plus required/is_required_inferred flags,
--- OER/IA classification, and fact aggregations: format_count, price_min/max/avg, rental_days_min/max.
+-- Source-owned descriptive fields, the literal required flag, 18 price columns
+-- (option × condition × format), and pricing fact aggregations.
 --
--- pricing_wide          : ALL priced materials (no is_required_inferred filter), materialized as a
---                         TABLE so downstream views (master_section cost columns) join it cheaply.
--- pricing_wide_filtered : the required, in-scope subset (is_required_inferred), as a VIEW on the base.
---
--- is_required_inferred is taken per (section_id, isbn13) via BOOL_OR. ~5k keys (0.08%) carry mixed
--- per-row is_required_inferred (book_status varies within the material); BOOL_OR treats the material as
--- in-scope if any of its rows qualify.
+-- pricing_wide is materialized as a TABLE so downstream views can join it cheaply.
+-- The legacy pricing_wide_filtered view is dropped and is not recreated: analytical
+-- inference and OER/IA classification remain owned by the catalog model.
 --
 -- Note on rentals: `book_option = 'rental'` is the only case with multiple price points per
 -- (option × condition × format), since `rental_days` (~95 distinct values) varies by term.
@@ -23,34 +19,11 @@ DROP TABLE IF EXISTS pricing_wide;
 DROP VIEW  IF EXISTS pricing_wide;
 
 CREATE TABLE pricing_wide AS
-WITH inst AS (
-    -- Institution enrichment mirror (same upstream source as master_section:
-    -- comprehensive_data), per unit_id since institution attrs are unit-grain. Pulls from
-    -- the upstream merge, NOT master_section, which is built downstream of pricing_wide.
-    SELECT
-        unit_id,
-        ANY_VALUE(state)                    AS state,
-        ANY_VALUE(control)                  AS control,
-        ANY_VALUE(level)                    AS level,
-        ANY_VALUE(size)                     AS size,
-        ANY_VALUE(sector)                   AS sector,
-        ANY_VALUE(institution_name)         AS institution_name,
-        ANY_VALUE(institution_type)         AS institution_type,
-        ANY_VALUE(enrollment_2024)          AS enrollment_2024,
-        ANY_VALUE(distance_enrollment_2024) AS distance_enrollment_2024
-    FROM comprehensive_data
-    GROUP BY unit_id
-),
-agg AS (
 SELECT
     section_id,
     isbn13,
     MAX(unit_id)::BIGINT    AS unit_id,
     BOOL_OR(required)       AS required,
-    BOOL_OR(is_required_inferred) AS is_required_inferred,
-    -- is_oer / is_ia stored on pricing_historical via 2b_pricing_oer_ia.sql
-    BOOL_OR(is_oer) AS is_oer,
-    BOOL_OR(is_ia)  AS is_ia,
     -- Section/ISBN-level descriptive
     MAX(institute) AS institute,
     MAX(bookstore_url) AS bookstore_url,
@@ -103,22 +76,10 @@ SELECT
 -- price >= 9999 is treated as "no price" (#27). Adjust the threshold if a real
 -- ceiling above that is confirmed.
 FROM (SELECT * REPLACE (CASE WHEN price < 9999 THEN price END AS price) FROM pricing_historical)
-GROUP BY section_id, isbn13
-)
-SELECT
-    agg.*,
-    inst.state, inst.control, inst.level, inst.size, inst.sector,
-    inst.institution_name, inst.institution_type, inst.enrollment_2024, inst.distance_enrollment_2024
-FROM agg
-LEFT JOIN inst ON agg.unit_id = inst.unit_id;
-
-CREATE VIEW pricing_wide_filtered AS
-SELECT * FROM pricing_wide WHERE is_required_inferred;
+GROUP BY section_id, isbn13;
 
 -- Summary statistics
 SELECT 'Wide pricing rows (all)' AS metric, COUNT(*)::VARCHAR AS value FROM pricing_wide
-UNION ALL
-SELECT 'Wide pricing rows (filtered)', COUNT(*)::VARCHAR FROM pricing_wide_filtered
 UNION ALL
 SELECT 'Unique section_ids', COUNT(DISTINCT section_id)::VARCHAR FROM pricing_wide
 UNION ALL

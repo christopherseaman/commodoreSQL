@@ -1,6 +1,6 @@
 -- name: DQ — Rental Row-Shape Distribution per (Section × Item)
 -- display: table
--- description: Distinct (physical, digital, total) row-count shapes across (section, isbn) pairs in is_required_inferred=TRUE data, with how many pairs share each shape. Reveals the vendor offering pattern (e.g., 325 pairs share physical=2 / digital=13).
+-- description: Distinct (physical, digital, total) raw vendor rental row-count shapes across all (section, isbn) pairs, with how many pairs share each shape. No catalog-derived inferred-required or canonical-Use filter is applied.
 
 WITH counts_per_pair AS (
     SELECT section_id, isbn13,
@@ -8,7 +8,7 @@ WITH counts_per_pair AS (
         COUNT(*) FILTER (WHERE book_format = 'digital')  AS digital,
         COUNT(*) AS total
     FROM pricing_historical
-    WHERE book_option = 'rental' AND is_required_inferred = TRUE
+    WHERE book_option = 'rental'
     GROUP BY section_id, isbn13
 )
 SELECT physical, digital, total, COUNT(*) AS pairs

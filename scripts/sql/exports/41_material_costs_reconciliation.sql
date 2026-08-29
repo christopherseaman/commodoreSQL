@@ -1,11 +1,9 @@
 -- Exact reconciliation for the canonical Material Costs release model.
 --
--- The overall row currently reports 12,806,060 material rows: 7,476,130 with
--- pricing-row matches and 5,329,930 without. Three matched rows also have NULL
--- price_min. These observed counts are documented
--- here, not hardcoded as pass/fail logic. Every current term must have identical
--- source/material key sets, unique non-NULL material keys, and complete
--- Master Section coverage. Bare SELECT by export convention.
+-- Current exact-match evidence and alternatives are centralized in the CMM-ETL.md
+-- issue #21 limitation. This query keeps the evidence dynamic: every current term
+-- must have identical source/material key sets, unique non-NULL material keys, and
+-- complete Master Section coverage. Bare SELECT by export convention.
 WITH source_keys AS MATERIALIZED (
     SELECT
         period_sortable,

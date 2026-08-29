@@ -20,6 +20,15 @@ A DuckDB pipeline (`duckdb/commodore.duckdb`, ~71 GB) that joins course-catalog 
 
 - Source communications and extracted XLSX/DOCX/image content are under `comms/`; the
   release-facing pipeline contract is `CMM-ETL.md`.
+- **#69 pricing ownership cleanup:** `pricing_historical` remains an indexed, deduplicated
+  source-owned snapshot after import, `1b_section_filter.sql` builds only catalog
+  `section_book_status`, and `pricing_wide` contains only pricing source/provenance and price
+  transformations. Required inference, OER/IA, and IPEDS enrichment stay catalog-owned; the old
+  pricing-enrichment step and required-only pricing view are gone. `2d_data_quality.sql`
+  performs exact cross-source comparisons without mutating pricing. `material_costs` keeps the
+  catalog Use spine and current exact section×ISBN LEFT enrichment. Matching evidence and any
+  future join-key design are centralized in the
+  [issue #21 limitation](CMM-ETL.md#current-limitation--pricing-to-catalog-section-matching-issue-21).
 - **#64 lineage correction:** `SCHEMA.md` now separates exact `run_sql.sh` execution order from
   data-dependency lineage, carries the current automatic and standalone export layer through to
   concrete files, and explicitly labels views without file exporters. `CMM-ETL.md` owns the linked
@@ -59,10 +68,8 @@ A DuckDB pipeline (`duckdb/commodore.duckdb`, ~71 GB) that joins course-catalog 
 - The current local source/DB ends at `2025-4`. Spring 2026 catalog/pricing, `cmm_discipline`,
   updated mailing history, 25 IPEDS IDs/sample pricing, updated IPEDS, external pricing, and
   campus IA inputs are not present locally; do not invent schemas or substitute old snapshots.
-- The expected current material-cost baseline is **12,806,060** canonical Use rows:
-  **7,476,130** have a pricing-row match and **5,329,930** do not; **5,329,933** have
-  NULL `price_min` because three matched rows also lack a valid price. This is a refresh
-  baseline, not evidence that Spring 2026 or `cmm_discipline` has landed.
+- The expected current material-cost baseline is **12,806,060** canonical Use rows. This is a
+  refresh baseline, not evidence that Spring 2026 or `cmm_discipline` has landed.
 - Current gitignored release artifacts were regenerated from the rebuilt database on 2026-08-27:
   Fall 2025 Set A/B Parquets, the 698,578-row Master Section sample intersection, and the 2025-4
   Master Section (1,509,634 rows), Master Institution (2,216), Master ISBN (335,157), and Material
@@ -126,12 +133,9 @@ counts/costs with `is_supply`/`supply_count` audit columns; classification spans
 
 ### Done in the latest pass (#34 rename + #41 audit)
 
-- **#34 DONE** — renamed `filter_include` → `is_required_inferred` model-wide (6 pipeline SQL, 18
-  Metabase questions, 2 dashboards, docs; word-boundary swap, stems preserved). DB: `ALTER RENAME
-  COLUMN` on `pricing_historical`/`pricing_wide` (drop/recreate the 3 pricing indexes + the
-  `pricing_wide_filtered` view — DuckDB blocks structural ALTER while indexes exist);
-  `comprehensive_data` renamed via its `2_` rebuild. Semantics-preserving; `260529-DECISIONS.md` left
-  on the old name (frozen record).
+- **#34 DONE** — renamed `filter_include` → `is_required_inferred` across the then-current model.
+  The later #69 ownership cleanup removed that inferred catalog field from both pricing tables;
+  it remains on `comprehensive_data` and downstream canonical material models.
 - **#41 RESOLVED** — audit: ~90% of pseudo-SKU required rows are **legitimate** access codes
   (Cengage/MyLab) — kept. Two precision-verified gaps folded into the classifier via
   `supply_keywords.tsv`: `eyewear` (science_lab) + 12 explicit "no material required" phrases
@@ -218,6 +222,7 @@ scripts/export_cmm_masters.sh 2025-4  # -> four dated Master Section/Institution
 - Catalog duplicates collapse at `(period_sortable, section_id, isbn13)` for `material_costs`;
   variant counts/conflict signals remain available for DQ. Pricing duplicates collapse at the
   documented historical pricing key, with rental-term multiplicity retained in raw history.
+  Pricing tables are source-owned; do not write catalog classifications onto them.
 - A heavy `SELECT *` on an **un-materialized** view once crashed the box — bound memory on big scans.
 
 ## Pointers

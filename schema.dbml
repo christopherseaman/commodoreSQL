@@ -131,9 +131,7 @@ Table pricing_historical {
   publisher varchar
   edition varchar
   book_status varchar [note: 'lowercase: required, recommended, option, NULL']
-  required boolean [note: 'TRUE if book_status = "required"']
-  is_oer boolean [note: 'BOOL_OR(is_oer) from comprehensive_data join on (section_id, isbn13); added by 2b_pricing_oer_ia']
-  is_ia boolean [note: 'BOOL_OR(is_ia) from comprehensive_data join on (section_id, isbn13); added by 2b_pricing_oer_ia']
+  required boolean [note: 'source-derived during import: TRUE if book_status = "required"']
   book_option varchar [note: 'buy, rental']
   book_condition varchar [note: 'new, used, NULL']
   book_format varchar [note: 'physical, digital, NULL']
@@ -144,7 +142,6 @@ Table pricing_historical {
   section_id varchar [note: 'unit_id::dept_code::course_code::section_code::period_sortable']
   period_sortable varchar
   period_date date
-  is_required_inferred boolean [note: 'added by 1b_section_filter; TRUE = period>=2024 AND status matches has_required logic']
 
   indexes {
     section_id [name: 'idx_pricing_section']
@@ -152,7 +149,7 @@ Table pricing_historical {
     period_sortable [name: 'idx_pricing_period']
   }
 
-  Note: '~30M rows. Source: Bookprices CSV. Natural grain: (section_id, isbn13, book_option, book_condition, book_format, rental_days). Some residual source-data dupes; pricing_wide aggregations tolerate them.'
+  Note: '~30M rows. Source-owned Bookprices snapshot after import/dedupe. Latest pricing_date is retained at (section_id, isbn13, book_option, book_condition, book_format, rental_days), instructor names are aggregated, and indexes remain on section_id, isbn13, and period_sortable. Catalog classification is never written back.'
 }
 
 // ---------------------------------------------------------------------------
@@ -181,7 +178,7 @@ Table section_book_status {
     section_id [name: 'idx_sbs_section']
   }
 
-  Note: 'One row per section_id. Drives is_required_inferred logic for pricing and comprehensive_data. has_required is supply-aware (#40); built in 1a_/1b_ after supply_isbn_classification.'
+  Note: 'One row per section_id. Drives catalog-side is_required_inferred logic in comprehensive_data only. has_required is supply-aware (#40); built in 1a_/1b_ after supply_isbn_classification.'
 }
 
 Table state_region {
@@ -195,11 +192,8 @@ Table state_region {
 Table pricing_wide {
   section_id varchar
   isbn13 varchar
-  unit_id bigint [note: 'MAX(unit_id) over the group (constant per section)']
-  required boolean [note: 'BOOL_OR(required) over the (section, isbn) group']
-  is_required_inferred boolean [note: 'BOOL_OR(is_required_inferred); TRUE = required + in-scope (period>=2024). pricing_wide_filtered is this subset.']
-  is_oer boolean [note: 'BOOL_OR(is_oer) over the group; sourced from pricing_historical.is_oer']
-  is_ia boolean [note: 'BOOL_OR(is_ia) over the group; sourced from pricing_historical.is_ia']
+  unit_id bigint [note: 'source provenance: MAX(unit_id) over the group (constant per source section)']
+  required boolean [note: 'BOOL_OR(source-derived required) over the (section, isbn) group']
   institute varchar
   bookstore_url varchar
   title varchar
@@ -234,22 +228,7 @@ Table pricing_wide {
   rental_days_max integer [note: 'longest rental term offered (~95 distinct values, summarized as range)']
   price_buy_min decimal [note: 'MIN buy-option price (owned; rentals excluded) — feeds owned cost']
   price_buy_max decimal [note: 'MAX buy-option price (owned; rentals excluded)']
-  // -- institution enrichment (ANY_VALUE per unit_id from comprehensive_data; mirrors master_section) --
-  state varchar
-  control varchar
-  level varchar
-  size varchar
-  sector varchar
-  institution_name varchar
-  institution_type varchar
-  enrollment_2024 integer
-  distance_enrollment_2024 integer
-
-  Note: 'TABLE (materialized). One row per (section_id × isbn13) over ALL pricing_historical (no filter). 18 price columns = option × condition × format. price_buy_min/max feed the "owned" cost columns. is_oer/is_ia and institution fields are reverse-enrichment retained temporarily for compatibility and raw pricing DQ; canonical catalog ownership is comprehensive_data → material_costs. pricing_wide_filtered is the is_required_inferred=TRUE subset.'
-}
-
-Table pricing_wide_filtered [note: 'view'] {
-  Note: 'View: SELECT * FROM pricing_wide WHERE is_required_inferred — the required, in-scope (period>=2024) subset. Preserves the prior pricing_wide semantics for downstream consumers. Same columns as pricing_wide.'
+  Note: 'TABLE (materialized). One row per (section_id × isbn13) over all source-owned pricing_historical rows. Retains source/provenance descriptors and derives 18 option × condition × format price cells plus price/availability aggregates. price_buy_min/max feed the "owned" cost columns. It contains no is_required_inferred, OER/IA, or IPEDS/catalog enrichment, and no required-only pricing view is created.'
 }
 
 Table comprehensive_data {
@@ -541,7 +520,7 @@ Table material_costs {
   price_buy_max decimal
   has_pricing_match boolean [note: 'TRUE when the LEFT pricing_wide join found a section/ISBN row; independent of whether that row has a valid price_min']
 
-  Note: 'Created by 3b_material_costs.sql. TABLE (materialized), one row per (period_sortable, section_id, isbn13) canonical Use item. Built from comprehensive_data and LEFT-enriched from pricing_wide, so items without usable prices remain. Catalog attributes are never sourced from reverse-enriched pricing fields. Expected current baseline: 12,806,060 rows; 7,476,130 pricing-row matches; 5,329,930 without a pricing-row match; 5,329,933 with NULL price_min.'
+  Note: 'Created by 3b_material_costs.sql. TABLE (materialized), one row per (period_sortable, section_id, isbn13) canonical Use item. Built from the catalog Use spine and LEFT-enriched from source-owned pricing_wide on the current exact section × ISBN join, so items without usable prices remain. Catalog attributes are never sourced from pricing. Expected current baseline: 12,806,060 rows. Detailed matching evidence and redesign proposals are centralized in CMM-ETL.md issue #21 limitation.'
 }
 
 Table section_cost {
@@ -836,9 +815,6 @@ Ref: comprehensive_data.section_id > section_book_status.section_id
 Ref: comprehensive_data.email > opt_out.email
 Ref: comprehensive_data.email > panel.email
 
-// pricing → section filter (section_id is PK in section_book_status)
-Ref: pricing_historical.section_id > section_book_status.section_id
-
 // mailing list chain (email is unique via DISTINCT ON)
 Ref: current_mailing.email > master_mailing.email
 Ref: current_mailing_ca.email > current_mailing.email
@@ -846,9 +822,6 @@ Ref: current_mailing_tx.email > current_mailing.email
 Ref: current_mailing_fl.email > current_mailing.email
 Ref: current_mailing_ny.email > current_mailing.email
 Ref: current_mailing_other.email > current_mailing.email
-
-// pricing view → section filter
-Ref: pricing_wide.section_id > section_book_status.section_id
 
 // canonical material-cost path (composite material keys are documented in table notes)
 // material_costs is built from comprehensive_data and LEFT-enriched by pricing_wide;
@@ -881,7 +854,6 @@ TableGroup import_derived {
   section_book_status
   state_region
   pricing_wide
-  pricing_wide_filtered
   comprehensive_data
   course_materials_post_2024
   course_materials_use
@@ -913,7 +885,8 @@ TableGroup eda_records {
 
 // ---------------------------------------------------------------------------
 // DATA QUALITY — populated by 2d_data_quality.sql; surface for BI dashboards.
-// Recreated each pipeline run (snapshot of latest state).
+// Recreated each pipeline run (snapshot of latest state). Exact pricing-to-catalog
+// comparisons happen here without mutating either source-owned pricing table.
 // ---------------------------------------------------------------------------
 
 Table __data_quality_metrics {
@@ -961,7 +934,7 @@ Table __data_quality_pricing_match_by_period {
   rows_matched bigint
   match_pct double
 
-  Note: 'Pricing rows that found a (section_id, isbn13) match in catalog, by period.'
+  Note: 'Non-mutating exact (section_id, isbn13) pricing-to-catalog comparison by period.'
 }
 
 Table __data_quality_top_unmatched_pricing_sections {
@@ -971,7 +944,7 @@ Table __data_quality_top_unmatched_pricing_sections {
   unmatched bigint
   unmatched_pct double
 
-  Note: 'Top 10 (unit_id, period) combos by unmatched pricing sections (is_required_inferred=FALSE only).'
+  Note: 'Top 10 (unit_id, period) combinations by unmatched source pricing sections under the exact comparison.'
 }
 
 Table __data_quality_format_count_distribution {

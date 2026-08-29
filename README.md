@@ -38,7 +38,7 @@ The runner loads `scripts/dot.env`, templates each `scripts/sql/*.sql` file (env
 
 | Stage | Flag to skip | What it does |
 |-------|--------------|--------------|
-| IMPORT | `NO_IMPORT` | Load CSVs; derive composite keys; build `comprehensive_data`; classify OER/IA; pivot pricing |
+| IMPORT | `NO_IMPORT` | Load CSVs; derive composite keys; build `comprehensive_data`; classify catalog OER/IA; build source-owned pricing history/wide tables and non-mutating DQ comparisons |
 | EDA | `NO_EDA` | Build mailing lists, exact `section_enrollment`, canonical `material_costs`, section/course records, and materialize `scripts/sql/models/*.sql` rollups |
 | EXPORT | `NO_EXPORT` | Auto-discover `scripts/sql/exports/*.sql`, wrap each in a temp table, `COPY` to CSV in `output/` |
 
@@ -68,9 +68,12 @@ and is re-runnable.
   rollup of canonical `material_costs` items, with section dimensions and assigned enrollment from
   `section_enrollment`; all price/cost fields roll through `section_cost`. The independent
   `section_enrollment` table retains the complete valid section population.
-- **`pricing_wide`** (all priced materials) / **`pricing_wide_filtered`** (required subset) —
-  reverse-enrichment compatibility views/tables with 18 price columns pivoted per
-  `(section_id, isbn13)`. They remain useful for raw pricing DQ, not canonical item ownership.
+- **`pricing_historical`** / **`pricing_wide`** — indexed, deduplicated source pricing and its
+  one-row-per-`(section_id, isbn13)` provenance/price pivot. Neither table receives catalog
+  required-inference, OER/IA, or IPEDS fields, and there is no required-only pricing view.
+  `2d_data_quality.sql` compares pricing to catalog without mutating either table. Exact-match
+  evidence and future proposals are centralized in the
+  [issue #21 limitation](CMM-ETL.md#current-limitation--pricing-to-catalog-section-matching-issue-21).
 - **`master_section`** / **`master_institution`** / **`master_isbn`** (materialized TABLEs) —
   the three per-term CMM release masters. `material_costs` is exported alongside them;
   `master_isbn` consumes it. Institution and strict term×ISBN rollups live in
@@ -91,10 +94,9 @@ Each selected term emits `master_section`, `master_institution`, `master_isbn`, 
 population: Master Section and Institution contain sections represented by `material_costs`,
 including sections whose Use items have no pricing match or valid price. Complete catalog and
 enrollment populations remain available upstream in `comprehensive_data` and `section_enrollment`.
-The material-cost baseline is expected to contain **12,806,060** Use rows: **7,476,130**
-have a pricing-row match and **5,329,930** do not. **5,329,933** rows have no valid
-`price_min`, including three matched pricing rows. Per-term files are direct filters of the
-materialized masters; full Material Costs export is `scripts/sql/exports/40_material_costs_by_term.sql`.
+The material-cost baseline is expected to contain **12,806,060** Use rows. Per-term files are
+direct filters of the materialized masters; full Material Costs export is
+`scripts/sql/exports/40_material_costs_by_term.sql`.
 Full exports retain `period_sortable` and do not multiply rows across terms. Source/input readiness remains tracked in #51; Spring 2026 and
 `cmm_discipline` are external pending inputs, not landed local tables.
 Exact cross-model and key-set checks are exported by `38_cmm_release_reconciliation.sql` and

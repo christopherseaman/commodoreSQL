@@ -32,13 +32,12 @@ Run via `scripts/run_sql.sh`. Three stages, each skippable by flag
 |----------|---------|---------|
 | `0_setup.sql` | `course_catalog_*`, `ipeds_data`, `opt_out`, `panel`, provisional `comprehensive_data`; writes `output/email_issues.tsv` | Load CSVs, normalize emails, derive composite keys (`period_date` included) |
 | `0b_state_region.sql` | `state_region` | State → region lookup |
-| `1_bookprices_import.sql` | `pricing_historical` | Load bookstore pricing; derive `section_id`/period keys; set `required` from Book Status |
+| `1_bookprices_import.sql` | `pricing_historical` | Load and dedupe source-owned bookstore pricing; derive provenance keys/source `required`; create pricing indexes |
 | `1a_supply_classification.sql` | `supply_isbn_classification` | ISBN-level supply flag from title keywords (#36); built here so `has_required` (1b_) can be supply-aware (#40) |
-| `1b_section_filter.sql` | `section_book_status` | One row per section: supply-aware `has_required` flag (#40); sets `is_required_inferred` on pricing |
+| `1b_section_filter.sql` | `section_book_status` | One row per section: supply-aware `has_required` flag (#40); pricing remains untouched |
 | `2_oer_classification.sql` | `format_type_classification`, (re)builds `comprehensive_data`, four `course_materials_*` views | OER/IA lookup, master join, row flags, and canonical post-2024 Use/NoUse/Canada population (#58) |
-| `2b_pricing_oer_ia.sql` | (updates `pricing_historical`) | Writes `is_oer`/`is_ia` onto pricing per `(section_id, ISBN13)` via BOOL_OR |
-| `2c_pricing_wide.sql` | **`pricing_wide`** (TABLE), `pricing_wide_filtered` (view) | Pivot pricing into 18 price cols + `has_buy`/`has_rent` + fact aggs + institution enrichment |
-| `2d_data_quality.sql` | `__data_quality_*` tables | Materialized DQ snapshots |
+| `2c_pricing_wide.sql` | **`pricing_wide`** (TABLE) | Source-owned pivot with provenance, 18 price cols, `has_buy`/`has_rent`, and fact aggregates; no catalog/IPEDS enrichment |
+| `2d_data_quality.sql` | `__data_quality_*` tables | Materialized, non-mutating DQ snapshots including exact pricing-to-catalog comparisons |
 
 ### EDA stage
 
@@ -65,8 +64,7 @@ those tables are materialized. They are split to keep the two high-cardinality s
 Per-term exports are direct `period_sortable` filters of Material Costs and the three release
 masters; full exports retain `period_sortable` and combine all available terms without changing
 the item grain. The material-cost baseline expected for the refreshed snapshot is 12,806,060
-rows: 7,476,130 have a pricing-row match and 5,329,930 do not; 5,329,933 have
-NULL `price_min` because three matched pricing rows lack a valid price.
+rows.
 
 ## Key tables
 
@@ -75,11 +73,13 @@ NULL `price_min` because three matched pricing rows lack a valid price.
   `is_course_material_use` / `is_course_material_no_use` partition (#58). The rerunnable
   `course_materials_post_2024`, `course_materials_use`, `course_materials_no_use`, and
   `course_materials_canada` views expose those populations without reimplementing predicates.
-- **`pricing_wide`** — one row per `(section_id, isbn13)`: 18 price columns (option × condition ×
-  format), `has_buy`/`has_rent`, `price_min/max`, `rental_days_min/max`, `format_count`, plus
-  institution enrichment. `pricing_wide_filtered` = the `is_required_inferred` subset (view).
-  Reverse-enrichment fields are retained temporarily for compatibility and raw pricing DQ; they
-  do not own catalog fields in the canonical material path.
+- **`pricing_historical`** — indexed, deduplicated source-owned pricing at the source logical
+  grain; no catalog classification is written back after import.
+- **`pricing_wide`** — one row per `(section_id, isbn13)`: source/provenance fields, 18 price
+  columns (option × condition × format), `has_buy`/`has_rent`, `price_min/max`,
+  `rental_days_min/max`, and `format_count`. It has no required-inference, OER/IA, or IPEDS fields
+  and no required-only companion view. Exact-join evidence and future proposals live only in the
+  [issue #21 limitation](CMM-ETL.md#current-limitation--pricing-to-catalog-section-matching-issue-21).
 - **`section_enrollment`** — exact one row per `(period_sortable, section_id)` with authoritative
   raw enrollment/flags, section-scope dimensions, assigned enrollment, and `enrollment_source`.
   `master_section` and `material_costs` consume it so raw inputs, flags, and assignment agree.
@@ -88,8 +88,7 @@ NULL `price_min` because three matched pricing rows lack a valid price.
   format, FormatType, status, and flags from `comprehensive_data`; a LEFT join to `pricing_wide`
   contributes bookstore URL, all 18 price cells, `format_count`, price bounds, rental range,
   and buy bounds. Term/ISBN compatibility metadata needed by `master_isbn` is also persisted here,
-  so that rollup does not return to raw catalog rows. Expected current baseline: 12,806,060 rows;
-  7,476,130 pricing-row matches; 5,329,930 without a match; 5,329,933 with NULL `price_min`.
+  so that rollup does not return to raw catalog rows. Expected current baseline: 12,806,060 rows.
 - **`section_cost`** — per-material-bearing-section required/optional cost aggregates consumed
   from `material_costs`. A section can have Use materials but no valid price, producing NULL cost
   bounds. It is not the approved item-level input.
@@ -143,19 +142,18 @@ flowchart TD
         i10 --> i1a["04 · 1a_supply_classification.sql"]
         i1a --> i1b["05 · 1b_section_filter.sql"]
         i1b --> i20["06 · 2_oer_classification.sql"]
-        i20 --> i2b["07 · 2b_pricing_oer_ia.sql"]
-        i2b --> i2c["08 · 2c_pricing_wide.sql"]
-        i2c --> i2d["09 · 2d_data_quality.sql"]
+        i20 --> i2c["07 · 2c_pricing_wide.sql"]
+        i2c --> i2d["08 · 2d_data_quality.sql"]
     end
 
     i2d --> e30
     i2d -. "NO_EDA" .-> x01
     subgraph eda["EDA + models — unless NO_EDA"]
-        e30["10 · 3_mailing_lists.sql"] --> e3b["11 · 3b_material_costs.sql"]
-        e3b --> e40["12 · 4_merged_records.sql"]
-        e40 --> m01["13 · models/master_institution.sql"]
-        m01 --> m02["14 · models/master_isbn.sql"]
-        m02 --> m03["15 · models/sample10_section_ids.sql"]
+        e30["09 · 3_mailing_lists.sql"] --> e3b["10 · 3b_material_costs.sql"]
+        e3b --> e40["11 · 4_merged_records.sql"]
+        e40 --> m01["12 · models/master_institution.sql"]
+        m01 --> m02["13 · models/master_isbn.sql"]
+        m02 --> m03["14 · models/sample10_section_ids.sql"]
     end
 
     m03 --> x01
@@ -216,8 +214,6 @@ flowchart TD
     catalog --> supply
     catalog --> sbs["section_book_status<br/>one section; supply-aware has_required"]
     supply --> sbs
-    sbs -->|"write inferred-required flag"| pricing
-
     catalog --> cd["comprehensive_data<br/>catalog/adoption-row grain"]
     ipeds --> cd
     optout --> cd
@@ -231,13 +227,10 @@ flowchart TD
     cd --> nouse["course_materials_no_use<br/>exact post-2024 complement of Use"]
     cd --> canada["course_materials_canada<br/>post-2024 AND state = CAN"]
     canada -. "subset" .-> nouse
-    cd -->|"BOOL_OR OER/IA by section × ISBN"| pricing
     pricing --> pw["pricing_wide<br/>one section × ISBN; 18 price cells"]
-    cd -->|"unit-level compatibility metadata"| pw
-    pw --> pwf["pricing_wide_filtered<br/>WHERE is_required_inferred;<br/>not canonical Use"]
     cd --> dq["__data_quality_* snapshot tables"]
     pricing_csv --> dq
-    pricing --> dq
+    pricing -->|"exact, non-mutating comparison"| dq
     pw --> dq
 ```
 
@@ -371,8 +364,10 @@ The whiteboard's Spring 2026 catalog/pricing, updated IPEDS, external pricing, d
 mailing-history, campus IA, and shared 25-institution inputs have no active SQL nodes yet. They are
 owned by issues #51, #52, #56, #57, and #60 and stay outside the implemented diagrams until their
 files, grains, keys, and semantics are validated. The whiteboard note “Keep History” is likewise not
-an implemented retention layer: `1_bookprices_import.sql` drops/recreates `pricing_historical` and
-keeps only the latest row at each logical pricing key within the configured input snapshot.
+an implemented cross-snapshot retention layer: `1_bookprices_import.sql` drops/recreates the
+source-owned `pricing_historical`, keeps only the latest row at each logical pricing key within the
+configured input snapshot, and builds its indexes. Pricing-to-catalog matching remains an exact,
+non-mutating DQ comparison.
 
 ## Key concepts
 
@@ -386,7 +381,8 @@ keeps only the latest row at each logical pricing key within the configured inpu
 ### is_required_inferred (the "required code", issue #1)
 Inferred is_required. TRUE when `period_date >= 2024-01-01` AND
 `(has_required=TRUE AND book_status='required')` OR `(has_required=FALSE AND book_status IS NULL)`.
-Applied to `comprehensive_data` and `pricing_historical`. `master_section.required_count` =
+Applied to catalog-owned `comprehensive_data`, not to either pricing table.
+`master_section.required_count` =
 the count of canonical `material_costs` items where `is_required_inferred` is true; membership in
 that table already guarantees the Use predicate. (Renamed from `filter_include`, #34.)
 
@@ -451,16 +447,13 @@ denominator, and NULL meaning, see [`MASTER-SECTION-DICTIONARY.md`](MASTER-SECTI
 predicate. Catalog duplicates at that key collapse before enrichment; source disagreement is
 retained as explicit variant/conflict signals (for example title, author, publisher, format, or
 FormatType variant counts) rather than silently choosing a pricing value. A LEFT join to the
-one-row-per-key `pricing_wide` table preserves all Use items, including the expected 5,329,930
-without a pricing-row match. Three additional matched rows have NULL `price_min`.
+one-row-per-key `pricing_wide` table preserves every Use item.
 `section_cost` aggregates this table; `master_section` is its one-row-per-section rollup; and
-`master_isbn` rolls it up by term and ISBN. `pricing_historical` and reverse-enriched
-`pricing_wide` fields remain available
-for compatibility and pricing-only DQ, but are not canonical ownership for catalog attributes.
+`master_isbn` rolls it up by term and ISBN. Source-owned `pricing_historical` and `pricing_wide`
+remain available for pricing-only analysis and DQ, but never own catalog attributes.
 
-The current expected baseline is 12,806,060 material-cost rows: 7,476,130 rows match a pricing
-row and 5,329,930 do not; 5,329,933 have NULL `price_min`. These are expected baseline checks for the refreshed input snapshot,
-not a claim that Spring 2026 or any external source has landed locally.
+The current expected baseline is 12,806,060 material-cost rows. This baseline is not a claim that
+Spring 2026 or any external source has landed locally.
 
 ### Enrollment fill (issue #32)
 `section_enrollment` owns the persisted per-section enrollment, filling missing values by a

@@ -41,7 +41,6 @@ IMPORT_SQL=(
     "1a_supply_classification.sql"
     "1b_section_filter.sql"
     "2_oer_classification.sql"
-    "2b_pricing_oer_ia.sql"
     "2c_pricing_wide.sql"
     "2d_data_quality.sql"
 )

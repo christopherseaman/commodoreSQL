@@ -1,6 +1,6 @@
--- name: DQ — Rental Period Length Distribution (Digital, is_required_inferred=TRUE)
+-- name: DQ — Raw Digital Rental Period Length Distribution
 -- display: bar
--- description: Histogram of rental_days values for digital rentals in is_required_inferred=TRUE data. Physical rentals are excluded because they always have NULL rental_days (semester-implicit).
+-- description: Histogram of non-NULL rental_days values across all raw vendor digital rental rows. No catalog-derived inferred-required or canonical-Use filter is applied; physical rentals are outside this card.
 
 SELECT
     rental_days,
@@ -8,7 +8,6 @@ SELECT
 FROM pricing_historical
 WHERE book_option = 'rental'
   AND book_format = 'digital'
-  AND is_required_inferred = TRUE
   AND rental_days IS NOT NULL
 GROUP BY rental_days
 ORDER BY rental_days
