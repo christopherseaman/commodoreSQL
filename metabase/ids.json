@@ -76,5 +76,6 @@
   "62_master_isbn_title_cluster_candidates": 168,
   "63_no_price_choice_by_class": 169,
   "model_master_institution": 170,
-  "model_master_isbn": 171
+  "model_master_isbn": 171,
+  "64_fall2025_unitid_bookstore_url_mapping": 172
 }

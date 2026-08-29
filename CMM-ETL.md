@@ -356,7 +356,7 @@ The grouped inventory below covers every tracked Metabase question, model, and d
 | Canonical material-row questions | **02, 04–05, 31–32, 36, 48, 59–60, 63** | Use `material_costs` or the exact `course_materials_use` predicate at an explicitly named raw grain; required-status cuts are subsets of Use, not replacement population rules. |
 | Canonical material-section rollups | **24–26, 30, 33–35, 37–45, 47, 54–56** | Read one-row-per-material-section denominators and canonical measures from `master_section`, `section_cost`, or their rollups. Questions 30 and 40 filter through distinct `material_costs` section keys only when the material dashboard filter is supplied. |
 | Intentional raw catalog/listing/DQ questions | **01, 03, 13–18, 23, 46, 50–52, 57–58, 61–62** | May retain NoUse, Canada, supplies, and/or missing ISBNs as each diagnostic requires; descriptions must state the raw scope and that it is not a release denominator. |
-| Intentional pricing-only DQ/lineage questions | **06–12, 19–22, 27, 53** | May use broad `pricing_historical`/`pricing_wide` rows to inspect dedupe, rental terms, matching, pivots, and outliers; these are not material or section denominators. |
+| Intentional pricing-only DQ/lineage/report questions | **06–12, 19–22, 27, 53, 64** | May use broad `pricing_historical`/`pricing_wide` rows to inspect dedupe, rental terms, matching, pivots, outliers, and source-locator coverage; these are not material or section denominators. |
 | Models | `master_section`, `master_institution`, `master_isbn`, `master_section_us_intro_fall2025` | Master Section and Institution are material-bearing; Master ISBN is canonical Use-only; the BMG model is the documented Fall-2025 required-bearing subset. |
 | Canonical material dashboards | `bmg_cost_hypothesis`, `bmg_enrollment_dq`, `bmg_overview`, `course_materials_cost`, `data_coverage`, `oer_ia_adoption`, `oer_ia_status_filtered`, `report` | Compose the canonical item and material-section questions above; dashboard descriptions state any narrower analytical subset. |
 | Intentional DQ/lineage dashboards | `data_lineage`, `data_quality_catalog`, `data_quality_pricing`, `data_quality_pricing_filtered`, `filter_include_quality` | Present explicitly labeled raw, pricing-only, lineage, or required-inference diagnostics and do not define release populations. `data_lineage` is a selected school-level teaching path, not the complete execution/export map in `SCHEMA.md`. |
@@ -364,6 +364,63 @@ The grouped inventory below covers every tracked Metabase question, model, and d
 When an older question reconstructs a pre-#58 material predicate, migrate its presentation
 logic to this routing contract (#61); do not treat the legacy predicate as an alternative
 release definition.
+
+### CURRENT LIMITATION — pricing-to-catalog section matching
+
+The current executable contract is deliberately catalog-owned: `comprehensive_data` defines
+the canonical Use items, and `material_costs` retains one row per
+`(period_sortable, section_id, isbn13)` from that population. It only LEFT-enriches those rows
+from `pricing_wide` on exact `(section_id, isbn13)`. Raw pricing rows and reverse-enriched
+pricing fields do not add to or redefine the canonical material population.
+
+Fall 2025 matching evidence shows that the exact composite identifier is not a complete
+cross-source key. Of 1,396,140 distinct pricing section IDs, 316,159 have no exact catalog
+section-ID match. Of those, 45,911 reference a `UNITID` absent from the catalog snapshot,
+including 43,713 sections across 70 Canadian `UNITID`s. The remainder includes real
+identifier-shape differences: department-code case (`ECON` versus `Econ` at WashU), numeric
+course/section padding, department suffixes (`BIOL&` versus `BIOL` at Bellevue), a composite
+pricing **Section Code** (`009(1385)` versus catalog section `009` at UNT), and catalog
+**Section** values that instead match the separate pricing CRN (pricing section `E`, CRN
+`20541`, and catalog section `20541` at UTRGV). Blank pricing sections also become `UNKNOWN`
+where a catalog can use `all`. Lone Star is a broader representation mismatch: pricing fields
+such as department `11ENGL_ENGL` and course `ENGL1302` correspond to catalog department
+`ENGL` and course `1302`, while its section values use another source-specific scheme. The 946
+pricing IDs associated with multiple CRNs are a warning for crosswalk design; they do **not**
+by themselves prove that distinct catalog offerings were collapsed.
+
+At the Fall 2025 canonical-item grain, the current exact join matches 1,837,586 of
+2,754,111 items. A unit + term + ISBN existence test would match 2,408,002 and recover
+570,416 additional items, but directly joining at that broader key multiplies rows. Any such
+fallback therefore requires a defined, pre-aggregated pricing grain and ambiguity rules.
+
+Candidate alternatives for an **UPDATED pricing refresh** (none is implemented) are:
+
+- Keep exact matching first, then apply safe normalized identifiers and a validated
+  pricing-Section-Code/CRN-to-catalog-section crosswalk.
+- Build a source-aware price dimension at
+  `(unit_id, period_sortable, isbn13, bookstore_url, book_option, book_condition, book_format,
+  rental_days)`, with an explicit latest-snapshot policy, before joining to canonical items.
+- Use a conservative exact-first fallback only where the broader unit + term + ISBN mapping is
+  unambiguous; leave ambiguous cases unmatched.
+
+Every alternative must preserve raw identifiers, source/snapshot provenance, and match method,
+and must expose ambiguous and missing mappings as DQ results rather than silently choosing a
+section.
+
+For the next pricing refresh, validate all of the following before release:
+
+1. Record catalog and pricing filenames, snapshot dates, row counts, and term mappings.
+2. Recompute exact-match, missing-`UNITID`, Canada, normalization-pattern, and unmatched counts.
+3. Inspect institution-specific mappings, including case, zero-padding, suffix/concatenation,
+   CRN/Section-Code, `UNKNOWN`, and Lone Star patterns.
+4. Prove candidate crosswalk uniqueness at the catalog section-offering grain and separately
+   report one-to-many, many-to-one, and multi-CRN cases.
+5. Pre-aggregate any broader-key price dimension; verify its natural key, latest-snapshot rule,
+   rental-term retention, and absence of item-row multiplication.
+6. Reconcile exact, recovered, ambiguous, missing, and valid-price item counts to the canonical
+   Fall-term Use denominator, then rerun material, section, institution, ISBN, and export DQ.
+7. Preserve an exact-only comparison so any coverage and cost changes are attributable to the
+   selected match method rather than to a changed canonical material population.
 
 ## 7. Known pending Spring 2026 inputs and unresolved decisions
 
