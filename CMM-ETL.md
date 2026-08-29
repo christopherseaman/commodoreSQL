@@ -1,3 +1,9 @@
+---
+notion-id: 3cbd9fdd-1a1a-81d8-93ef-fd579a76812b
+notion-url: https://app.notion.com/p/CMM-ETL-Contract-3cbd9fdd1a1a81d893effd579a76812b
+notion-sync: push
+---
+
 # Course Material Monitor (CMM) ETL contract
 
 Status: canonical release-facing contract for the current CommodoreSQL pipeline. This

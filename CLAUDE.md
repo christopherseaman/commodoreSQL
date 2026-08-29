@@ -4,9 +4,18 @@
 
 - `SCHEMA.md` — current data model overview (tables, pipeline stages, lineage diagram)
 - `schema.dbml` — full column definitions, types, and relationships (load in dbdiagram.io)
+- `CMM-ETL.md` — canonical release-facing ETL contract and processing semantics
+- `MASTER-SECTION-DICTIONARY.md` — release-facing `master_section` column contract
+- `DASHBOARDS-REPORTS.md` — dashboard, report, and Metabase question inventory
 - `CLAUDE.md` (this file) — naming standards and conventions
 - `HANDOFF.md` — current work status, how to run things, gotchas (read first when picking up)
 - `README.md` — high-level project + pipeline overview
+
+Only the four explicitly tagged Notion documents (`SCHEMA.md`, `CMM-ETL.md`,
+`MASTER-SECTION-DICTIONARY.md`, and `DASHBOARDS-REPORTS.md`) are pushed by the
+documentation sync. `CMM-ETL.md` is a synced child under the Data Lineage
+Overview page, not a fourth Overview peer. Repo-only guidance, historical notes,
+and `comms/` source captures are not swept automatically.
 
 ## Naming standards
 

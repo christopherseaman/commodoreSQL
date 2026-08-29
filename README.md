@@ -10,8 +10,14 @@ mailing lists and analysis of course-materials cost and OER/Inclusive-Access ado
 > semantics in [`CMM-ETL.md`](CMM-ETL.md) · full column
 > definitions in [`schema.dbml`](schema.dbml) (load in dbdiagram.io) · Master Section release
 > columns in [`MASTER-SECTION-DICTIONARY.md`](MASTER-SECTION-DICTIONARY.md) · naming standards in
-> [`CLAUDE.md`](CLAUDE.md) · historical design decisions in
+> [`CLAUDE.md`](CLAUDE.md) · dashboard and report inventory in
+> [`DASHBOARDS-REPORTS.md`](DASHBOARDS-REPORTS.md) · historical design decisions in
 > [`260529-DECISIONS.md`](260529-DECISIONS.md).
+
+The explicit Notion documentation sync is read-only by default. Preview the four tagged
+documents with `python3 scripts/sync_notion_docs.py SCHEMA.md CMM-ETL.md MASTER-SECTION-DICTIONARY.md
+DASHBOARDS-REPORTS.md`; add `--apply` to push changes. Apply is non-transactional, so review
+the preview and treat each document update independently.
 
 ## Data sources
 

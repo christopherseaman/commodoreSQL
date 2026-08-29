@@ -1,3 +1,9 @@
+---
+notion-id: 3cbd9fdd-1a1a-8086-b499-daa92a739c9f
+notion-url: https://app.notion.com/p/sqrlly/Data-Lineage-3cbd9fdd1a1a8086b499daa92a739c9f
+notion-sync: push
+---
+
 # CommodoreSQL Database Schema
 
 DuckDB pipeline integrating course-catalog data (~103M rows) with institutional
@@ -134,6 +140,10 @@ semantics. Detailed selection rules, derived fields, denominators, and NULL mean
 [`CMM-ETL.md`](CMM-ETL.md#4-selection-inclusion-and-exclusion-rules),
 [`schema.dbml`](schema.dbml), and the
 [`Master Section dictionary`](MASTER-SECTION-DICTIONARY.md).
+
+The detailed ETL contract is also synced as this Notion child page:
+
+<page url="https://app.notion.com/p/CMM-ETL-Contract-3cbd9fdd1a1a81d893effd579a76812b">CMM ETL Contract</page>
 
 ### Exact `run_sql.sh` execution order
 
@@ -497,8 +507,10 @@ Sentinel prices ≥ 9999 are nulled (#27).
 
 ## Metabase
 
-Reporting is config-as-code: 61 SQL questions (frontmatter: `-- name:`/`-- display:`/
+Reporting is config-as-code: 62 SQL questions (frontmatter: `-- name:`/`-- display:`/
 `-- description:`) in `metabase/questions/`, dashboard JSON in `metabase/dashboards/`, IDs in
-`metabase/ids.json` (keyed by filename stem), synced via `metabase/sync.py` (DB id 2). The local
-image is built/launched by `metabase.sh`; it connects to `duckdb/commodore.duckdb` and holds a
-read lock (DB writes require `docker stop metabase` — see `HANDOFF.md`).
+`metabase/ids.json` (keyed by filename stem), synced via `metabase/sync.py` (DB id 2). The generated
+[`DASHBOARDS-REPORTS.md`](DASHBOARDS-REPORTS.md) inventory groups the dashboards conceptually and
+lists each dashboard card as a subsection, plus standalone cards and models. The local image is
+built/launched by `metabase.sh`; it connects to `duckdb/commodore.duckdb` and holds a read lock (DB
+writes require `docker stop metabase` — see `HANDOFF.md`).
