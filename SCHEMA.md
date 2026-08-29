@@ -141,6 +141,10 @@ semantics. Detailed selection rules, derived fields, denominators, and NULL mean
 [`schema.dbml`](schema.dbml), and the
 [`Master Section dictionary`](MASTER-SECTION-DICTIONARY.md).
 
+The detailed ETL contract is also synced as this Notion child page:
+
+<page url="https://app.notion.com/p/CMM-ETL-Contract-3cbd9fdd1a1a81d893effd579a76812b">CMM ETL Contract</page>
+
 ### Exact `run_sql.sh` execution order
 
 Arrows in this first diagram mean **execution order**, not table dependency. A skipped stage

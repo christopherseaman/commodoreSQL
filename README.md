@@ -14,8 +14,8 @@ mailing lists and analysis of course-materials cost and OER/Inclusive-Access ado
 > [`DASHBOARDS-REPORTS.md`](DASHBOARDS-REPORTS.md) · historical design decisions in
 > [`260529-DECISIONS.md`](260529-DECISIONS.md).
 
-The explicit Notion documentation sync is read-only by default. Preview the three tagged
-documents with `python3 scripts/sync_notion_docs.py SCHEMA.md MASTER-SECTION-DICTIONARY.md
+The explicit Notion documentation sync is read-only by default. Preview the four tagged
+documents with `python3 scripts/sync_notion_docs.py SCHEMA.md CMM-ETL.md MASTER-SECTION-DICTIONARY.md
 DASHBOARDS-REPORTS.md`; add `--apply` to push changes. Apply is non-transactional, so review
 the preview and treat each document update independently.
 

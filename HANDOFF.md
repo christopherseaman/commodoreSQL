@@ -179,18 +179,21 @@ Its three Overview destinations are:
 - **Dashboards & Reports** — `3cbd9fdd-1a1a-80ee-884d-f4c7003aaf44` — sourced from the tagged
   `DASHBOARDS-REPORTS.md` inventory.
 
-`CMM-ETL.md` is linked supporting authority for Data Lineage and is not a separate synced page.
-Only those three explicitly tagged documents are intended sync inputs; repo-only guidance,
+The [**CMM ETL Contract**](https://app.notion.com/p/CMM-ETL-Contract-3cbd9fdd1a1a81d893effd579a76812b)
+page — `3cbd9fdd-1a1a-81d8-93ef-fd579a76812b` — is a synced child of **Data Lineage**, sourced
+from the tagged `CMM-ETL.md`; it is not a fourth Overview peer.
+Only those four explicitly tagged documents are intended sync inputs; repo-only guidance,
 historical notes, and `comms/` source captures are not automatic inputs. Preview the explicit sync
 (read-only by default):
 
 ```bash
-python3 scripts/sync_notion_docs.py SCHEMA.md MASTER-SECTION-DICTIONARY.md DASHBOARDS-REPORTS.md
+python3 scripts/sync_notion_docs.py SCHEMA.md CMM-ETL.md MASTER-SECTION-DICTIONARY.md DASHBOARDS-REPORTS.md
 ```
 
 Add `--apply` to push. Apply is non-transactional, so each document update must be treated
-independently. The initial 2026-08-29 push was read back successfully with all three page titles
-and Overview-block parents unchanged and no truncated or unknown blocks. The legacy build-log
+independently. The initial 2026-08-29 push was read back successfully with all four page titles,
+the CMM ETL Contract child under Data Lineage, all Overview-block parents unchanged, and no
+truncated or unknown blocks. The legacy build-log
 page **"26.06.26 · Fall 2025 Subsets A/B (BMG)"**
 (`38bd9fdd-1a1a-81f9-b094-c13ba9cfbedf`) remains linked as historical context, including its
 **"Supply keyword lists (#36)"** sub-page.

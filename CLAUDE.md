@@ -11,10 +11,11 @@
 - `HANDOFF.md` — current work status, how to run things, gotchas (read first when picking up)
 - `README.md` — high-level project + pipeline overview
 
-Only the three explicitly tagged Notion documents (`SCHEMA.md`,
+Only the four explicitly tagged Notion documents (`SCHEMA.md`, `CMM-ETL.md`,
 `MASTER-SECTION-DICTIONARY.md`, and `DASHBOARDS-REPORTS.md`) are pushed by the
-documentation sync. Repo-only guidance, historical notes, and `comms/` source
-captures are not swept automatically.
+documentation sync. `CMM-ETL.md` is a synced child under the Data Lineage
+Overview page, not a fourth Overview peer. Repo-only guidance, historical notes,
+and `comms/` source captures are not swept automatically.
 
 ## Naming standards
 
