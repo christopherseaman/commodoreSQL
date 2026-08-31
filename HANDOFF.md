@@ -2,7 +2,7 @@
 
 > 🔗 **Living Notion build-log:** https://app.notion.com/p/38bd9fdd1a1a81f9b094c13ba9cfbedf
 
-Pickup context as of **2026-08-29**. Read this first, then `SCHEMA.md` (data model) and
+Pickup context as of **2026-08-31**. Read this first, then `SCHEMA.md` (data model) and
 `CLAUDE.md` (conventions). Work tracking is **GitHub Issues + Projects board**, not this file.
 
 ## What this repo is
@@ -10,6 +10,8 @@ Pickup context as of **2026-08-29**. Read this first, then `SCHEMA.md` (data mod
 A DuckDB pipeline (`duckdb/commodore.duckdb`, ~71 GB) that joins course-catalog data
 (~103M rows) with IPEDS, bookstore pricing, and opt-out/panel lists, plus a
 **Metabase config-as-code** reporting layer (`metabase/`) and a GitHub Projects board.
+BMG owns the course-materials and raw pricing/cost sources, BVA owns opt-out/mailing history,
+and IPEDS owns institution metadata; existing source-table names are compatibility names.
 
 - Branch: **`cmm-spring-2026`**; PR **#62** targets `main`.
 - Board lifecycle: Todo → On Deck → In Progress → **Review** → Done. **Review = human
@@ -20,6 +22,35 @@ A DuckDB pipeline (`duckdb/commodore.duckdb`, ~71 GB) that joins course-catalog 
 
 - Source communications and extracted XLSX/DOCX/image content are under `comms/`; the
   release-facing pipeline contract is `CMM-ETL.md`.
+- **#66 current-source mailing correction is implemented and validated.** Persisted
+  `master_mailing` selects directly from normalized course-material imports before history or
+  opt-out policy: 1,990,332 unique emails, including 51,636 addresses represented in `opt_out` as
+  intended for the Master/audit population. `current_mailing` is the whiteboard Mailing Working
+  view: it applies the 12-period window (2023-1 through 2025-4), joins `panel_email`, and excludes
+  `opt_out`. Working has 1,374,828 unique emails and zero opt-out leaks; its seven views reconcile
+  exactly: CA 136,959, TX 91,716, FL 56,087, NY 111,013, PA 62,455, CAN 24,552, Other 892,046.
+  The one-stage Master refresh completed in 28 seconds, and one read-only query expanding all seven
+  Working views completed in 0.77 seconds. Existing numbered export selectors and `COPY` handling
+  are unchanged. The unavailable updated mailing-history source remains #56.
+- **#67 source and documentation correction is implemented and validated.** The generated
+  project-wide `DATA-DICTIONARY.md` is reproducible, and all 44 canonical relations / 1,276
+  declared columns now match the live DuckDB relation kind, column order, and exact type (including
+  DECIMAL precision and nested list types). Deterministic supply attribution preserves the prior
+  2,520-ISBN / 96,685-row membership exactly; the live table has no duplicate/NULL ISBNs or missing
+  attribution and fingerprint `17783494179497887304`. The independent Fall 2025 classifier now
+  uses the same tie-break rules (1,666 ISBNs / 27,678 rows; no missing attribution). The issue stays
+  open only until PR #62 is merged.
+- **#73 field-level dictionary contract is implemented, independently reviewed, and synced.** All
+  1,276 declared fields now have deterministic direct-source/derivation or structural-passthrough
+  provenance plus values/format, population/denominator, and NULL semantics; the Master
+  Institution/ISBN contracts match executable SQL and the detailed Master Section appendix remains
+  the authoritative deeper section contract. The generator has 26 passing tests, and the canonical
+  44-relation / 1,276-field schema has zero live relation-kind, column-order, or exact-type
+  mismatches. The tagged `DATA-DICTIONARY.md` was pushed to its Notion destination and read back
+  with the same response body, 44 unique relation sections, all 55 ordered headings, and the
+  corrected ISBN pseudo-SKU, pricing-NULL, course-material-grain, Fall 2025 filter, and mailing-flow
+  semantics. The sync helper uses one idempotent synchronous `replace_content` request, rejects
+  requests at or above 500,000 bytes before mutation, and never falls back to non-idempotent appends.
 - **#69 pricing ownership cleanup:** `pricing_historical` remains an indexed, deduplicated
   source-owned snapshot after import, `1b_section_filter.sql` builds only catalog
   `section_book_status`, and `pricing_wide` contains only pricing source/provenance and price
@@ -49,7 +80,7 @@ A DuckDB pipeline (`duckdb/commodore.duckdb`, ~71 GB) that joins course-catalog 
   Fall 2025 has 2,216 and 335,157 respectively. New-input readiness remains pending #51.
 - **#65 canonical Course Materials flow IMPLEMENTED AND VALIDATED** —
   `comprehensive_data` remains exactly the enriched, normalized BMG source-row table and the
-  source for mailing, faculty, and raw DQ. Raw `panel` history is retained; `panel_email` is the
+  source for faculty and raw DQ. Raw `panel` history is retained; `panel_email` is the
   one-row-per-email lookup used for enrichment, preventing response-history multiplication.
   `2b_course_materials.sql` now builds `section_enrollment` and the first canonical processed
   `course_materials` table at one `(period_sortable, section_id, isbn13)`, including one NULL-ISBN
@@ -85,8 +116,9 @@ A DuckDB pipeline (`duckdb/commodore.duckdb`, ~71 GB) that joins course-catalog 
   the lineage, bookstore-pair, and release-model cards execute successfully. The #61 migration
   now routes release-facing cards through canonical item/material-section models, labels raw/DQ
   exceptions explicitly, and binds both report cards directly to `master_section` dimensions.
-- The actionable current-data portion of #59 now has a complete 66-column Master Section release
-  dictionary (`MASTER-SECTION-DICTIONARY.md`) and an exact cross-model reconciliation export
+- The actionable current-data portion of #59 has a detailed 66-column Master Section release
+  appendix (`MASTER-SECTION-DICTIONARY.md`, embedded into the authoritative generated
+  `DATA-DICTIONARY.md`) and an exact cross-model reconciliation export
   (`38_cmm_release_reconciliation.sql`) plus a separately bounded exact-key audit (`39_...`);
   all 144 cross-model checks and all 8 term key sets match exactly in the rebuilt database.
   Spring 2026 and the shared 25-institution rerun remain external dependencies in #51/#60.
@@ -103,7 +135,7 @@ Fixed initial-analysis scope: **Fall 2025** (`period_sortable='2025-4'`). Everyt
 |---|---|---|
 | #35 | A/B subsets (Set A = ≥1 required, Set B = optional-only), 5 tallies, enrollment assignment | Metabase cards **126/127**, **128–132**, **133/134**; questions `35`,`37`–`45`; `scripts/export_fall2025_subsets.sh` → Parquet |
 | #37 | Master ISBN dataset (one row per ISBN13×Title×Author×Format×FormatType) | card **157**, question `46_master_isbn_fall2025.sql` |
-| #38 | `master_section` US intro/intermediate required VIEW | DB view **`master_section_us_intro_fall2025`** (in `4_merged_records.sql`), GUI-queryable in Metabase |
+| #38 | `master_section` required intro/intermediate compatibility VIEW (non-Canada/nonblank-state proxy) | DB view **`master_section_us_intro_fall2025`** (in `4_merged_records.sql`), GUI-queryable in Metabase |
 | #36 | Supply-vs-course-material ISBN classifier + **model integration** | `scripts/sql/lookups/supply_keywords.tsv` (97 incl + 26 excl), `1a_supply_classification.sql`; `is_supply`/`supply_category` on `comprehensive_data`, `is_supply`/`supply_count` on `master_section` |
 | #32 | **Persisted** `enrollment_assigned`/`enrollment_source` | `section_enrollment` owns the exact per-section assignment (per-period medians over the scope reference population); `master_section` consumes it and cards 133/134 project the columns |
 | #39 | Metabase **Models** (`master_section` 158, US-intro-scope 159) + **3 dashboards** (Overview 18, Cost-hypothesis 16, Enrollment-DQ 17) | `metabase/models/*.sql`, `metabase/dashboards/bmg_*.json`, `sync.py` model support |
@@ -175,7 +207,7 @@ Its three Overview destinations are:
 - **Data Lineage** — `3cbd9fdd-1a1a-8086-b499-daa92a739c9f` — sourced from the tagged
   `SCHEMA.md`.
 - **Data Dictionary** — `3cbd9fdd-1a1a-8082-b697-ca7f5ef1d6ed` — sourced from the tagged
-  `MASTER-SECTION-DICTIONARY.md`.
+  `DATA-DICTIONARY.md`.
 - **Dashboards & Reports** — `3cbd9fdd-1a1a-80ee-884d-f4c7003aaf44` — sourced from the tagged
   `DASHBOARDS-REPORTS.md` inventory.
 
@@ -187,13 +219,13 @@ historical notes, and `comms/` source captures are not automatic inputs. Preview
 (read-only by default):
 
 ```bash
-python3 scripts/sync_notion_docs.py SCHEMA.md CMM-ETL.md MASTER-SECTION-DICTIONARY.md DASHBOARDS-REPORTS.md
+python3 scripts/sync_notion_docs.py SCHEMA.md CMM-ETL.md DATA-DICTIONARY.md DASHBOARDS-REPORTS.md
 ```
 
 Add `--apply` to push. Apply is non-transactional, so each document update must be treated
-independently. The initial 2026-08-29 push was read back successfully with all four page titles,
-the CMM ETL Contract child under Data Lineage, all Overview-block parents unchanged, and no
-truncated or unknown blocks. The legacy build-log
+independently. The Data Dictionary was pushed and read back successfully on 2026-08-31 from the
+current generated source. Other destination pages retain their previously recorded sync state; no
+new release-artifact regeneration is claimed here. The legacy build-log
 page **"26.06.26 · Fall 2025 Subsets A/B (BMG)"**
 (`38bd9fdd-1a1a-81f9-b094-c13ba9cfbedf`) remains linked as historical context, including its
 **"Supply keyword lists (#36)"** sub-page.
@@ -270,7 +302,9 @@ The Course Materials exporter stages all five outputs and refuses to overwrite e
 
 ## Pointers
 
-- `SCHEMA.md` — pipeline stages, tables, lineage diagram. `schema.dbml` — full column defs (dbdiagram.io).
+- `SCHEMA.md` — pipeline stages, tables, lineage diagram. `DATA-DICTIONARY.md` — authoritative
+  generated full relation/column dictionary. `schema.dbml` — canonical machine-readable schema
+  (dbdiagram.io). `MASTER-SECTION-DICTIONARY.md` — detailed embedded Master Section appendix.
 - `BMG-SUMMARY.md` — decisions / outputs (grouped) / review notes for the BMG analysis (the reference).
 - `BMG-2026-07-09-CALL.md` — same format for the 2026-07-09 call round (#42–#49: analyses + index fix).
 - `CLAUDE.md` — naming standards + gotchas. `260529-DECISIONS.md` — historical design decisions (May 2026).

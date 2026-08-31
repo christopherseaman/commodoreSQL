@@ -6,8 +6,8 @@ Project CommodoreSQL {
   database_type: 'DuckDB'
   Note: '''
     ## Metabase config-as-code — see metabase/
-    - 61 SQL questions spanning canonical material/section analysis, reports, and raw/DQ diagnostics
-    - 4 Models: Master Section, its Fall-2025 US intro scope, Master Institution, and Master ISBN
+    - 62 SQL questions spanning canonical material/section analysis, reports, and raw/DQ diagnostics
+    - 4 Models: Master Section, its Fall-2025 required intro/non-Canada-state scope, Master Institution, and Master ISBN
     - 13 dashboards, including BMG, report, OER/IA, coverage, lineage, and data-quality surfaces
   '''
 }
@@ -19,12 +19,12 @@ Project CommodoreSQL {
 // Database: duckdb/commodore.duckdb
 
 Enum source_files {
-  "data/2025.12.15/2025_12/DiscoveryExtract.20251215.csv" [note: '→ course_catalog_20251215 (~103M rows)']
-  "data/2025.12.15/IPEDS_2024.csv" [note: '→ ipeds_data (~7K rows)']
-  "data/2025.12.15/OptOut_20251215.csv" [note: '→ opt_out']
-  "data/2025.12.15/panel_20260108.csv" [note: '→ panel']
+  "data/2025.12.15/2025_12/DiscoveryExtract.20251215.csv" [note: 'BMG course-materials source → compatibility table course_catalog_20251215 (~103M rows)']
+  "data/2025.12.15/IPEDS_2024.csv" [note: 'IPEDS institution metadata → compatibility table ipeds_data (~7K rows)']
+  "data/2025.12.15/OptOut_20251215.csv" [note: 'BVA opt-out source → compatibility table opt_out']
+  "data/2025.12.15/panel_20260108.csv" [note: 'BVA mailing/panel history → compatibility table panel']
   "data/2025.12.15/format_type_lookup.tsv" [note: '→ format_type_classification (69 rows)']
-  "data/BookPricing.Historical_20260224.csv" [note: '→ pricing_historical (~27.3M current rows)']
+  "data/BookPricing.Historical_20260224.csv" [note: 'BMG raw pricing/cost observations → compatibility table pricing_historical (~27.3M current rows)']
   "scripts/sql/lookups/supply_keywords.tsv" [note: '→ supply_isbn_classification; 97 include + 26 exclude title patterns']
 }
 
@@ -33,7 +33,7 @@ Enum source_files {
 // ---------------------------------------------------------------------------
 
 Table course_catalog_20251215 {
-  ISBN13 varchar
+  ISBN13 bigint
   Title varchar
   Author varchar
   Publisher varchar
@@ -41,7 +41,7 @@ Table course_catalog_20251215 {
   Format varchar
   FormatType varchar
   book_status varchar [note: 'lowercase: required, recommended, option, NULL']
-  unit_id integer
+  unit_id bigint
   school varchar
   state varchar
   dept_code varchar
@@ -72,7 +72,7 @@ Table course_catalog_20251215 {
     section_id [name: 'idx_course_sectionid']
   }
 
-  Note: '~103M rows. Source: DiscoveryExtract CSV. Central fact table for course material adoptions.'
+  Note: '~103M rows. BMG source: DiscoveryExtract CSV. Compatibility-named central fact table for course material adoptions.'
 }
 
 Table ipeds_data {
@@ -93,14 +93,14 @@ Table opt_out {
   email varchar [pk]
   source varchar
 
-  Note: 'Source: OptOut CSV. LEFT JOINed into comprehensive_data on email.'
+  Note: 'BVA source: OptOut CSV. LEFT JOINed into comprehensive_data on cleaned email.'
 }
 
 Table panel {
   email varchar
   response_year varchar
 
-  Note: 'Source-row history from panel CSV. Raw rows are retained; panel_email is the one-row-per-email enrichment lookup.'
+  Note: 'BVA source-row mailing/panel history. Raw rows are retained; panel_email is the one-row-per-email enrichment lookup.'
 }
 
 Table panel_email {
@@ -144,7 +144,7 @@ Table pricing_historical {
   book_option varchar [note: 'buy, rental']
   book_condition varchar [note: 'new, used, NULL']
   book_format varchar [note: 'physical, digital, NULL']
-  price decimal
+  price decimal(10,2)
   rental_days integer [note: '~95 distinct values (e.g., 90, 120, 180, 365, 1825). Part of natural grain.']
   return_date date
   course_id varchar [note: 'unit_id::dept_code::course_code']
@@ -158,7 +158,7 @@ Table pricing_historical {
     period_sortable [name: 'idx_pricing_period']
   }
 
-  Note: '~30M rows. Source-owned Bookprices snapshot after import/dedupe. Latest pricing_date is retained at (section_id, isbn13, book_option, book_condition, book_format, rental_days), instructor names are aggregated, and indexes remain on section_id, isbn13, and period_sortable. Catalog classification is never written back.'
+  Note: '~30M rows. BMG-owned raw pricing/cost snapshot in a compatibility-named table after import/dedupe. Latest pricing_date is retained at (section_id, isbn13, book_option, book_condition, book_format, rental_days), instructor names are aggregated, and indexes remain on section_id, isbn13, and period_sortable. Catalog classification is never written back.'
 }
 
 // ---------------------------------------------------------------------------
@@ -169,14 +169,14 @@ Table supply_isbn_classification {
   isbn13 bigint [note: 'logical unique key; non-NULL classified ISBN from the catalog source']
   title varchar [note: 'representative matched catalog title']
   n_rows hugeint [note: '2024+ catalog rows covered by qualifying title variants']
-  matched_pattern varchar [note: 'representative longest lowercase include-pattern match']
+  matched_pattern varchar [note: 'representative lowercase include-pattern match: specific rules before generic supply markers, then longest and lexical tie-breaks']
   category varchar [note: 'category associated with matched_pattern']
 
   indexes {
     isbn13 [name: 'idx_supply_isbn']
   }
 
-  Note: 'Created by 1a_supply_classification.sql. One row per classified ISBN. A title variant qualifies when lowercase substring matching finds an include pattern and no exclude pattern; any qualifying 2024+ title variant can place the ISBN in this table.'
+  Note: 'Created by 1a_supply_classification.sql. One row per classified ISBN. A title variant qualifies when lowercase substring matching finds an include pattern and no exclude pattern; any qualifying 2024+ title variant can place the ISBN in this table. Attribution prefers specific rules over generic >supply</>suppy< fallbacks, then longest-pattern and stable lexical tie-breaks; this does not change Use/NoUse membership.'
 }
 
 Table section_book_status {
@@ -209,40 +209,40 @@ Table pricing_wide {
   author varchar
   publisher varchar
   edition varchar
-  price_buy_new_physical decimal
-  price_buy_new_digital decimal
-  price_buy_new_na decimal
-  price_buy_used_physical decimal
-  price_buy_used_digital decimal
-  price_buy_used_na decimal
-  price_buy_na_physical decimal
-  price_buy_na_digital decimal
-  price_buy_na_na decimal
-  price_rental_new_physical decimal
-  price_rental_new_digital decimal
-  price_rental_new_na decimal
-  price_rental_used_physical decimal
-  price_rental_used_digital decimal
-  price_rental_used_na decimal
-  price_rental_na_physical decimal
-  price_rental_na_digital decimal
-  price_rental_na_na decimal
+  price_buy_new_physical decimal(10,2)
+  price_buy_new_digital decimal(10,2)
+  price_buy_new_na decimal(10,2)
+  price_buy_used_physical decimal(10,2)
+  price_buy_used_digital decimal(10,2)
+  price_buy_used_na decimal(10,2)
+  price_buy_na_physical decimal(10,2)
+  price_buy_na_digital decimal(10,2)
+  price_buy_na_na decimal(10,2)
+  price_rental_new_physical decimal(10,2)
+  price_rental_new_digital decimal(10,2)
+  price_rental_new_na decimal(10,2)
+  price_rental_used_physical decimal(10,2)
+  price_rental_used_digital decimal(10,2)
+  price_rental_used_na decimal(10,2)
+  price_rental_na_physical decimal(10,2)
+  price_rental_na_digital decimal(10,2)
+  price_rental_na_na decimal(10,2)
   format_count bigint [note: 'COUNT(DISTINCT option × condition × format) FILTERed to buy/rental; counts offered tuples independently of price validity, so it can exceed the number of non-NULL pivot cells; max 18']
   has_buy boolean [note: 'BOOL_OR(book_option = buy) — a buy listing is offered (option presence, independent of price validity)']
   has_rent boolean [note: 'BOOL_OR(book_option = rental) — a rental listing is offered (≫ rental_days_min coverage, since many rentals lack a term)']
-  price_min decimal
-  price_max decimal
+  price_min decimal(10,2)
+  price_max decimal(10,2)
   price_avg double [note: 'LEGACY definition: (price_min + price_max) / 2 — NOT the arithmetic mean. See CLAUDE.md.']
   rental_days_min integer [note: 'shortest rental term offered for this (section, isbn)']
   rental_days_max integer [note: 'longest rental term offered (~95 distinct values, summarized as range)']
-  price_buy_min decimal [note: 'MIN buy-option price (owned; rentals excluded) — feeds owned cost']
-  price_buy_max decimal [note: 'MAX buy-option price (owned; rentals excluded)']
-  Note: 'TABLE (materialized). One row per (section_id × isbn13) over all source-owned pricing_historical rows. Retains source/provenance descriptors and derives 18 option × condition × format price cells plus price/availability aggregates. price_buy_min/max feed the "owned" cost columns. It contains no is_required_inferred, OER/IA, or IPEDS/catalog enrichment, and no required-only pricing view is created.'
+  price_buy_min decimal(10,2) [note: 'MIN buy-option price (owned; rentals excluded) — feeds owned cost']
+  price_buy_max decimal(10,2) [note: 'MAX buy-option price (owned; rentals excluded)']
+  Note: 'TABLE (materialized). One row per (section_id × isbn13) over all BMG-owned pricing_historical rows. Retains source/provenance descriptors and derives 18 option × condition × format price cells plus price/availability aggregates. price_buy_min/max feed the "owned" cost columns. It contains no is_required_inferred, OER/IA, or IPEDS/catalog enrichment, and no required-only pricing view is created.'
 }
 
 Table comprehensive_data {
   // -- course_catalog columns --
-  ISBN13 varchar
+  ISBN13 bigint
   Title varchar
   Author varchar
   Publisher varchar
@@ -250,7 +250,7 @@ Table comprehensive_data {
   Format varchar
   FormatType varchar
   book_status varchar
-  unit_id integer
+  unit_id bigint
   school varchar
   state varchar
   dept_code varchar
@@ -848,11 +848,11 @@ Table section_enrollment {
 }
 
 // ---------------------------------------------------------------------------
-// EDA — Mailing List Views (3_mailing_lists.sql)
+// EDA — Mailing List Tables and Views (3_mailing_lists.sql)
 // ---------------------------------------------------------------------------
 
-Table master_mailing [note: 'view'] {
-  unit_id integer
+Table master_mailing {
+  unit_id bigint
   school varchar
   state varchar
   department varchar
@@ -866,11 +866,17 @@ Table master_mailing [note: 'view'] {
   last_name varchar
   email varchar
 
-  Note: 'DISTINCT ON (email). Excludes opted-out. Most recent period per instructor.'
+  Note: 'Persisted canonical mailing selection. One deterministically selected row per non-NULL, nonblank cleaned email directly from course_catalog_20251215; newest period, largest enrollment, then stable source-field ordering. Opt-out and panel history do not affect selection.'
+}
+
+Table recent_periods [note: 'view'] {
+  period_sortable varchar [note: 'YYYY-N']
+
+  Note: 'Newest 12 distinct non-NULL period_sortable values present in persisted master_mailing; bounds current_mailing without rescanning the catalog source.'
 }
 
 Table current_mailing [note: 'view'] {
-  unit_id integer
+  unit_id bigint
   school varchar
   state varchar
   department varchar
@@ -885,32 +891,133 @@ Table current_mailing [note: 'view'] {
   email varchar
   panel_response_year varchar
 
-  Note: 'master_mailing filtered to last 12 periods, with panel data joined.'
+  Note: 'Whiteboard Mailing Working view. Recent master_mailing rows excluding any email present in opt_out, LEFT-enriched with panel_response_year from panel_email.'
 }
 
 Table current_mailing_ca [note: 'view'] {
+  unit_id bigint
+  school varchar
+  state varchar
+  department varchar
+  course_level varchar
+  course_subject varchar
+  period varchar
+  period_sortable varchar
+  period_date date
+  instructor varchar
+  first_name varchar
+  last_name varchar
   email varchar
-  Note: 'current_mailing WHERE state = "CA". Same columns as current_mailing.'
+  panel_response_year varchar
+  Note: 'current_mailing WHERE UPPER(TRIM(state)) = "CA". Same columns as current_mailing.'
 }
 
 Table current_mailing_tx [note: 'view'] {
+  unit_id bigint
+  school varchar
+  state varchar
+  department varchar
+  course_level varchar
+  course_subject varchar
+  period varchar
+  period_sortable varchar
+  period_date date
+  instructor varchar
+  first_name varchar
+  last_name varchar
   email varchar
-  Note: 'current_mailing WHERE state = "TX". Same columns as current_mailing.'
+  panel_response_year varchar
+  Note: 'current_mailing WHERE UPPER(TRIM(state)) = "TX". Same columns as current_mailing.'
 }
 
 Table current_mailing_fl [note: 'view'] {
+  unit_id bigint
+  school varchar
+  state varchar
+  department varchar
+  course_level varchar
+  course_subject varchar
+  period varchar
+  period_sortable varchar
+  period_date date
+  instructor varchar
+  first_name varchar
+  last_name varchar
   email varchar
-  Note: 'current_mailing WHERE state = "FL". Same columns as current_mailing.'
+  panel_response_year varchar
+  Note: 'current_mailing WHERE UPPER(TRIM(state)) = "FL". Same columns as current_mailing.'
 }
 
 Table current_mailing_ny [note: 'view'] {
+  unit_id bigint
+  school varchar
+  state varchar
+  department varchar
+  course_level varchar
+  course_subject varchar
+  period varchar
+  period_sortable varchar
+  period_date date
+  instructor varchar
+  first_name varchar
+  last_name varchar
   email varchar
-  Note: 'current_mailing WHERE state = "NY". Same columns as current_mailing.'
+  panel_response_year varchar
+  Note: 'current_mailing WHERE UPPER(TRIM(state)) = "NY". Same columns as current_mailing.'
+}
+
+Table current_mailing_pa [note: 'view'] {
+  unit_id bigint
+  school varchar
+  state varchar
+  department varchar
+  course_level varchar
+  course_subject varchar
+  period varchar
+  period_sortable varchar
+  period_date date
+  instructor varchar
+  first_name varchar
+  last_name varchar
+  email varchar
+  panel_response_year varchar
+  Note: 'current_mailing WHERE UPPER(TRIM(state)) = "PA". Same columns as current_mailing.'
+}
+
+Table current_mailing_can [note: 'view'] {
+  unit_id bigint
+  school varchar
+  state varchar
+  department varchar
+  course_level varchar
+  course_subject varchar
+  period varchar
+  period_sortable varchar
+  period_date date
+  instructor varchar
+  first_name varchar
+  last_name varchar
+  email varchar
+  panel_response_year varchar
+  Note: 'current_mailing WHERE UPPER(TRIM(state)) = "CAN". Same columns as current_mailing.'
 }
 
 Table current_mailing_other [note: 'view'] {
+  unit_id bigint
+  school varchar
+  state varchar
+  department varchar
+  course_level varchar
+  course_subject varchar
+  period varchar
+  period_sortable varchar
+  period_date date
+  instructor varchar
+  first_name varchar
+  last_name varchar
   email varchar
-  Note: 'current_mailing WHERE state NOT IN (CA, TX, FL, NY). Same columns as current_mailing.'
+  panel_response_year varchar
+  Note: 'Complete residual after normalized CA, TX, FL, NY, PA, and CAN partitions; includes NULL, blank, and unknown state values. Same columns as current_mailing.'
 }
 
 // ---------------------------------------------------------------------------
@@ -1003,34 +1110,34 @@ Table material_costs {
   is_oer_conflict boolean [note: 'BOOL_OR vs BOOL_AND disagreement DQ signal']
   is_ia_conflict boolean [note: 'BOOL_OR vs BOOL_AND disagreement DQ signal']
   bookstore_url varchar [note: 'pricing-owned enrichment from pricing_wide; NULL when no pricing match']
-  price_buy_new_physical decimal
-  price_buy_new_digital decimal
-  price_buy_new_na decimal
-  price_buy_used_physical decimal
-  price_buy_used_digital decimal
-  price_buy_used_na decimal
-  price_buy_na_physical decimal
-  price_buy_na_digital decimal
-  price_buy_na_na decimal
-  price_rental_new_physical decimal
-  price_rental_new_digital decimal
-  price_rental_new_na decimal
-  price_rental_used_physical decimal
-  price_rental_used_digital decimal
-  price_rental_used_na decimal
-  price_rental_na_physical decimal
-  price_rental_na_digital decimal
-  price_rental_na_na decimal
+  price_buy_new_physical decimal(10,2)
+  price_buy_new_digital decimal(10,2)
+  price_buy_new_na decimal(10,2)
+  price_buy_used_physical decimal(10,2)
+  price_buy_used_digital decimal(10,2)
+  price_buy_used_na decimal(10,2)
+  price_buy_na_physical decimal(10,2)
+  price_buy_na_digital decimal(10,2)
+  price_buy_na_na decimal(10,2)
+  price_rental_new_physical decimal(10,2)
+  price_rental_new_digital decimal(10,2)
+  price_rental_new_na decimal(10,2)
+  price_rental_used_physical decimal(10,2)
+  price_rental_used_digital decimal(10,2)
+  price_rental_used_na decimal(10,2)
+  price_rental_na_physical decimal(10,2)
+  price_rental_na_digital decimal(10,2)
+  price_rental_na_na decimal(10,2)
   format_count bigint [note: 'pricing_wide count of distinct offered buy/rental option × condition × format tuples, independent of price validity; maximum 18']
   has_buy boolean
   has_rent boolean
-  price_min decimal
-  price_max decimal
+  price_min decimal(10,2)
+  price_max decimal(10,2)
   price_avg double [note: 'LEGACY midpoint (price_min + price_max) / 2; not arithmetic mean']
   rental_days_min integer
   rental_days_max integer
-  price_buy_min decimal
-  price_buy_max decimal
+  price_buy_min decimal(10,2)
+  price_buy_max decimal(10,2)
   has_pricing_match boolean [note: 'TRUE when the LEFT pricing_wide join found a section/ISBN row; independent of whether that row has a valid price_min']
   panel_source_row_count bigint [note: 'appended canonical panel multiplicity audit from panel_email']
   panel_response_year_variant_count bigint [note: 'appended canonical panel response-year variant audit']
@@ -1057,16 +1164,16 @@ Table section_cost {
   section_id varchar [pk]
   course_id varchar
   period_sortable varchar
-  required_cost_total_min decimal
-  required_cost_total_max decimal
-  optional_cost_total_min decimal
-  optional_cost_total_max decimal
-  required_cost_owned_min decimal
-  required_cost_owned_max decimal
-  optional_cost_owned_min decimal
-  optional_cost_owned_max decimal
-  required_priced_count integer
-  optional_priced_count integer
+  required_cost_total_min decimal(38,2)
+  required_cost_total_max decimal(38,2)
+  optional_cost_total_min decimal(38,2)
+  optional_cost_total_max decimal(38,2)
+  required_cost_owned_min decimal(38,2)
+  required_cost_owned_max decimal(38,2)
+  optional_cost_owned_min decimal(38,2)
+  optional_cost_owned_max decimal(38,2)
+  required_priced_count bigint
+  optional_priced_count bigint
 
   Note: 'TABLE. One row per (period_sortable, section_id) represented by canonical material_costs. Aggregates section-term-ISBN items, required vs non-required via is_required_inferred; owned = buy-only. Joins 1:1 into the material-bearing master_section and feeds master_course cost rollup; it is not the approved item-level input.'
 }
@@ -1095,32 +1202,32 @@ Table master_section [note: 'table'] {
   course_title varchar
   course_level varchar
   course_subject varchar
-  material_count integer [note: 'COUNT of canonical material_costs section×ISBN items; always >0']
-  required_count integer [note: 'COUNT of material_costs items WHERE is_required_inferred; A/B split key']
-  optional_count integer [note: 'COUNT of material_costs items WHERE NOT is_required_inferred']
+  material_count bigint [note: 'COUNT of canonical material_costs section×ISBN items; always >0']
+  required_count bigint [note: 'COUNT of material_costs items WHERE is_required_inferred; A/B split key']
+  optional_count bigint [note: 'COUNT of material_costs items WHERE NOT is_required_inferred']
   has_course_material_use boolean [note: 'Always true: membership requires at least one canonical Use item']
-  course_material_use_count integer [note: 'Canonical material items; equals material_count']
-  course_material_no_use_count integer [note: 'Co-occurring NoUse catalog rows for retained sections only; sidecar audit']
-  no_details_count integer [note: 'Co-occurring no_details rows for retained sections only; sidecar audit']
-  no_materials_count integer [note: 'Co-occurring no_materials rows for retained sections only; sidecar audit']
+  course_material_use_count bigint [note: 'Canonical material items; equals material_count']
+  course_material_no_use_count bigint [note: 'Co-occurring NoUse catalog rows for retained sections only; sidecar audit']
+  no_details_count bigint [note: 'Co-occurring no_details rows for retained sections only; sidecar audit']
+  no_materials_count bigint [note: 'Co-occurring no_materials rows for retained sections only; sidecar audit']
   is_canada boolean [note: 'Co-occurring Canada row for a retained section; sidecar audit, not a full-population indicator']
   is_supply boolean [note: '#36: co-occurring classified supply on a retained section; sidecar audit']
-  supply_count integer [note: '#36: co-occurring classified supply rows on a retained section; sidecar audit']
+  supply_count bigint [note: '#36: co-occurring classified supply rows on a retained section; sidecar audit']
   is_oer boolean [note: 'COALESCE(BOOL_OR(is_oer), FALSE) over canonical material_costs items']
   is_ia boolean
-  oer_count integer
-  ia_count integer
-  publishers varchar [note: 'LIST(DISTINCT publisher)']
-  required_publishers varchar [note: 'LIST(DISTINCT publisher) WHERE required']
-  required_publisher_count integer
-  optional_publisher_count integer
+  oer_count bigint
+  ia_count bigint
+  publishers varchar[] [note: 'LIST(DISTINCT publisher)']
+  required_publishers varchar[] [note: 'LIST(DISTINCT publisher) WHERE required']
+  required_publisher_count bigint
+  optional_publisher_count bigint
   enrollments integer
   seats_taken integer
   // -- coverage (2026-06-04 notes): ISBN presence + OER/IA classifiability --
   has_isbn boolean [note: 'BOOL_OR(has_isbn) over canonical items; true under the current Use contract']
   has_formattype boolean [note: 'BOOL_OR(FormatType present) over canonical items; OER/IA classifiability flag']
-  isbn_count integer [note: 'canonical ISBN items; currently equals material_count']
-  classified_count integer [note: 'canonical items carrying a FormatType']
+  isbn_count bigint [note: 'canonical ISBN items; currently equals material_count']
+  classified_count bigint [note: 'canonical items carrying a FormatType']
   // -- enrollment fill-potential flags (diagnostic availability; raw enrollment is NOT imputed).
   //    has_enrollment_* are pure facts (decoupled from has_enrollment); assess a missing
   //    section via NOT has_enrollment AND has_enrollment_*. #32 adds the numeric fill below. --
@@ -1133,21 +1240,21 @@ Table master_section [note: 'table'] {
   //    over the reference population (4 BMG course levels x 6 teaching sectors). --
   enrollment_assigned integer [note: '#32: filled enrollment. own -> own_seats(<9999) -> sibling_enroll -> sibling_seats -> class_median(control x level) -> level_median. NULL only when enrollment_source=none']
   enrollment_source varchar [note: '#32: which fill rung supplied enrollment_assigned: own | own_seats | sibling_enroll | sibling_seats | class_median | level_median | none']
-  required_cost_total_min decimal [note: 'SUM of per-material price_min over distinct required materials (from section_cost)']
-  required_cost_total_max decimal
-  optional_cost_total_min decimal
-  optional_cost_total_max decimal
-  required_cost_owned_min decimal [note: 'buy-only (rentals excluded)']
-  required_cost_owned_max decimal
-  optional_cost_owned_min decimal
-  optional_cost_owned_max decimal
-  required_cost_avg decimal [note: '(min+max)/2 — legacy price_avg convention, NOT arithmetic mean']
-  required_cost_owned_avg decimal
-  optional_cost_avg decimal
-  required_priced_count integer [note: 'distinct required materials with ANY price (total coverage; NOT owned-only — can be >0 while owned cost is NULL when priced materials are rental-only)']
-  optional_priced_count integer
+  required_cost_total_min decimal(38,2) [note: 'SUM of per-material price_min over distinct required materials (from section_cost)']
+  required_cost_total_max decimal(38,2)
+  optional_cost_total_min decimal(38,2)
+  optional_cost_total_max decimal(38,2)
+  required_cost_owned_min decimal(38,2) [note: 'buy-only (rentals excluded)']
+  required_cost_owned_max decimal(38,2)
+  optional_cost_owned_min decimal(38,2)
+  optional_cost_owned_max decimal(38,2)
+  required_cost_avg double [note: '(min+max)/2 — legacy price_avg convention, NOT arithmetic mean']
+  required_cost_owned_avg double
+  optional_cost_avg double
+  required_priced_count bigint [note: 'distinct required materials with ANY price (total coverage; NOT owned-only — can be >0 while owned cost is NULL when priced materials are rental-only)']
+  optional_priced_count bigint
 
-  Note: 'TABLE (materialized), currently 6,983,049 rows. Exactly one row per distinct (period_sortable, section_id) in material_costs. Material/OER/coverage/publisher fields aggregate canonical material_costs items; price/cost fields join from section_cost; section dimensions and assigned enrollment join from section_enrollment. Supply, NoUse, Canada, and placeholder fields are course_materials sidecar audits limited to retained material-bearing sections. Validated post-#65 canonical sidecar totals: NoUse 78,230; no_details 25,993; no_materials 145; supply 52,237. Complete-population denominators remain in section_enrollment. MASTER-SECTION-DICTIONARY.md is the complete release-column contract.'
+  Note: 'TABLE (materialized), currently 6,983,049 rows. Exactly one row per distinct (period_sortable, section_id) in material_costs. Material/OER/coverage/publisher fields aggregate canonical material_costs items; price/cost fields join from section_cost; section dimensions and assigned enrollment join from section_enrollment. Supply, NoUse, Canada, and placeholder fields are course_materials sidecar audits limited to retained material-bearing sections. Validated post-#65 canonical sidecar totals: NoUse 78,230; no_details 25,993; no_materials 145; supply 52,237. Complete-population denominators remain in section_enrollment. DATA-DICTIONARY.md is the authoritative full column dictionary; its embedded MASTER-SECTION-DICTIONARY.md appendix owns the detailed business/NULL/denominator contract.'
 }
 
 Table master_course [note: 'view'] {
@@ -1172,37 +1279,37 @@ Table master_course [note: 'view'] {
   course_title varchar
   course_level varchar
   course_subject varchar
-  section_count integer
-  enrollment_total integer
-  seats_taken_total integer
-  total_materials integer
-  total_required integer
-  total_optional integer
+  section_count bigint
+  enrollment_total hugeint
+  seats_taken_total hugeint
+  total_materials hugeint
+  total_required hugeint
+  total_optional hugeint
   is_oer boolean [note: 'BOOL_OR across the course sections']
   is_ia boolean
-  oer_count integer [note: 'SUM of section oer_count']
-  ia_count integer
+  oer_count hugeint [note: 'SUM of section oer_count']
+  ia_count hugeint
   has_isbn boolean [note: 'BOOL_OR across course sections']
   has_formattype boolean
-  isbn_count integer [note: 'SUM of section isbn_count']
-  classified_count integer [note: 'SUM of section classified_count']
-  has_enrollment_sections integer [note: 'count of the course''s sections with own enrollment (of section_count)']
-  has_enrollment_sibling_sections integer [note: 'sections with a sibling carrying enrollment']
-  has_enrollment_own_seats_sections integer [note: 'sections with usable own seats_taken']
-  has_enrollment_sibling_seats_sections integer [note: 'sections with a sibling carrying usable seats_taken']
-  all_publishers varchar [note: 'nested LIST of publisher arrays']
-  unique_required_publishers integer
-  required_cost_total_min decimal [note: 'MIN(min) across sections — cost rolls up MIN/MAX/AVG, NOT SUM (sections share materials)']
-  required_cost_total_max decimal
-  optional_cost_total_min decimal
-  optional_cost_total_max decimal
-  required_cost_owned_min decimal
-  required_cost_owned_max decimal
-  optional_cost_owned_min decimal
-  optional_cost_owned_max decimal
-  required_cost_avg decimal [note: 'AVG of section (min+max)/2']
-  required_cost_owned_avg decimal
-  optional_cost_avg decimal
+  isbn_count hugeint [note: 'SUM of section isbn_count']
+  classified_count hugeint [note: 'SUM of section classified_count']
+  has_enrollment_sections bigint [note: 'count of the course''s sections with own enrollment (of section_count)']
+  has_enrollment_sibling_sections bigint [note: 'sections with a sibling carrying enrollment']
+  has_enrollment_own_seats_sections bigint [note: 'sections with usable own seats_taken']
+  has_enrollment_sibling_seats_sections bigint [note: 'sections with a sibling carrying usable seats_taken']
+  all_publishers varchar[][] [note: 'nested LIST of publisher arrays']
+  unique_required_publishers hugeint
+  required_cost_total_min decimal(38,2) [note: 'MIN(min) across sections — cost rolls up MIN/MAX/AVG, NOT SUM (sections share materials)']
+  required_cost_total_max decimal(38,2)
+  optional_cost_total_min decimal(38,2)
+  optional_cost_total_max decimal(38,2)
+  required_cost_owned_min decimal(38,2)
+  required_cost_owned_max decimal(38,2)
+  optional_cost_owned_min decimal(38,2)
+  optional_cost_owned_max decimal(38,2)
+  required_cost_avg double [note: 'AVG of section (min+max)/2']
+  required_cost_owned_avg double
+  optional_cost_avg double
 
   Note: 'One row per material-bearing course-offering (2024+, rolled up from master_section). Cost rolls up from material_costs through section_cost via MIN/MAX/AVG.'
 }
@@ -1218,15 +1325,82 @@ Table master_course_material [note: 'view'] {
   course_title varchar
   publisher varchar
   book_status varchar
-  material_instances integer
-  sections_using integer
-  total_seats_affected integer
+  material_instances bigint
+  sections_using bigint
+  total_seats_affected hugeint
 
   Note: 'One row per (course_id × period × publisher × book_status), consumed directly from material_costs. Material distribution uses the same canonical items as master_section counts.'
 }
 
 Table master_section_us_intro_fall2025 [note: 'view'] {
-  Note: 'BMG #38. Filtered projection of material-bearing master_section (NO new columns, same schema): period_sortable=2025-4, required_count>=1, course_level in {Introductory or general undergraduate, Intermediate undergraduate}, US only (state excludes CAN + blank). Current row count: 773,613. Enrichment stays on master_section; this view only projects/filters.'
+  section_id varchar
+  course_id varchar
+  period varchar
+  period_sortable varchar
+  period_date date
+  unit_id bigint
+  state varchar
+  control varchar
+  level varchar
+  size varchar
+  sector varchar
+  institution_name varchar
+  institution_type varchar
+  enrollment_2024 integer
+  distance_enrollment_2024 integer
+  school varchar
+  department varchar
+  course_number varchar
+  section varchar
+  course_title varchar
+  course_level varchar
+  course_subject varchar
+  material_count bigint
+  required_count bigint
+  optional_count bigint
+  has_course_material_use boolean
+  course_material_use_count bigint
+  course_material_no_use_count bigint
+  no_details_count bigint
+  no_materials_count bigint
+  is_canada boolean
+  is_supply boolean
+  supply_count bigint
+  is_oer boolean
+  is_ia boolean
+  oer_count bigint
+  ia_count bigint
+  publishers varchar[]
+  required_publishers varchar[]
+  required_publisher_count bigint
+  optional_publisher_count bigint
+  enrollments integer
+  seats_taken integer
+  has_isbn boolean
+  has_formattype boolean
+  isbn_count bigint
+  classified_count bigint
+  has_enrollment boolean
+  has_enrollment_sibling boolean
+  has_enrollment_own_seats boolean
+  has_enrollment_sibling_seats boolean
+  enrollment_assigned integer
+  enrollment_source varchar
+  required_cost_total_min decimal(38,2)
+  required_cost_total_max decimal(38,2)
+  optional_cost_total_min decimal(38,2)
+  optional_cost_total_max decimal(38,2)
+  required_cost_owned_min decimal(38,2)
+  required_cost_owned_max decimal(38,2)
+  optional_cost_owned_min decimal(38,2)
+  optional_cost_owned_max decimal(38,2)
+  required_cost_avg double
+  required_cost_owned_avg double
+  optional_cost_avg double
+  required_priced_count bigint
+  optional_priced_count bigint
+
+  Note: 'BMG #38. Filtered projection of material-bearing master_section (NO new columns, same schema): period_sortable=2025-4, required_count>=1, course_level in {Introductory or general undergraduate, Intermediate undergraduate}, and state NOT IN (CAN, blank); NULL state is also excluded by SQL three-valued logic. This is a non-Canada/nonblank-state proxy, not validated institution-country membership. Current row count: 773,613. Enrichment stays on master_section; this view only projects/filters.'
 }
 
 Table master_institution {
@@ -1346,12 +1520,15 @@ Ref: comprehensive_data.email > opt_out.email
 Ref: comprehensive_data.email > panel.email
 Ref: comprehensive_data.email > panel_email.email
 
-// mailing list chain (email is unique via DISTINCT ON)
+// mailing list chain (email is unique via grouped deterministic top-one selection)
 Ref: current_mailing.email > master_mailing.email
+Ref: current_mailing.period_sortable > recent_periods.period_sortable
 Ref: current_mailing_ca.email > current_mailing.email
 Ref: current_mailing_tx.email > current_mailing.email
 Ref: current_mailing_fl.email > current_mailing.email
 Ref: current_mailing_ny.email > current_mailing.email
+Ref: current_mailing_pa.email > current_mailing.email
+Ref: current_mailing_can.email > current_mailing.email
 Ref: current_mailing_other.email > current_mailing.email
 
 // canonical Course Materials path (composite material keys are documented in table notes)
@@ -1398,11 +1575,14 @@ TableGroup import_derived {
 
 TableGroup eda_mailing {
   master_mailing
+  recent_periods
   current_mailing
   current_mailing_ca
   current_mailing_tx
   current_mailing_fl
   current_mailing_ny
+  current_mailing_pa
+  current_mailing_can
   current_mailing_other
 }
 
@@ -1435,7 +1615,7 @@ Table __data_quality_metrics {
 
 Table __data_quality_top_unmatched_ipeds_schools {
   school varchar
-  unit_id integer
+  unit_id bigint
   catalog_rows bigint
 
   Note: 'Top 10 catalog schools whose unit_id is not in IPEDS_2024.csv.'
@@ -1466,7 +1646,7 @@ Table __data_quality_top_null_isbn_schools {
 Table __data_quality_pricing_match_by_period {
   period_sortable varchar
   pricing_rows bigint
-  rows_matched bigint
+  rows_matched hugeint
   match_pct double
 
   Note: 'Non-mutating exact (section_id, isbn13) pricing-to-catalog comparison by period.'
@@ -1483,7 +1663,7 @@ Table __data_quality_top_unmatched_pricing_sections {
 }
 
 Table __data_quality_format_count_distribution {
-  format_count integer
+  format_count bigint
   pricing_wide_rows bigint
 
   Note: 'Distribution of format_count values in pricing_wide.'

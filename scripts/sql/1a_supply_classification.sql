@@ -3,9 +3,11 @@
 -- (single source of truth; path relative to scripts/, both runners cd there first).
 -- ISBN-level: an ISBN is a supply if ANY of its 2024+ title variants matches >=1
 -- include pattern AND 0 exclude patterns. Matching is substring LIKE over lowered
--- text — deliberately no word boundaries (see TSV notes); longest matching include
--- pattern wins for attribution. Method + per-keyword precision (~0.98) were audited
--- on Fall 2025; titles are period-independent, so the flag applies to all periods.
+-- text — deliberately no word boundaries (see TSV notes). Attribution prefers a
+-- specific keyword over the generic `>supply<` / `>suppy<` source markers, then
+-- chooses the longest pattern and stable lexical tie-breaks. Method + per-keyword
+-- precision (~0.98) was audited on Fall 2025; titles are period-independent, so
+-- the flag applies to all periods.
 --
 -- Placed at Stage 1a (before 1b_section_filter.sql) for #40: has_required must be
 -- supply-aware, so section_book_status needs supply_isbn_classification to exist
@@ -33,27 +35,61 @@ exc AS (
     WHERE kind='exclude'
 ),
 isbn_title AS (
-    SELECT "ISBN13" AS isbn13, lower("Title") AS title_l, ANY_VALUE("Title") AS title, COUNT(*) AS n_rows
+    SELECT "ISBN13" AS isbn13, lower("Title") AS title_l, MIN("Title") AS title, COUNT(*) AS n_rows
     FROM ${SURVEY_TABLE}
     WHERE "ISBN13" IS NOT NULL AND "Title" IS NOT NULL AND period_date >= '2024-01-01'
     GROUP BY "ISBN13", lower("Title")
 ),
-classified AS (
-    SELECT it.isbn13, it.title, it.n_rows,
-        (SELECT inc.p FROM inc WHERE it.title_l LIKE '%' || inc.p || '%' ORDER BY length(inc.p) DESC LIMIT 1) AS matched_inc,
-        EXISTS (SELECT 1 FROM exc WHERE it.title_l LIKE '%' || exc.p || '%') AS hit_exc
+title_matches AS (
+    SELECT
+        it.isbn13,
+        it.title_l,
+        it.title,
+        it.n_rows,
+        inc.p AS matched_inc,
+        inc.category,
+        ROW_NUMBER() OVER (
+            PARTITION BY it.isbn13, it.title_l
+            ORDER BY (inc.p IN ('>supply<', '>suppy<')) ASC,
+                     length(inc.p) DESC,
+                     inc.p ASC,
+                     inc.category ASC
+        ) AS match_rank
     FROM isbn_title it
+    JOIN inc ON it.title_l LIKE '%' || inc.p || '%'
+    WHERE NOT EXISTS (SELECT 1 FROM exc WHERE it.title_l LIKE '%' || exc.p || '%')
+),
+classified AS (
+    SELECT isbn13, title_l, title, n_rows, matched_inc, category
+    FROM title_matches
+    WHERE match_rank = 1
+),
+ranked AS (
+    SELECT
+        isbn13,
+        title,
+        SUM(n_rows) OVER (PARTITION BY isbn13) AS n_rows,
+        matched_inc,
+        category,
+        ROW_NUMBER() OVER (
+            PARTITION BY isbn13
+            ORDER BY (matched_inc IN ('>supply<', '>suppy<')) ASC,
+                     length(matched_inc) DESC,
+                     matched_inc ASC,
+                     title_l ASC,
+                     title ASC,
+                     category ASC
+        ) AS attribution_rank
+    FROM classified
 )
 SELECT
-    c.isbn13,
-    ANY_VALUE(c.title)       AS title,
-    SUM(c.n_rows)            AS n_rows,
-    ANY_VALUE(c.matched_inc) AS matched_pattern,
-    ANY_VALUE(i.category)    AS category
-FROM classified c
-LEFT JOIN inc i ON c.matched_inc = i.p
-WHERE c.matched_inc IS NOT NULL AND NOT c.hit_exc
-GROUP BY c.isbn13;
+    isbn13,
+    title,
+    n_rows,
+    matched_inc AS matched_pattern,
+    category
+FROM ranked
+WHERE attribution_rank = 1;
 
 CREATE INDEX idx_supply_isbn ON supply_isbn_classification (isbn13);
 

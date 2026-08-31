@@ -7,15 +7,15 @@ mailing lists and analysis of course-materials cost and OER/Inclusive-Access ado
 > **Where to look:** current work status, how to run things, and gotchas in
 > [`HANDOFF.md`](HANDOFF.md) · exact execution/file lineage in
 > [`SCHEMA.md`](SCHEMA.md#data-lineage) · release-facing process, filters, and derived-field
-> semantics in [`CMM-ETL.md`](CMM-ETL.md) · full column
-> definitions in [`schema.dbml`](schema.dbml) (load in dbdiagram.io) · Master Section release
-> columns in [`MASTER-SECTION-DICTIONARY.md`](MASTER-SECTION-DICTIONARY.md) · naming standards in
+> semantics in [`CMM-ETL.md`](CMM-ETL.md) · authoritative full column dictionary in
+> [`DATA-DICTIONARY.md`](DATA-DICTIONARY.md), generated from [`schema.dbml`](schema.dbml) · detailed
+> Master Section appendix in [`MASTER-SECTION-DICTIONARY.md`](MASTER-SECTION-DICTIONARY.md) · naming standards in
 > [`CLAUDE.md`](CLAUDE.md) · dashboard and report inventory in
 > [`DASHBOARDS-REPORTS.md`](DASHBOARDS-REPORTS.md) · historical design decisions in
 > [`260529-DECISIONS.md`](260529-DECISIONS.md).
 
 The explicit Notion documentation sync is read-only by default. Preview the four tagged
-documents with `python3 scripts/sync_notion_docs.py SCHEMA.md CMM-ETL.md MASTER-SECTION-DICTIONARY.md
+documents with `python3 scripts/sync_notion_docs.py SCHEMA.md CMM-ETL.md DATA-DICTIONARY.md
 DASHBOARDS-REPORTS.md`; add `--apply` to push changes. Apply is non-transactional, so review
 the preview and treat each document update independently.
 
@@ -23,14 +23,19 @@ the preview and treat each document update independently.
 
 CSVs live under `data/<date>/`; paths are configured in `scripts/dot.env`.
 
-| File | Target table | Rows |
-|------|--------------|------|
-| `DiscoveryExtract.*.csv` | `course_catalog_<date>` | ~103M |
-| `IPEDS_2024.csv` | `ipeds_data` | ~7K |
-| `OptOut_*.csv` | `opt_out` | variable |
-| `panel_*.csv` | `panel` | variable |
-| `format_type_lookup.tsv` | `format_type_classification` | 69 |
-| `BookPricing.Historical_*.csv` | `pricing_historical` | snapshot-dependent (~27.3M current rows) |
+BMG owns the course-materials source and raw pricing/cost observations; BVA owns opt-out and
+mailing-history sources; IPEDS owns institution metadata. The executable table names below are
+established compatibility names, not source-prefixed naming claims. Derived outputs omit source
+acronyms.
+
+| Owner | File | Compatibility target | Rows |
+|---|---|---|---:|
+| BMG | `DiscoveryExtract.*.csv` | `course_catalog_<date>` | ~103M |
+| IPEDS | `IPEDS_2024.csv` | `ipeds_data` | ~7K |
+| BVA | `OptOut_*.csv` | `opt_out` | variable |
+| BVA | `panel_*.csv` | `panel` | variable |
+| Internal | `format_type_lookup.tsv` | `format_type_classification` | 69 |
+| BMG | `BookPricing.Historical_*.csv` | `pricing_historical` | snapshot-dependent (~27.3M current rows) |
 
 ## Running the pipeline
 
@@ -44,9 +49,13 @@ The runner loads `scripts/dot.env`, templates each `scripts/sql/*.sql` file (env
 
 | Stage | Flag to skip | What it does |
 |-------|--------------|--------------|
-| IMPORT | `NO_IMPORT` | Load CSVs; derive composite keys; retain raw panel plus one-row-per-email `panel_email`; build enriched source-row `comprehensive_data`; classify catalog OER/IA; canonicalize `course_materials` and `section_enrollment`; build source-owned pricing history/wide tables and non-mutating DQ comparisons |
-| EDA | `NO_EDA` | Build mailing lists from `comprehensive_data`, canonical `material_costs` as the only pricing enrichment of `course_materials_use`, section/course records, and materialize `scripts/sql/models/*.sql` rollups |
-| EXPORT | `NO_EXPORT` | Auto-discover `scripts/sql/exports/*.sql`, wrap each in a temp table, `COPY` to CSV in `output/` |
+| IMPORT | `NO_IMPORT` | Load CSVs; Stage 3 parses BMG pricing; derive composite keys; retain raw panel plus one-row-per-email `panel_email`; build enriched source-row `comprehensive_data`; classify catalog OER/IA; canonicalize `course_materials` and `section_enrollment`; build BMG-owned pricing history/wide tables and non-mutating DQ comparisons |
+| EDA | `NO_EDA` | Materialize Mailing Master from the normalized course-material import; build Mailing Working/history/opt-out and geographic views; build canonical `material_costs` as the only pricing enrichment of `course_materials_use`, section/course records, and materialize `scripts/sql/models/*.sql` rollups |
+| EXPORT | `NO_EXPORT` | Auto-discover the 24 `scripts/sql/exports/*.sql` wrappers, wrap each in a temp table, and `COPY` to CSV in `output/` |
+
+The runner rejects mailing exports when the same invocation runs IMPORT but skips
+`3_mailing_lists.sql`; this prevents a newly refreshed course-material import from being paired
+with a stale persisted Mailing Master. A wrapper-only export with `NO_IMPORT=1` remains supported.
 
 ```bash
 NO_IMPORT=1 NO_EXPORT=1 scripts/run_sql.sh   # rebuild just the EDA records
@@ -60,7 +69,7 @@ and is re-runnable.
 - **`comprehensive_data`** — exactly one enriched, normalized BMG source row (catalog × IPEDS ×
   opt-out × one-row-per-email panel lookup × format-type × section status), with row-level 2024+
   Use/NoUse/Canada, coverage, enrollment, placeholder, supply, required, and OER/IA flags. It
-  remains the source for mailing, faculty, and raw DQ; the rebuilt source and enriched tables
+  remains the source for faculty and raw DQ; the rebuilt source and enriched tables
   each contain 102,885,609 rows.
 - **`course_materials`** — first canonical processed table at one
   `(period_sortable, section_id, isbn13)`, plus one NULL-ISBN audit row per section when present;
@@ -93,7 +102,15 @@ and is re-runnable.
   `scripts/sql/models/`; combined exports live in `output/`.
 - **`sample10_section_ids`** — canonical deterministic section-level sample membership;
   sampled exports and reconciliation reuse this table rather than drawing independently.
-- **Mailing lists** — `master_mailing`, `current_mailing`, and state-specific views.
+- **Mailing lists** — the persisted `master_mailing` table deterministically selects one row per
+  cleaned email directly from the normalized course-material import by newest period, enrollment,
+  then stable source fields. It is deliberately upstream of mailing history and opt-out policy.
+  `current_mailing` is the whiteboard's Mailing Working view: it keeps Master rows in the newest
+  12 periods, joins the one-row-per-email `panel_email` history lookup, and excludes emails in
+  `opt_out`. Its `CA`/`TX`/`FL`/`NY`/`PA`/`CAN`/`Other` views normalize with
+  `UPPER(TRIM(state))`; Other is the complete NULL/blank/unknown residual. The newer history file
+  itself remains pending in #56. Master is a staging/audit population; Working and its geographic
+  views are the send-ready, opt-out-filtered populations.
 
 To create separate release-dated files for every material-bearing term, or only Fall 2025:
 

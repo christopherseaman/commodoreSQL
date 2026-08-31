@@ -23,6 +23,8 @@ URL_UUID_RE = re.compile(r"(?i)(?<![0-9a-f])([0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}
 H1_RE = re.compile(r"^#\s+(.+?)\s*$")
 KEYS = {"notion-id", "notion-url", "notion-sync"}
 ALLOWED_HOSTS = {"notion.so", "www.notion.so", "app.notion.com"}
+SUBPROCESS_TIMEOUT_SECONDS = 60.0
+MAX_REQUEST_BYTES = 500_000
 
 
 class SyncError(Exception):
@@ -109,7 +111,16 @@ def first_h1(markdown: bytes) -> str | None:
     return None
 
 
-def inspect_page(raw: bytes, expected_id: str, path: str, require_body: bool) -> tuple[str, dict, str | None]:
+def heading_sequence(markdown: bytes) -> list[tuple[int, str]]:
+    headings = []
+    for line in markdown.decode("utf-8", "replace").splitlines():
+        match = re.fullmatch(r"(#{1,3})\s+(.+?)\s*", line.strip())
+        if match:
+            headings.append((len(match.group(1)), match.group(2).strip()))
+    return headings
+
+
+def inspect_page(raw: bytes, expected_id: str, path: str, require_body: bool) -> tuple[str, dict, str | None, list[tuple[int, str]], str | None]:
     try:
         payload = json.loads(raw)
     except (UnicodeDecodeError, json.JSONDecodeError) as exc:
@@ -152,24 +163,47 @@ def inspect_page(raw: bytes, expected_id: str, path: str, require_body: bool) ->
         raise SyncError(f"{path}: pages get returned invalid markdown")
     if require_body and (not markdown or not markdown.strip()):
         raise SyncError(f"{path}: pages get returned an empty body after edit")
-    return title, parent, first_h1(markdown.encode()) if markdown else None
+    return title, parent, first_h1(markdown.encode()) if markdown else None, heading_sequence(markdown.encode()) if markdown else [], markdown
 
 
-def run_get(ntn: str, page_id: str, path: str, require_body: bool) -> tuple[str, dict, str | None]:
+def run_get(ntn: str, page_id: str, path: str, require_body: bool) -> tuple[str, dict, str | None, list[tuple[int, str]], str | None]:
     env = os.environ.copy()
     env["NOTION_KEYRING"] = "0"
-    result = subprocess.run([ntn, "pages", "get", page_id, "--json"], capture_output=True, env=env)
+    try:
+        result = subprocess.run([ntn, "pages", "get", page_id, "--json"], capture_output=True, env=env, timeout=SUBPROCESS_TIMEOUT_SECONDS)
+    except subprocess.TimeoutExpired as exc:
+        raise SyncError(f"{path}: pages get timed out after {SUBPROCESS_TIMEOUT_SECONDS:g}s") from exc
     if result.returncode:
         raise SyncError(f"{path}: pages get failed (exit {result.returncode})")
     return inspect_page(result.stdout, page_id, path, require_body)
 
 
-def run_edit(ntn: str, page_id: str, body: bytes, path: str) -> None:
+def _api_error(result: subprocess.CompletedProcess[bytes], path: str, operation: str) -> SyncError:
+    stderr = result.stderr.decode("utf-8", "replace").strip()
+    stdout = result.stdout.decode("utf-8", "replace").strip()
+    detail = stderr or stdout or "no error details"
+    return SyncError(f"{path}: Notion API {operation} failed (exit {result.returncode}): {detail}")
+
+
+def run_edit(ntn: str, page_id: str, body: bytes, path: str) -> str:
+    request = json.dumps({"allow_async": False, "type": "replace_content", "replace_content": {"new_str": body.decode("utf-8")}}, ensure_ascii=False, separators=(",", ":")).encode("utf-8")
+    if len(request) >= MAX_REQUEST_BYTES:
+        raise SyncError(f"{path}: replacement request is {len(request)} bytes; maximum is {MAX_REQUEST_BYTES - 1}")
     env = os.environ.copy()
     env["NOTION_KEYRING"] = "0"
-    result = subprocess.run([ntn, "pages", "edit", page_id], input=body, capture_output=True, env=env)
+    try:
+        result = subprocess.run([ntn, "api", f"/v1/pages/{page_id}/markdown", "--method", "PATCH", "--data", "@-"], input=request, capture_output=True, env=env, timeout=SUBPROCESS_TIMEOUT_SECONDS)
+    except subprocess.TimeoutExpired as exc:
+        raise SyncError(f"{path}: Notion API submit timed out after {SUBPROCESS_TIMEOUT_SECONDS:g}s") from exc
     if result.returncode:
-        raise SyncError(f"{path}: pages edit failed (exit {result.returncode})")
+        raise _api_error(result, path, "submit")
+    try:
+        payload = json.loads(result.stdout)
+    except (UnicodeDecodeError, json.JSONDecodeError) as exc:
+        raise SyncError(f"{path}: Notion API submit returned invalid JSON") from exc
+    if not isinstance(payload, dict) or payload.get("object") != "page_markdown" or payload.get("id") != page_id or not isinstance(payload.get("markdown"), str) or payload.get("truncated") is not False or payload.get("unknown_block_ids") != []:
+        raise SyncError(f"{path}: Notion API submit returned an invalid page_markdown response")
+    return payload["markdown"]
 
 
 def main(argv: list[str] | None = None) -> int:
@@ -201,15 +235,21 @@ def main(argv: list[str] | None = None) -> int:
             raise SyncError("duplicate notion-id arguments")
         snapshots = []
         for page_id, _url, body, path, _local_h1 in documents:
-            title, parent, remote_h1 = run_get(ntn, page_id, path, False)
-            snapshots.append((title, parent, remote_h1))
+            title, parent, remote_h1, remote_headings, remote_markdown = run_get(ntn, page_id, path, False)
+            snapshots.append((title, parent, remote_h1, remote_headings, remote_markdown))
             print(f"CHECK {path} -> {page_id} (body {len(body)} bytes)")
         if not args.apply:
             return 0
-        for (page_id, _url, body, path, local_h1), (title, parent, _remote_h1) in zip(documents, snapshots):
-            run_edit(ntn, page_id, body, path)
-            new_title, new_parent, new_h1 = run_get(ntn, page_id, path, True)
-            if new_title != title or new_parent != parent or new_h1 != local_h1:
+        for (page_id, _url, body, path, local_h1), (title, parent, _remote_h1, _remote_headings, _remote_markdown) in zip(documents, snapshots):
+            submitted_markdown = run_edit(ntn, page_id, body, path)
+            new_title, new_parent, new_h1, new_headings, new_markdown = run_get(ntn, page_id, path, True)
+            def normalize(value: str | None) -> str | None:
+                if value is not None and value.endswith("\n"):
+                    value = value[:-1]
+                    if value.endswith("\r"):
+                        value = value[:-1]
+                return value
+            if new_title != title or new_parent != parent or new_h1 != local_h1 or new_headings != heading_sequence(body) or normalize(submitted_markdown) != normalize(new_markdown):
                 raise SyncError(f"{path}: title, parent, or H1 changed during edit")
             print(f"APPLY {path} -> {page_id} verified")
     except SyncError as exc:

@@ -70,6 +70,23 @@ if [ -d "sql/exports" ]; then
     done < <(find sql/exports -maxdepth 1 -name "*.sql" -type f | sort)
 fi
 
+# Mailing exports consume the persisted master selection refreshed by 3_mailing_lists.sql.
+# Keep the explicit dependency list small and auditable so a same-invocation
+# import cannot silently feed stale opt-out or catalog state to these wrappers.
+MAILING_EXPORT_SQL=(
+    "exports/10_master_mailing.sql"
+    "exports/11_current_mailing.sql"
+    "exports/11_recent_mailing.sql"
+    "exports/20_california_mailing.sql"
+    "exports/21_texas_mailing.sql"
+    "exports/22_florida_mailing.sql"
+    "exports/23_newyork_mailing.sql"
+    "exports/24_texas_fall_series.sql"
+    "exports/25_pennsylvania_mailing.sql"
+    "exports/26_canada_mailing.sql"
+    "exports/27_other_mailing.sql"
+)
+
 # Build SQL_FILES array based on stage flags
 SQL_FILES=()
 
@@ -100,6 +117,28 @@ if [ ! -z "${CUSTOM_SQL_FILES+x}" ]; then
     SQL_FILES=("${CUSTOM_SQL_FILES[@]}")
     echo "Using custom SQL files: ${SQL_FILES[@]}"
 fi
+
+# Reject only the unsafe same-invocation dependency gap. Wrapper-only runs with
+# NO_IMPORT reuse the last validated mailing selection; normal full runs include the
+# mailing refresh before exports.
+last_import_index=-1
+last_mailing_refresh_index=-1
+for sql_index in "${!SQL_FILES[@]}"; do
+    sql_file="${SQL_FILES[$sql_index]}"
+    if [[ " ${IMPORT_SQL[*]} " == *" ${sql_file} "* ]]; then
+        last_import_index=$sql_index
+    fi
+    if [ "$sql_file" = "3_mailing_lists.sql" ]; then
+        last_mailing_refresh_index=$sql_index
+    fi
+    if [[ " ${MAILING_EXPORT_SQL[*]} " == *" ${sql_file} "* ]] &&
+       (( last_import_index >= 0 && last_mailing_refresh_index <= last_import_index )); then
+        echo "Error: ${sql_file} follows IMPORT without a later 3_mailing_lists.sql refresh." >&2
+        echo "Refresh mailing after the last selected IMPORT file and before each mailing export," >&2
+        echo "or set NO_IMPORT=1 when exporting an already-refreshed database." >&2
+        exit 1
+    fi
+done
 
 # Exit early if no SQL files to process
 if [ ${#SQL_FILES[@]} -eq 0 ]; then
@@ -221,6 +260,24 @@ for sql_file in "${SQL_FILES[@]}"; do
     fi
 
     echo "[$stage] Processing ${sql_file}..."
+
+    # Compatibility migration: #66 changed master_mailing from a VIEW to a TABLE.
+    # DuckDB will not let DROP TABLE remove the old view, so remove that legacy
+    # object once before the new idempotent table refresh executes.
+    if [ "$sql_file" = "3_mailing_lists.sql" ]; then
+        master_mailing_type=$(
+            ${DUCKDB} "${MAIN_DB}" -csv -noheader -c "
+                SELECT table_type
+                FROM information_schema.tables
+                WHERE table_schema = 'main' AND table_name = 'master_mailing';
+            "
+        )
+        if [ "$master_mailing_type" = "VIEW" ]; then
+            echo "[MIGRATION] Dropping legacy master_mailing view..."
+            ${DUCKDB} "${MAIN_DB}" -c "DROP VIEW master_mailing;"
+        fi
+    fi
+
     envsubst < "sql/${sql_file}" > "${TMP_DIR}/${sql_file}"
 
     # Execute with error handling

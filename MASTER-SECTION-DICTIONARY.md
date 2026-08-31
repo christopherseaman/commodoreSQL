@@ -1,12 +1,8 @@
----
-notion-id: 3cbd9fdd-1a1a-8082-b697-ca7f5ef1d6ed
-notion-url: https://app.notion.com/p/sqrlly/Data-Dictionary-3cbd9fdd1a1a8082b697ca7f5ef1d6ed
-notion-sync: push
----
-
 # Master Section release dictionary
 
-This is the per-column contract for the release-facing `master_section` table. Its grain is one
+This repo-level appendix is the detailed business, NULL, population, and denominator contract for
+the release-facing `master_section` table. The generated project-wide `DATA-DICTIONARY.md` embeds
+this appendix so the synced Data Dictionary page remains self-contained. Its grain is one
 row per distinct `(period_sortable, section_id)` represented by canonical `material_costs` for
 2024+ terms. “Material-section population” below means those sections; the independent
 `section_enrollment` table retains the complete valid section population, including no-ISBN and
