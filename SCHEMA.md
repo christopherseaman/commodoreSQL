@@ -87,7 +87,8 @@ rows.
   opt-out × panel lookup × format-type × section status), validated at 102,885,609 rows. It
   remains the source for faculty and raw DQ consumers, and owns row-level population booleans.
 - **`panel` / `panel_email`** — raw panel source rows remain retained; `panel_email` is the
-  one-row-per-cleaned-email enrichment lookup with latest response and multiplicity counts, so
+  one-row-per-cleaned-email enrichment lookup with the maximum stored response year and
+  multiplicity counts, so
   panel history cannot multiply `comprehensive_data` rows.
 - **Mailing Master and Working** — materialized `master_mailing` deterministically chooses one row
   per cleaned email directly from the normalized course-material import by newest period, largest
@@ -95,7 +96,9 @@ rows.
   `current_mailing` is the whiteboard's Mailing Working view: it uses the newest 12 periods, joins
   `panel_email`, and excludes `opt_out`. `UPPER(TRIM(state))` routes Working into disjoint
   CA/TX/FL/NY/PA/CAN/Other views, with Other retaining NULL, blank, and unknown states. The updated
-  history source itself remains pending in #56.
+  history source itself remains pending in #56. See the complete
+  [mailing lineage](#mailing-source-master-working-and-export-lineage) and the canonical
+  [step-by-step contract](CMM-ETL.md#mailing-source-master-and-working-contract-66).
 - **`course_materials`** — first canonical processed table, one row per
   `(period_sortable, section_id, isbn13)` plus one NULL-ISBN audit row per section when present.
   It carries representative catalog metadata, source counts, variant/conflict evidence, flags,
@@ -241,7 +244,7 @@ flowchart TD
     ipeds_csv["IPEDS CSV"] --> ipeds["ipeds_data<br/>one institution"]
     optout_csv["BVA OptOut CSV"] --> optout["opt_out<br/>compatibility name; cleaned email rows"]
     panel_csv["BVA panel/history CSV"] --> panel["panel<br/>compatibility name; cleaned email rows"]
-    panel --> panel_email["panel_email<br/>one row per email<br/>latest response + multiplicity counts"]
+    panel --> panel_email["panel_email<br/>one row per email<br/>MAX response year + multiplicity counts"]
     pricing_csv["BMG BookPricing CSV"] --> pricing["pricing_historical<br/>compatibility name; section × ISBN × option × condition × format × rental days<br/>latest logical-key snapshot"]
     format_tsv["format_type_lookup.tsv"] --> ftc["format_type_classification"]
     supply_tsv["supply_keywords.tsv"] --> supply["supply_isbn_classification<br/>2024+ ISBN title variants"]
@@ -287,20 +290,12 @@ rebuilt between diagrams.
 flowchart TD
     catalog["course_catalog_YYYYMMDD<br/>normalized imported course-material rows"]
     cd["comprehensive_data<br/>catalog/adoption-row grain"]
-    panel_email["panel_email<br/>one row per email"]
-    opt_out["opt_out<br/>cleaned email exclusions"]
     pw["pricing_wide<br/>one section × ISBN"]
     sbs["section_book_status<br/>one section"]
     cm["course_materials<br/>one period × section × ISBN<br/>canonical processed items"]
     use["course_materials_use view<br/>canonical Use projection"]
 
-    catalog --> mailing["master_mailing TABLE<br/>one selected row per cleaned email"]
-    mailing --> recent["recent_periods<br/>latest 12 periods"]
-    mailing --> current["current_mailing VIEW<br/>Mailing Working"]
-    recent --> current
-    panel_email -->|"latest panel response year"| current
-    opt_out -->|"NOT EXISTS: omit opt-outs"| current
-    current --> mailing_views["UPPER(TRIM(state)) partitions<br/>CA / TX / FL / NY / PA / CAN / Other<br/>Other includes NULL / blank / unknown"]
+    catalog --> mailing_branch["mailing branch<br/>source → Master → Working → exports<br/>detailed below"]
     cd --> se["section_enrollment<br/>one period × section; 2024+ non-null section/term spine"]
     cd -->|"canonicalize source rows"| cm
     cm --> use
@@ -331,6 +326,65 @@ flowchart TD
 questions; it does not enrich `comprehensive_data` or a materialized release table. The import step
 also writes `output/email_issues.tsv` directly from the raw catalog CSV.
 
+#### Mailing source, Master, Working, and export lineage
+
+This diagram is the complete implemented mailing branch. Node subtitles state the grain or filter;
+the canonical prose contract and the resolved difference from the historical workflow attachment
+are centralized in
+[`CMM-ETL.md`](CMM-ETL.md#mailing-source-master-and-working-contract-66).
+
+```mermaid
+flowchart TD
+    catalog_csv["BMG DiscoveryExtract CSV<br/>raw catalog/source rows"]
+    catalog["course_catalog_&lt;date&gt;<br/>normalized source-row table"]
+    panel_csv["existing BVA panel/history CSV"]
+    panel["panel<br/>lower/trim email; source rows retained"]
+    panel_email["panel_email<br/>one row/email; MAX response year + multiplicity"]
+    optout_csv["BVA OptOut CSV"]
+    opt_out["opt_out<br/>lower/trim email; source rows retained"]
+    master["master_mailing TABLE<br/>one row/nonblank cleaned email<br/>newest term → enrollment → stable tie-breaks<br/>no history join or opt-out filter"]
+    recent["recent_periods VIEW<br/>newest 12 non-NULL terms represented in Master"]
+    working["current_mailing VIEW / Mailing Working<br/>latest-12 + history-enriched + opt-out-excluded<br/>one eligible row/email"]
+
+    catalog_csv -->|"0_setup: extract/first address;<br/>remove spaces; lower + trim"| catalog
+    panel_csv -->|"0_setup: lower + trim"| panel
+    panel -->|"GROUP BY email"| panel_email
+    optout_csv -->|"0_setup: lower + trim"| opt_out
+    catalog -->|"non-NULL/nonblank email;<br/>GROUP BY cleaned email"| master
+    master -->|"DISTINCT term; DESC; LIMIT 12"| recent
+    master --> working
+    recent -->|"term IN recent_periods"| working
+    panel_email -->|"LEFT JOIN on email;<br/>missing history retained"| working
+    opt_out -->|"NOT EXISTS on email"| working
+
+    master --> e10["10_master_mailing.csv<br/>staging/audit; not send-ready"]
+    working --> e11c["11_current_mailing.csv<br/>selected Working columns"]
+    working --> e11r["11_recent_mailing.csv<br/>all Working columns; same population"]
+
+    working -->|"UPPER(TRIM(state)) = CA"| ca["current_mailing_ca"]
+    working -->|"= TX"| tx["current_mailing_tx"]
+    working -->|"= FL"| fl["current_mailing_fl"]
+    working -->|"= NY"| ny["current_mailing_ny"]
+    working -->|"= PA"| pa["current_mailing_pa"]
+    working -->|"= CAN"| can["current_mailing_can"]
+    working -->|"COALESCE(normalized state, '')<br/>outside named codes"| other["current_mailing_other<br/>NULL / blank / unknown residual"]
+
+    ca --> e20["20_california_mailing.csv"]
+    tx --> e21["21_texas_mailing.csv"]
+    tx -->|"period LIKE 'Fall%'"| e24["24_texas_fall_series.csv"]
+    fl --> e22["22_florida_mailing.csv"]
+    ny --> e23["23_newyork_mailing.csv"]
+    pa --> e25["25_pennsylvania_mailing.csv"]
+    can --> e26["26_canada_mailing.csv"]
+    other --> e27["27_other_mailing.csv"]
+```
+
+The seven geographic views are pairwise disjoint and collectively exhaustive over Working; the
+SQL emits a row/distinct-email reconciliation check after creating them. The original `state` value
+is exported even though routing uses its normalized form. `run_sql.sh` also rejects any mailing
+wrapper that follows an import in the same invocation without a later mailing refresh; an explicit
+`NO_IMPORT=1` wrapper-only run may reuse the last refreshed relations.
+
 ### Export lineage
 
 Solid arrows below mean source-to-file dependency. Dotted `next` arrows preserve the normal
@@ -340,8 +394,7 @@ Exact wrapper order, row filters, and artifact names follow in the inventory.
 ```mermaid
 flowchart TD
     raw_source["comprehensive_data"] --> raw["01_sample_records.csv"]
-    raw -. "next" .-> mail_source["master_mailing / current_mailing / state views"]
-    mail_source --> mail["10, 11, and 20–27 mailing CSVs<br/>including PA / CAN / Other"]
+    raw -. "next: mailing branch shown above" .-> mail["10, 11, and 20–27 mailing CSVs"]
     mail -. "next" .-> faculty_source["comprehensive_data"]
     faculty_source --> faculty["30_faculty_records.csv"]
     faculty -. "next" .-> model_source["master_section / master_course / master_course_material<br/>+ sample membership / Master Institution / Master ISBN"]
@@ -372,7 +425,7 @@ the raw catalog deduplication.
 | 1 | `01_sample_records.sql` | 10,000 randomly ordered `comprehensive_data` rows |
 | 2 | `10_master_mailing.sql` | selected columns from pre-history/pre-opt-out `master_mailing`; staging/audit output, not a send-ready list |
 | 3 | `11_current_mailing.sql` | selected columns from opt-out-filtered `current_mailing` / Mailing Working |
-| 4 | `11_recent_mailing.sql` | all columns from opt-out-filtered `current_mailing` / Mailing Working |
+| 4 | `11_recent_mailing.sql` | all columns from opt-out-filtered `current_mailing` / Mailing Working; same row population as export 11, not an independently calculated recency set |
 | 5 | `20_california_mailing.sql` | `current_mailing_ca` |
 | 6 | `21_texas_mailing.sql` | `current_mailing_tx` |
 | 7 | `22_florida_mailing.sql` | `current_mailing_fl` |

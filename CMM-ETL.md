@@ -132,6 +132,31 @@ see the exact execution and file-output diagrams in
     [`SCHEMA.md`](SCHEMA.md#automatic-export-inventory). Per-term CMM releases and the Fall 2025
     Parquet extracts are separate commands, not hidden runner steps.
 
+### Mailing source, Master, and Working contract (#66)
+
+The mailing branch deliberately separates source preservation, deterministic contact selection,
+and send-eligibility policy. The diagram in
+[`SCHEMA.md`](SCHEMA.md#mailing-source-master-working-and-export-lineage) follows this branch
+through every automatic mailing export; the relation and column details remain in
+[`DATA-DICTIONARY.md`](DATA-DICTIONARY.md#master_mailing).
+
+| Step | Relation and grain | Logic and derived fields | Filters and population effect |
+|---:|---|---|---|
+| 1 | `${SURVEY_TABLE}` (currently `course_catalog_20251215`); one normalized BMG catalog source row per input row | `0_setup.sql` extracts an address from recognized `email:` text, takes the first space-delimited address when multiple addresses are detected, removes interior spaces from other address-like values, then lowercases and trims. It also derives `course_id`, period-specific `section_id`, `period_sortable`, and `period_date`. `output/email_issues.tsv` records suspicious raw values and the cleaning action. | No mailing-eligibility filter is applied at import. Rows with missing or malformed contact data remain available in the normalized source and audit; only a later Master step rejects NULL/blank cleaned email. Mailing reads this normalized source directly, not `comprehensive_data` or canonical `course_materials`. |
+| 2 | `panel`; one retained BVA history source row, and `panel_email`; one row per cleaned email | The source email is lowercased/trimmed and duplicate source rows remain in `panel`. `panel_email` groups by email, stores `MAX(response_year)` as `panel_response_year`, and carries source-row and distinct-response-year counts so a history join cannot multiply contacts. `MAX` follows VARCHAR ordering, which is chronological only while source years retain the expected four-digit format. | History never selects or removes a Master row. A missing `panel_email` match yields NULL `panel_response_year` in Working. The unavailable newer BVA history source remains pending in issue #56; the current branch uses the existing imported snapshot. |
+| 3 | `opt_out`; one retained BVA opt-out source row | Source email is lowercased/trimmed; duplicate source rows are retained. Working uses an existence test, so duplicates neither multiply rows nor change the exclusion result. | Opt-outs are not removed from Source or Master. They are applied only when Working is queried. |
+| 4 | `master_mailing` TABLE; exactly one row per non-NULL, nonblank cleaned source email | `3_mailing_lists.sql` groups the normalized catalog source by email and selects one coherent source row: newest `period_sortable`, then largest `enrollments`, then stable ordering over IDs and contact/course fields. The selected row supplies institution, course, period, and instructor/contact context. | The only population filter is `email IS NOT NULL AND TRIM(email) != ''`. No history join, opt-out exclusion, period window, geography filter, or random selection occurs here. Master is reproducible staging/audit data, not a send-ready list. |
+| 5 | `recent_periods` VIEW; at most 12 distinct term keys | Select distinct non-NULL `period_sortable` values represented in `master_mailing`, order descending, and keep 12. | The boundary is based on terms remaining after one-row-per-email Master selection, not every term in the full catalog. |
+| 6 | `current_mailing` VIEW, the whiteboard's **Mailing Working**; at most one eligible row per cleaned email | Start from Master, LEFT JOIN the one-row-per-email `panel_email` lookup, and retain `panel_response_year`. | Require `period_sortable` in `recent_periods` and exclude every email matched by `NOT EXISTS (SELECT ... FROM opt_out)`. Missing history does not exclude a contact. This is the send-ready population before geographic routing. |
+| 7 | `current_mailing_ca`, `_tx`, `_fl`, `_ny`, `_pa`, `_can`, and `_other`; disjoint projections of Working | Classify with `UPPER(TRIM(state))` while retaining the original source `state` in each row. A console DQ query reconciles row and distinct-email counts across all seven views to Working. | Named views require exact normalized `CA`, `TX`, `FL`, `NY`, `PA`, or `CAN`; Other is the exhaustive `COALESCE(..., '') NOT IN (...)` residual, including NULL, blank, and unrecognized values. |
+| 8 | Automatic CSV wrappers; projections of Master, Working, or a Working geography | `10_master_mailing` selects staging/audit columns from Master. `11_current_mailing` selects Working contact/history columns; `11_recent_mailing` selects all Working columns and is not a separately calculated population. Wrappers 20–23 and 25–27 select the corresponding geographic views; wrapper 24 selects Texas Working rows whose original `period` starts with `Fall`, newest first. | Only export 10 is pre-opt-out and therefore not send-ready. Exports 11 and 20–27 inherit all Working filters; wrapper 24 adds `period LIKE 'Fall%'`. `run_sql.sh` refuses a mailing export after an import in the same invocation unless `3_mailing_lists.sql` refreshed the branch afterward; `NO_IMPORT=1` may intentionally reuse an already refreshed database. |
+
+This is the resolved executable contract. The source workflow attachment described opt-out
+filtering and a random final choice inside Mailing Master; the whiteboard-aligned decision in issue
+#66 supersedes that wording. Master is deterministic and upstream of both BVA history and opt-out
+policy; Working owns those joins and filters. Historical `comms/` captures remain unchanged as
+source evidence rather than being rewritten to look like the current implementation.
+
 ## 3. Table/data dictionary (contract grains)
 
 The following is a concise release-facing grain summary. The authoritative project-wide relation
@@ -146,8 +171,8 @@ dictionary so the synced Notion page is self-contained.
 |---|---|---|---|
 | `course_catalog_20251215` | one source catalog row | `unit_id`, `ISBN13` BIGINT; `period_sortable` `YYYY-N`; `course_id`, `section_id` VARCHAR | BMG DiscoveryExtract; adoption and coverage denominators |
 | `ipeds_data` | one institution (`unitid`) | `sector`, `iclevel`, `control`, `instsize` VARCHAR descriptors; enrollment INTEGER | IPEDS snapshot; institution stratification |
-| `opt_out` / `panel` | one cleaned email per source row | `email` VARCHAR lowercase/trimmed; response year VARCHAR | BVA mailing enrichment and exclusions; raw panel history remains retained |
-| `panel_email` | one row per cleaned email | `email`, latest `panel_response_year`, source-row and response-year variant counts | One-row enrichment lookup; prevents panel-history multiplication while preserving `panel` |
+| `opt_out` / `panel` | one retained source row with a cleaned email; duplicate emails are not collapsed here | `email` VARCHAR lowercase/trimmed; response year VARCHAR | BVA mailing enrichment and exclusions; raw opt-out/panel source multiplicity remains retained |
+| `panel_email` | one row per cleaned email | `email`, maximum stored `panel_response_year`, source-row and response-year variant counts | One-row enrichment lookup; prevents panel-history multiplication while preserving `panel` |
 | `state_region` | one state/province code | `state`, `region`, `division` VARCHAR | Static Census-style geography enrichment and QA reference |
 | `format_type_classification` | one FormatType | `is_oer`, `is_ia` BOOLEAN; category VARCHAR | CMM lookup; OER/IA classification |
 | `supply_isbn_classification` | one classified ISBN | `isbn13` BIGINT; category VARCHAR | Internal keyword lookup; supply audit |

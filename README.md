@@ -110,7 +110,9 @@ and is re-runnable.
   `opt_out`. Its `CA`/`TX`/`FL`/`NY`/`PA`/`CAN`/`Other` views normalize with
   `UPPER(TRIM(state))`; Other is the complete NULL/blank/unknown residual. The newer history file
   itself remains pending in #56. Master is a staging/audit population; Working and its geographic
-  views are the send-ready, opt-out-filtered populations.
+  views are the send-ready, opt-out-filtered populations. The exact logic and filters at every step
+  are in the [mailing contract](CMM-ETL.md#mailing-source-master-and-working-contract-66), with the
+  full source-to-export [lineage diagram](SCHEMA.md#mailing-source-master-working-and-export-lineage).
 
 To create separate release-dated files for every material-bearing term, or only Fall 2025:
 

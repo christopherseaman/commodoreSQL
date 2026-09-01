@@ -31,7 +31,9 @@ and IPEDS owns institution metadata; existing source-table names are compatibili
   exactly: CA 136,959, TX 91,716, FL 56,087, NY 111,013, PA 62,455, CAN 24,552, Other 892,046.
   The one-stage Master refresh completed in 28 seconds, and one read-only query expanding all seven
   Working views completed in 0.77 seconds. Existing numbered export selectors and `COPY` handling
-  are unchanged. The unavailable updated mailing-history source remains #56.
+  are unchanged. The explicit source → Master → Working logic/filter contract is in `CMM-ETL.md`,
+  and the complete source-to-export branch is diagrammed in `SCHEMA.md`. The unavailable updated
+  mailing-history source remains #56.
 - **#67 source and documentation correction is implemented and validated.** The generated
   project-wide `DATA-DICTIONARY.md` is reproducible, and all 44 canonical relations / 1,276
   declared columns now match the live DuckDB relation kind, column order, and exact type (including
