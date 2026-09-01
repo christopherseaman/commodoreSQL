@@ -30,8 +30,8 @@ This repository does not assert that pending Spring 2026 inputs have been loaded
 The five current external sources are BMG course materials, BMG costs/pricing, IPEDS, BVA
 opt-out, and BVA mailing history. CMM Supplies is currently represented by the interim
 `supply_isbn_classification` classifier; configured format-type and supply-keyword lookups are
-internal inputs. CMM IA, external pricing, discipline, and the 25-institution scope remain
-pending. Keep History is a behavior decision, not a source table.
+internal inputs. CMM IA, external pricing, discipline, the Fall 2025 bookstore-brand lookup,
+and the 25-institution scope remain pending. Keep History is a behavior decision, not a source table.
 
 ## 2. Execution order and semantics
 
@@ -203,10 +203,12 @@ section-cluster totals may be expanded by ten; distinct institution or ISBN doma
 
 ## 8. Pending inputs and change control
 
-The following are boundaries, not current facts: Spring 2026 BMG course materials; the additional
-institution/IPEDS input; additional-term BMG pricing; updated BVA mailing history (issue #56);
-external pricing; discipline lookup; and later campus-level IA data. The current mailing branch
-uses the existing `panel_email` snapshot. The pricing table is rebuilt to the latest row per
+The following are boundaries, not current facts: Spring 2026 BMG course materials; an updated IPEDS
+snapshot; additional-term BMG pricing; updated BVA mailing history (issue #56); authoritative CMM
+Supplies; external pricing; discipline lookup; later campus-level IA data; and the shared
+25-institution review package. The current mailing branch uses the existing `panel_email` snapshot.
+The Fall 2025 bookstore-brand lookup is also pending; when received, it will enrich approved release
+records without reverse-enriching raw pricing. The pricing table is rebuilt to the latest row per
 logical key and is not a cross-snapshot history store.
 
 Before using new inputs, record source identity and dates, verify schemas and term mappings, rerun

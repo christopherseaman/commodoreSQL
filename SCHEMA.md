@@ -31,8 +31,9 @@ institution metadata.
 The current external inputs are five sources: BMG course materials, BMG costs/pricing, IPEDS,
 BVA opt-out, and BVA mailing history. `CMM Supplies` is currently an interim internal classifier,
 not a supplied table. Internal format-type and supply-keyword lookups are configured inputs to
-that executable flow. CMM IA, external pricing, discipline, and the 25-institution scope are
-pending inputs/scopes; Keep History is a proposed behavior, not a relation.
+that executable flow. CMM IA, external pricing, discipline, the Fall 2025 bookstore-brand lookup,
+and the 25-institution scope are pending inputs/scopes; Keep History is a proposed behavior, not a
+relation.
 
 | Owner | Configured input | Loaded target or consumer |
 |---|---|---|
@@ -229,9 +230,9 @@ flowchart TD
 ```
 
 `state_region` is a current IMPORT helper joined at query time by Metabase questions; it does not
-enrich `comprehensive_data` or a release table. Pending CMM IA, external-pricing, discipline, and
-25-institution inputs/scopes have no nodes in this flow. Keep History is a behavior proposal, not
-a table.
+enrich `comprehensive_data` or a release table. Pending CMM IA, external-pricing, discipline,
+bookstore-brand, and 25-institution inputs/scopes have no nodes in this implemented-only flow. Keep
+History is a behavior proposal, not a table.
 
 ## Current database topology
 
@@ -308,10 +309,11 @@ These commands are implemented and re-runnable but do **not** run in `scripts/ru
 
 ## Pending inputs and non-current paths
 
-Spring 2026 catalog/pricing, updated IPEDS, external pricing, discipline, updated mailing history,
-campus IA, and shared 25-institution inputs have no active SQL nodes. They remain outside the
-implemented diagrams until their files, grains, keys, and semantics are validated (issues #51,
-#52, #56, #57, and #60).
+Spring 2026 catalog/pricing, updated IPEDS, authoritative CMM Supplies, external pricing, discipline,
+updated mailing history, campus IA, the Fall 2025 bookstore-brand lookup, and shared 25-institution
+inputs have no active SQL nodes. They remain outside the implemented-only diagrams until their
+files, grains, keys, and semantics are validated (issues #23, #51, #52, #56, #57, #60, #72, and
+#75).
 
 “Keep History” is not an implemented cross-snapshot retention layer. The pricing import
 drops/recreates `pricing_historical` and retains the latest row at each logical key within the
