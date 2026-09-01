@@ -32,6 +32,12 @@ relations and columns, and [`DASHBOARDS-REPORTS.md`](DASHBOARDS-REPORTS.md) for 
 A release records the actual filenames and snapshot dates, pipeline commit, and configuration.
 This repository does not assert that pending Spring 2026 inputs have been loaded.
 
+The five current external sources are BMG course materials, BMG costs/pricing, IPEDS, BVA
+opt-out, and BVA mailing history. CMM Supplies is currently represented by the interim
+`supply_isbn_classification` classifier; configured format-type and supply-keyword lookups are
+internal inputs. CMM IA, external pricing, discipline, and the 25-institution scope remain
+pending. Keep History is a behavior decision, not a source table.
+
 ## 2. Execution order and semantics
 
 `scripts/run_sql.sh` envsubst-templates all SQL and rebuilds selected relations. With no skip flags,
@@ -39,6 +45,7 @@ it executes the following order:
 
 | Stage | SQL | Contract |
 |---|---|---|
+| Import | `0_cleanup.sql` | Remove the exact retired legacy/report relations and obsolete geographic mailing projections; fail if any named target remains. |
 | Import | `0_setup.sql` | Normalize catalog, email, enrollment, period, and IDs; import IPEDS, opt-out, and panel. Preserve `panel` source rows and build one-row-per-email `panel_email`. The recorded snapshot is count-preserving, but raw `opt_out`/`ipeds_data` joins do not enforce unique lookup keys; each refresh must prove lookup-key uniqueness and source-row conservation. |
 | Import | `0b_state_region.sql` | Build the state/region lookup; `CAN` maps to `Other`. Canonical facts are not materialized with these fields. |
 | Import | `1_bookprices_import.sql` | Parse pricing and IDs. Collapse byte-identical rows, rows differing only by instructor, then keep the latest `pricing_date` at the natural pricing key; aggregate instructor names. |
@@ -48,7 +55,7 @@ it executes the following order:
 | Import | `2b_course_materials.sql` | Build the full 2024+ `section_enrollment` spine and canonical `course_materials` plus population views. See [`COURSE-MATERIAL-POPULATIONS.md`](COURSE-MATERIAL-POPULATIONS.md). |
 | Import | `2c_pricing_wide.sql` | Pivot pricing to one `(section_id, isbn13)` row with 18 price cells, option/bounds fields, and rental-term bounds. |
 | Import | `2d_data_quality.sql` | Materialize import-state metrics and drill-downs, including non-mutating exact pricing/catalog comparisons. These are diagnostics, not release denominators. |
-| EDA | `3_mailing_lists.sql` | Build Master, Working, and geographic mailing relations. See [`MAILING-FLOW.md`](MAILING-FLOW.md). |
+| EDA | `3_mailing_lists.sql` | Build Master and Working mailing relations. Seven geographic exports filter Working directly. See [`MAILING-FLOW.md`](MAILING-FLOW.md). |
 | EDA | `3b_material_costs.sql` | LEFT-enrich every canonical Use item from `pricing_wide` on exact section × ISBN. See [`PRICING-CATALOG-MATCHING.md`](PRICING-CATALOG-MATCHING.md). |
 | EDA | `4_merged_records.sql` | Build `section_cost`, `master_section`, `master_course`, `master_course_material`, and the Fall 2025 compatibility projection. |
 | Models | `scripts/sql/models/*.sql` | Materialize discovered models, including `master_institution`, `master_isbn`, and `sample10_section_ids`. |
@@ -56,6 +63,12 @@ it executes the following order:
 
 The pipeline is DROP/recreate and re-runnable. Exact file and output topology is in
 [`SCHEMA.md`](SCHEMA.md#operational-stages).
+
+The intended current database contains only DBML-managed relations. The 37 current relations are
+all consumed: 27 executable-flow relations, seven DQ sidecars, and three report/export views.
+Geographic mailing is seven direct `current_mailing` export filters, not persisted views. Retired
+relations are removed by `0_cleanup.sql`. Live catalog validation for this revision confirmed the
+exact 37-relation set: 28 tables and nine views, with all 45 named cleanup targets absent.
 
 ## 3. Canonical grains and lineage
 

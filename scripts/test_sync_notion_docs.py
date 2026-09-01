@@ -196,9 +196,9 @@ if sys.argv[1:3] == ['pages', 'get']:
         self.docs.append(two)
         self.assertNotEqual(self.invoke(one, two).returncode, 0)
 
-    def test_manifest_is_explicit_and_has_51_entries(self):
+    def test_manifest_is_explicit_and_has_44_entries(self):
         names = SYNC.load_manifest(Path("scripts/notion_sync_docs.txt"), ROOT)
-        self.assertEqual(len(names), 51)
+        self.assertEqual(len(names), 44)
         self.assertEqual(len(names), len(set(names)))
         self.assertEqual(names[:7], [
             "SCHEMA.md", "CMM-ETL.md", "DATA-DICTIONARY.md", "DASHBOARDS-REPORTS.md",

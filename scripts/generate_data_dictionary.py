@@ -88,13 +88,6 @@ RELATION_METADATA: dict[str, RelationMetadata] = {
     "master_mailing": RelationMetadata("EDA mailing / 3_mailing_lists.sql", "One non-NULL, nonblank cleaned email", ("course_catalog_20251215",), "Persisted canonical deterministic mailing selection; independent of opt-out and panel history."),
     "recent_periods": RelationMetadata("EDA mailing / 3_mailing_lists.sql", "One of the latest 12 distinct non-NULL periods", ("master_mailing",), "Period boundary used by current_mailing.", "Declared one-column projection from persisted master_mailing."),
     "current_mailing": RelationMetadata("EDA mailing / 3_mailing_lists.sql", "One non-opted-out cleaned email selected in the latest 12 master periods", ("master_mailing", "recent_periods", "panel_email", "opt_out"), "Whiteboard Mailing Working view with panel response enrichment.", "Master fields pass through; panel_response_year is LEFT-joined; recent-period and opt-out filters define population."),
-    "current_mailing_ca": RelationMetadata("EDA mailing / 3_mailing_lists.sql", "Filtered current_mailing rows", ("current_mailing",), "California mailing projection.", "All columns inherited from current_mailing; normalized state = CA."),
-    "current_mailing_tx": RelationMetadata("EDA mailing / 3_mailing_lists.sql", "Filtered current_mailing rows", ("current_mailing",), "Texas mailing projection.", "All columns inherited from current_mailing; normalized state = TX."),
-    "current_mailing_fl": RelationMetadata("EDA mailing / 3_mailing_lists.sql", "Filtered current_mailing rows", ("current_mailing",), "Florida mailing projection.", "All columns inherited from current_mailing; normalized state = FL."),
-    "current_mailing_ny": RelationMetadata("EDA mailing / 3_mailing_lists.sql", "Filtered current_mailing rows", ("current_mailing",), "New York mailing projection.", "All columns inherited from current_mailing; normalized state = NY."),
-    "current_mailing_pa": RelationMetadata("EDA mailing / 3_mailing_lists.sql", "Filtered current_mailing rows", ("current_mailing",), "Pennsylvania mailing projection.", "All columns inherited from current_mailing; normalized state = PA."),
-    "current_mailing_can": RelationMetadata("EDA mailing / 3_mailing_lists.sql", "Filtered current_mailing rows", ("current_mailing",), "Canada mailing projection.", "All columns inherited from current_mailing; normalized state = CAN."),
-    "current_mailing_other": RelationMetadata("EDA mailing / 3_mailing_lists.sql", "Filtered current_mailing rows", ("current_mailing",), "Complete residual mailing projection.", "All columns inherited from current_mailing; includes NULL, blank, and states other than CA, TX, FL, NY, PA, and CAN."),
     "material_costs": RelationMetadata("EDA records / 3b_material_costs.sql", "One canonical Use period × section × ISBN item", ("course_materials_use", "pricing_wide"), "Approved item-level input with optional LEFT pricing enrichment."),
     "section_cost": RelationMetadata("EDA records / 4_merged_records.sql", "One material-bearing period × section", ("material_costs",), "Section-level price-bound aggregates used by release rollups."),
     "master_section": RelationMetadata("EDA records / 4_merged_records.sql", "One material-bearing period × section", ("material_costs", "section_cost", "section_enrollment", "course_materials"), "Canonical materialized per-term section release table."),
@@ -114,6 +107,58 @@ RELATION_METADATA: dict[str, RelationMetadata] = {
 }
 
 
+# Every DBML relation is current and consumed. The groups describe its role in
+# the executable topology, rather than implying separate data products.
+RELATION_GROUPS: tuple[tuple[str, str, tuple[str, ...]], ...] = (
+    (
+        "External source tables (5 relations)",
+        "Retained BMG, BVA, and IPEDS observations loaded from the five current external sources.",
+        (
+            "course_catalog_20251215", "ipeds_data", "opt_out", "panel", "pricing_historical",
+        ),
+    ),
+    (
+        "Lookup/reference inputs (3 relations)",
+        "Current reference or classification relations; CMM Supplies remains an interim internal classifier.",
+        ("state_region", "format_type_classification", "supply_isbn_classification"),
+    ),
+    (
+        "Processing helpers (4 relations)",
+        "Current derived helpers used to enrich, select, classify, or aggregate the executable flow.",
+        ("panel_email", "section_book_status", "pricing_wide", "recent_periods"),
+    ),
+    (
+        "Canonical outputs (15 relations)",
+        "Current pipeline outputs and population projections used by the release flow.",
+        (
+            "comprehensive_data", "course_materials", "course_materials_post_2024",
+            "course_materials_use", "course_materials_no_use", "course_materials_canada",
+            "section_enrollment", "master_mailing", "current_mailing", "material_costs",
+            "section_cost", "master_section", "master_institution", "master_isbn",
+            "sample10_section_ids",
+        ),
+    ),
+    (
+        "Data-quality sidecars (7 relations)",
+        "Current, consumed diagnostic snapshots; they do not define release populations or denominators.",
+        (
+            "__data_quality_metrics", "__data_quality_top_unmatched_ipeds_schools",
+            "__data_quality_null_isbn_breakdown", "__data_quality_top_null_isbn_schools",
+            "__data_quality_pricing_match_by_period",
+            "__data_quality_top_unmatched_pricing_sections",
+            "__data_quality_format_count_distribution",
+        ),
+    ),
+    (
+        "Report/export views (3 relations)",
+        "Current convenience views. Geographic mailing outputs are seven export leaves that filter `current_mailing` directly; they are not database relations or dictionary pages.",
+        (
+            "master_course", "master_course_material", "master_section_us_intro_fall2025",
+        ),
+    ),
+)
+
+
 # These SQL views use SELECT * from their base relation. Keeping the mapping explicit
 # lets tests prevent DBML and generated documentation from silently drifting.
 INHERITED_VIEW_BASES: dict[str, str] = {
@@ -121,13 +166,6 @@ INHERITED_VIEW_BASES: dict[str, str] = {
     "course_materials_use": "course_materials",
     "course_materials_no_use": "course_materials",
     "course_materials_canada": "course_materials",
-    "current_mailing_ca": "current_mailing",
-    "current_mailing_tx": "current_mailing",
-    "current_mailing_fl": "current_mailing",
-    "current_mailing_ny": "current_mailing",
-    "current_mailing_pa": "current_mailing",
-    "current_mailing_can": "current_mailing",
-    "current_mailing_other": "current_mailing",
     "master_section_us_intro_fall2025": "master_section",
 }
 
@@ -136,13 +174,6 @@ VIEW_FILTER_CONTEXT: dict[str, str] = {
     "course_materials_use": "Rows where `is_course_material_use` is true.",
     "course_materials_no_use": "Rows where `is_course_material_no_use` is true.",
     "course_materials_canada": "NoUse rows where `is_canada` is true.",
-    "current_mailing_ca": "Rows whose normalized `state` is `CA`.",
-    "current_mailing_tx": "Rows whose normalized `state` is `TX`.",
-    "current_mailing_fl": "Rows whose normalized `state` is `FL`.",
-    "current_mailing_ny": "Rows whose normalized `state` is `NY`.",
-    "current_mailing_pa": "Rows whose normalized `state` is `PA`.",
-    "current_mailing_can": "Rows whose normalized `state` is `CAN`.",
-    "current_mailing_other": "Residual rows: state is NULL, blank, or outside CA/TX/FL/NY/PA/CAN.",
     "master_section_us_intro_fall2025": "Rows where `period_sortable = '2025-4'`, `required_count >= 1`, `course_level` is exactly `Introductory or general undergraduate` or `Intermediate undergraduate`, and non-NULL `state NOT IN ('CAN', '')`.",
 }
 
@@ -1682,8 +1713,22 @@ def _validate_registry(relations: list[Relation]) -> set[str]:
     return relation_names
 
 
+def _validate_relation_groups(relations: list[Relation]) -> None:
+    """Require every declared relation to have one unambiguous index role."""
+    declared = {relation.name for relation in relations}
+    grouped = [name for _, _, names in RELATION_GROUPS for name in names]
+    duplicates = sorted({name for name in grouped if grouped.count(name) > 1})
+    if duplicates:
+        raise ValueError(f"relation group duplicates: {duplicates}")
+    if set(grouped) != declared:
+        missing = sorted(declared - set(grouped))
+        extra = sorted(set(grouped) - declared)
+        raise ValueError(f"relation group mismatch; missing={missing}, extra={extra}")
+
+
 def render_index(relations: list[Relation]) -> str:
     _validate_registry(relations)
+    _validate_relation_groups(relations)
 
     lines = [
         GENERATED_MARKER,
@@ -1694,28 +1739,34 @@ def render_index(relations: list[Relation]) -> str:
         "dictionary in schema order. Regenerate with `python3 scripts/generate_data_dictionary.py`.",
         "The maintained [Master Section deep appendix](MASTER-SECTION-DICTIONARY.md) remains separate.",
         "",
-        f"Declared scope: {len(relations)} relations and "
+        f"Declared scope: {len(relations)} current, consumed relations and "
         f"{sum(len(relation.columns) for relation in relations):,} fields.",
         "",
-        "| Relation | Kind | Grain / key | Stage |",
-        "|---|---|---|---|",
     ]
-    for relation in relations:
-        metadata = RELATION_METADATA[relation.name]
-        doc_path = (RELATION_DOC_DIRECTORY / f"{relation.name}.md").as_posix()
-        lines.append(
-            "| "
-            + " | ".join(
-                _cell(value)
-                for value in (
-                    f"[`{relation.name}`]({doc_path})",
-                    relation.kind,
-                    metadata.grain,
-                    metadata.stage,
-                )
-            )
-            + " |"
+    by_name = {relation.name: relation for relation in relations}
+    for heading, description, names in RELATION_GROUPS:
+        lines.extend(
+            [
+                f"## {heading}", "", description, "",
+                "| Relation | Kind | Grain / key | Stage |", "|---|---|---|---|",
+            ]
         )
+        for name in names:
+            relation = by_name[name]
+            metadata = RELATION_METADATA[name]
+            doc_path = (RELATION_DOC_DIRECTORY / f"{name}.md").as_posix()
+            lines.append(
+                "| "
+                + " | ".join(
+                    _cell(value)
+                    for value in (
+                        f"[`{name}`]({doc_path})", relation.kind,
+                        metadata.grain, metadata.stage,
+                    )
+                )
+                + " |"
+            )
+        lines.append("")
     lines.extend(["", NOTION_CHILD_CONTAINER, ""])
     return "\n".join(lines)
 

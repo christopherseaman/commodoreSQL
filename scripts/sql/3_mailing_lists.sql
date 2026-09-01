@@ -101,69 +101,31 @@ WHERE m.period_sortable IN (SELECT period_sortable FROM recent_periods)
       WHERE o.email = m.email
   );
 
--- Generate pairwise-disjoint geographic mailing lists. Normalize only for
--- classification; retain the source state value in each exported row.
-CREATE VIEW current_mailing_ca AS
-SELECT *
-FROM current_mailing
-WHERE UPPER(TRIM(state)) = 'CA';
-
-CREATE VIEW current_mailing_tx AS
-SELECT *
-FROM current_mailing
-WHERE UPPER(TRIM(state)) = 'TX';
-
-CREATE VIEW current_mailing_fl AS
-SELECT *
-FROM current_mailing
-WHERE UPPER(TRIM(state)) = 'FL';
-
-CREATE VIEW current_mailing_ny AS
-SELECT *
-FROM current_mailing
-WHERE UPPER(TRIM(state)) = 'NY';
-
-CREATE VIEW current_mailing_pa AS
-SELECT *
-FROM current_mailing
-WHERE UPPER(TRIM(state)) = 'PA';
-
-CREATE VIEW current_mailing_can AS
-SELECT *
-FROM current_mailing
-WHERE UPPER(TRIM(state)) = 'CAN';
-
-CREATE VIEW current_mailing_other AS
-SELECT *
-FROM current_mailing
-WHERE COALESCE(UPPER(TRIM(state)), '')
-      NOT IN ('CA', 'TX', 'FL', 'NY', 'PA', 'CAN');
-
--- One-line DQ: every current email must appear in exactly one geographic view.
-WITH partitioned AS (
-    SELECT email FROM current_mailing_ca
-    UNION ALL SELECT email FROM current_mailing_tx
-    UNION ALL SELECT email FROM current_mailing_fl
-    UNION ALL SELECT email FROM current_mailing_ny
-    UNION ALL SELECT email FROM current_mailing_pa
-    UNION ALL SELECT email FROM current_mailing_can
-    UNION ALL SELECT email FROM current_mailing_other
-),
-counts AS (
+-- One-line DQ: normalized state predicates form an exhaustive, disjoint
+-- routing partition. Geographic exports apply these predicates directly.
+WITH counts AS (
     SELECT
-        (SELECT COUNT(*) FROM current_mailing) AS current_rows,
-        (SELECT COUNT(DISTINCT email) FROM current_mailing) AS current_emails,
-        COUNT(*) AS partition_rows,
-        COUNT(DISTINCT email) AS partition_emails
-    FROM partitioned
+        COUNT(*) AS current_rows,
+        COUNT(DISTINCT email) AS current_emails,
+        COUNT(*) FILTER (WHERE UPPER(TRIM(state)) = 'CA') AS california_rows,
+        COUNT(*) FILTER (WHERE UPPER(TRIM(state)) = 'TX') AS texas_rows,
+        COUNT(*) FILTER (WHERE UPPER(TRIM(state)) = 'FL') AS florida_rows,
+        COUNT(*) FILTER (WHERE UPPER(TRIM(state)) = 'NY') AS newyork_rows,
+        COUNT(*) FILTER (WHERE UPPER(TRIM(state)) = 'PA') AS pennsylvania_rows,
+        COUNT(*) FILTER (WHERE UPPER(TRIM(state)) = 'CAN') AS canada_rows,
+        COUNT(*) FILTER (
+            WHERE COALESCE(UPPER(TRIM(state)), '')
+                      NOT IN ('CA', 'TX', 'FL', 'NY', 'PA', 'CAN')
+        ) AS other_rows
+    FROM current_mailing
 )
 SELECT
     'current mailing geographic partition reconciliation' AS metric,
     current_rows,
     current_emails,
-    partition_rows,
-    partition_emails,
+    california_rows + texas_rows + florida_rows + newyork_rows
+        + pennsylvania_rows + canada_rows + other_rows AS partition_rows,
     current_rows = current_emails
-      AND current_rows = partition_rows
-      AND partition_rows = partition_emails AS is_match
+      AND current_rows = california_rows + texas_rows + florida_rows + newyork_rows
+          + pennsylvania_rows + canada_rows + other_rows AS is_match
 FROM counts;

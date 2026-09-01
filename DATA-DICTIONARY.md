@@ -12,7 +12,11 @@ Generated from canonical `schema.dbml`. Each declared table or view has a separa
 dictionary in schema order. Regenerate with `python3 scripts/generate_data_dictionary.py`.
 The maintained [Master Section deep appendix](MASTER-SECTION-DICTIONARY.md) remains separate.
 
-Declared scope: 44 relations and 1,276 fields.
+Declared scope: 37 current, consumed relations and 1,178 fields.
+
+## External source tables (5 relations)
+
+Retained BMG, BVA, and IPEDS observations loaded from the five current external sources.
 
 | Relation | Kind | Grain / key | Stage |
 |---|---|---|---|
@@ -20,13 +24,35 @@ Declared scope: 44 relations and 1,276 fields.
 | [`ipeds_data`](docs/data-dictionary/ipeds_data.md) | table | One IPEDS institution (unitid) | IMPORT / 0_setup.sql |
 | [`opt_out`](docs/data-dictionary/opt_out.md) | table | One normalized opt-out source row; cleaned email may repeat on refresh | IMPORT / 0_setup.sql |
 | [`panel`](docs/data-dictionary/panel.md) | table | One retained panel source row | IMPORT / 0_setup.sql |
-| [`panel_email`](docs/data-dictionary/panel_email.md) | table | One cleaned email | IMPORT / 0_setup.sql |
-| [`format_type_classification`](docs/data-dictionary/format_type_classification.md) | table | One FormatType | IMPORT / 2_oer_classification.sql |
 | [`pricing_historical`](docs/data-dictionary/pricing_historical.md) | table | One latest section × ISBN × option × condition × format × rental-term row | IMPORT step 3 / 1_bookprices_import.sql |
-| [`supply_isbn_classification`](docs/data-dictionary/supply_isbn_classification.md) | table | One classified ISBN | IMPORT derived / 1a_supply_classification.sql |
-| [`section_book_status`](docs/data-dictionary/section_book_status.md) | table | One period-specific section_id | IMPORT derived / 1b_section_filter.sql |
+
+## Lookup/reference inputs (3 relations)
+
+Current reference or classification relations; CMM Supplies remains an interim internal classifier.
+
+| Relation | Kind | Grain / key | Stage |
+|---|---|---|---|
 | [`state_region`](docs/data-dictionary/state_region.md) | table | One state or province code | IMPORT derived / 0b_state_region.sql |
+| [`format_type_classification`](docs/data-dictionary/format_type_classification.md) | table | One FormatType | IMPORT / 2_oer_classification.sql |
+| [`supply_isbn_classification`](docs/data-dictionary/supply_isbn_classification.md) | table | One classified ISBN | IMPORT derived / 1a_supply_classification.sql |
+
+## Processing helpers (4 relations)
+
+Current derived helpers used to enrich, select, classify, or aggregate the executable flow.
+
+| Relation | Kind | Grain / key | Stage |
+|---|---|---|---|
+| [`panel_email`](docs/data-dictionary/panel_email.md) | table | One cleaned email | IMPORT / 0_setup.sql |
+| [`section_book_status`](docs/data-dictionary/section_book_status.md) | table | One period-specific section_id | IMPORT derived / 1b_section_filter.sql |
 | [`pricing_wide`](docs/data-dictionary/pricing_wide.md) | table | One section_id × ISBN13 | IMPORT derived / 2c_pricing_wide.sql |
+| [`recent_periods`](docs/data-dictionary/recent_periods.md) | view | One of the latest 12 distinct non-NULL periods | EDA mailing / 3_mailing_lists.sql |
+
+## Canonical outputs (15 relations)
+
+Current pipeline outputs and population projections used by the release flow.
+
+| Relation | Kind | Grain / key | Stage |
+|---|---|---|---|
 | [`comprehensive_data`](docs/data-dictionary/comprehensive_data.md) | table | One normalized catalog source row | IMPORT derived / 2_oer_classification.sql |
 | [`course_materials`](docs/data-dictionary/course_materials.md) | table | One period × section × ISBN, plus one NULL-ISBN audit row per section when present | Canonical materials / 2b_course_materials.sql |
 | [`course_materials_post_2024`](docs/data-dictionary/course_materials_post_2024.md) | view | Filtered course_materials rows | Canonical materials / 2b_course_materials.sql |
@@ -35,24 +61,20 @@ Declared scope: 44 relations and 1,276 fields.
 | [`course_materials_canada`](docs/data-dictionary/course_materials_canada.md) | view | Filtered course_materials rows | Canonical materials / 2b_course_materials.sql |
 | [`section_enrollment`](docs/data-dictionary/section_enrollment.md) | table | One admitted 2024+ term × section with non-NULL derived IDs; UNKNOWN components remain eligible | Canonical sections / 2b_course_materials.sql |
 | [`master_mailing`](docs/data-dictionary/master_mailing.md) | table | One non-NULL, nonblank cleaned email | EDA mailing / 3_mailing_lists.sql |
-| [`recent_periods`](docs/data-dictionary/recent_periods.md) | view | One of the latest 12 distinct non-NULL periods | EDA mailing / 3_mailing_lists.sql |
 | [`current_mailing`](docs/data-dictionary/current_mailing.md) | view | One non-opted-out cleaned email selected in the latest 12 master periods | EDA mailing / 3_mailing_lists.sql |
-| [`current_mailing_ca`](docs/data-dictionary/current_mailing_ca.md) | view | Filtered current_mailing rows | EDA mailing / 3_mailing_lists.sql |
-| [`current_mailing_tx`](docs/data-dictionary/current_mailing_tx.md) | view | Filtered current_mailing rows | EDA mailing / 3_mailing_lists.sql |
-| [`current_mailing_fl`](docs/data-dictionary/current_mailing_fl.md) | view | Filtered current_mailing rows | EDA mailing / 3_mailing_lists.sql |
-| [`current_mailing_ny`](docs/data-dictionary/current_mailing_ny.md) | view | Filtered current_mailing rows | EDA mailing / 3_mailing_lists.sql |
-| [`current_mailing_pa`](docs/data-dictionary/current_mailing_pa.md) | view | Filtered current_mailing rows | EDA mailing / 3_mailing_lists.sql |
-| [`current_mailing_can`](docs/data-dictionary/current_mailing_can.md) | view | Filtered current_mailing rows | EDA mailing / 3_mailing_lists.sql |
-| [`current_mailing_other`](docs/data-dictionary/current_mailing_other.md) | view | Filtered current_mailing rows | EDA mailing / 3_mailing_lists.sql |
 | [`material_costs`](docs/data-dictionary/material_costs.md) | table | One canonical Use period × section × ISBN item | EDA records / 3b_material_costs.sql |
 | [`section_cost`](docs/data-dictionary/section_cost.md) | table | One material-bearing period × section | EDA records / 4_merged_records.sql |
 | [`master_section`](docs/data-dictionary/master_section.md) | table | One material-bearing period × section | EDA records / 4_merged_records.sql |
-| [`master_course`](docs/data-dictionary/master_course.md) | view | One material-bearing period × course | EDA records / 4_merged_records.sql |
-| [`master_course_material`](docs/data-dictionary/master_course_material.md) | view | One (course_id, period_sortable, period, period_date, school, department, course_number, course_title, publisher, book_status) group | EDA records / 4_merged_records.sql |
-| [`master_section_us_intro_fall2025`](docs/data-dictionary/master_section_us_intro_fall2025.md) | view | Filtered master_section rows | EDA records / 4_merged_records.sql |
 | [`master_institution`](docs/data-dictionary/master_institution.md) | table | One period × institution, including an explicit NULL-institution bucket | Release model / models/master_institution.sql |
 | [`master_isbn`](docs/data-dictionary/master_isbn.md) | table | One period × non-NULL ISBN | Release model / models/master_isbn.sql |
 | [`sample10_section_ids`](docs/data-dictionary/sample10_section_ids.md) | table | One selected section_enrollment section | Sampling / models/sample10_section_ids.sql |
+
+## Data-quality sidecars (7 relations)
+
+Current, consumed diagnostic snapshots; they do not define release populations or denominators.
+
+| Relation | Kind | Grain / key | Stage |
+|---|---|---|---|
 | [`__data_quality_metrics`](docs/data-dictionary/__data_quality_metrics.md) | table | One category × check × metric | Data quality / 2d_data_quality.sql |
 | [`__data_quality_top_unmatched_ipeds_schools`](docs/data-dictionary/__data_quality_top_unmatched_ipeds_schools.md) | table | One ranked unmatched catalog school | Data quality / 2d_data_quality.sql |
 | [`__data_quality_null_isbn_breakdown`](docs/data-dictionary/__data_quality_null_isbn_breakdown.md) | table | One ranked catalog school | Data quality / 2d_data_quality.sql |
@@ -60,5 +82,16 @@ Declared scope: 44 relations and 1,276 fields.
 | [`__data_quality_pricing_match_by_period`](docs/data-dictionary/__data_quality_pricing_match_by_period.md) | table | One pricing period | Data quality / 2d_data_quality.sql |
 | [`__data_quality_top_unmatched_pricing_sections`](docs/data-dictionary/__data_quality_top_unmatched_pricing_sections.md) | table | One ranked institution × period | Data quality / 2d_data_quality.sql |
 | [`__data_quality_format_count_distribution`](docs/data-dictionary/__data_quality_format_count_distribution.md) | table | One format_count value | Data quality / 2d_data_quality.sql |
+
+## Report/export views (3 relations)
+
+Current convenience views. Geographic mailing outputs are seven export leaves that filter `current_mailing` directly; they are not database relations or dictionary pages.
+
+| Relation | Kind | Grain / key | Stage |
+|---|---|---|---|
+| [`master_course`](docs/data-dictionary/master_course.md) | view | One material-bearing period × course | EDA records / 4_merged_records.sql |
+| [`master_course_material`](docs/data-dictionary/master_course_material.md) | view | One (course_id, period_sortable, period, period_date, school, department, course_number, course_title, publisher, book_status) group | EDA records / 4_merged_records.sql |
+| [`master_section_us_intro_fall2025`](docs/data-dictionary/master_section_us_intro_fall2025.md) | view | Filtered master_section rows | EDA records / 4_merged_records.sql |
+
 
 <page url="https://app.notion.com/p/3ced9fdd1a1a815195d4d0af9397fea9">Relation dictionaries</page>

@@ -28,6 +28,12 @@ Compatibility target names are established executable names; they are not source
 BMG owns course materials and raw pricing, BVA owns opt-out and mailing history, and IPEDS owns
 institution metadata.
 
+The current external inputs are five sources: BMG course materials, BMG costs/pricing, IPEDS,
+BVA opt-out, and BVA mailing history. `CMM Supplies` is currently an interim internal classifier,
+not a supplied table. Internal format-type and supply-keyword lookups are configured inputs to
+that executable flow. CMM IA, external pricing, discipline, and the 25-institution scope are
+pending inputs/scopes; Keep History is a proposed behavior, not a relation.
+
 | Owner | Configured input | Loaded target or consumer |
 |---|---|---|
 | BMG | `DiscoveryExtract.*.csv` | `course_catalog_<date>` |
@@ -46,7 +52,7 @@ run is DROP-before-CREATE and re-runnable. `NO_IMPORT`, `NO_EDA`, and `NO_EXPORT
 
 | Stage | Files | Operational result |
 |---|---|---|
-| IMPORT | 9 fixed SQL files | Loads sources; normalizes/enriches catalog rows; builds canonical Course Materials, pricing pivot, and DQ snapshots. `0_setup.sql` also writes `output/email_issues.tsv`. |
+| IMPORT | 10 fixed SQL files | Removes explicitly retired relations; loads sources; normalizes/enriches catalog rows; builds canonical Course Materials, pricing pivot, and DQ snapshots. `0_setup.sql` also writes `output/email_issues.tsv`. |
 | EDA | 3 fixed SQL files | Builds mailing relations, canonical Material Costs, section costs, and section/course/material masters. |
 | Models | `scripts/sql/models/*.sql`, lexical order | Materializes `master_institution`, `master_isbn`, and `sample10_section_ids`. |
 | EXPORT | `scripts/sql/exports/*.sql`, lexical order, top level only | Wraps each query in a temporary table and writes `output/<basename>.csv`. |
@@ -61,29 +67,30 @@ Arrows here mean execution order. File discovery is lexical.
 
 ```mermaid
 flowchart TD
-    run["scripts/run_sql.sh"] --> i00
+    run["scripts/run_sql.sh"] --> i0c
     run -. "NO_IMPORT" .-> e30
     run -. "NO_IMPORT + NO_EDA" .-> x01
 
     subgraph import["IMPORT — unless NO_IMPORT"]
-        i00["01 · 0_setup.sql"] --> i0b["02 · 0b_state_region.sql"]
-        i0b --> i10["03 · 1_bookprices_import.sql"]
-        i10 --> i1a["04 · 1a_supply_classification.sql"]
-        i1a --> i1b["05 · 1b_section_filter.sql"]
-        i1b --> i20["06 · 2_oer_classification.sql"]
-        i20 --> i2b["07 · 2b_course_materials.sql"]
-        i2b --> i2c["08 · 2c_pricing_wide.sql"]
-        i2c --> i2d["09 · 2d_data_quality.sql"]
+        i0c["01 · 0_cleanup.sql"] --> i00["02 · 0_setup.sql"]
+        i00 --> i0b["03 · 0b_state_region.sql"]
+        i0b --> i10["04 · 1_bookprices_import.sql"]
+        i10 --> i1a["05 · 1a_supply_classification.sql"]
+        i1a --> i1b["06 · 1b_section_filter.sql"]
+        i1b --> i20["07 · 2_oer_classification.sql"]
+        i20 --> i2b["08 · 2b_course_materials.sql"]
+        i2b --> i2c["09 · 2c_pricing_wide.sql"]
+        i2c --> i2d["10 · 2d_data_quality.sql"]
     end
 
     i2d --> e30
     i2d -. "NO_EDA" .-> x01
     subgraph eda["EDA + models — unless NO_EDA"]
-        e30["10 · 3_mailing_lists.sql"] --> e3b["11 · 3b_material_costs.sql"]
-        e3b --> e40["12 · 4_merged_records.sql"]
-        e40 --> m01["13 · models/master_institution.sql"]
-        m01 --> m02["14 · models/master_isbn.sql"]
-        m02 --> m03["15 · models/sample10_section_ids.sql"]
+        e30["11 · 3_mailing_lists.sql"] --> e3b["12 · 3b_material_costs.sql"]
+        e3b --> e40["13 · 4_merged_records.sql"]
+        e40 --> m01["14 · models/master_institution.sql"]
+        m01 --> m02["15 · models/master_isbn.sql"]
+        m02 --> m03["16 · models/sample10_section_ids.sql"]
     end
 
     m03 --> x01
@@ -141,7 +148,7 @@ This is a navigation index, not a column dictionary. “Section” means a perio
 | `master_mailing` | One row per nonblank cleaned email before history enrichment and opt-out filtering. |
 | `recent_periods` | Newest 12 non-NULL terms represented by Mailing Master. |
 | `current_mailing` | One eligible cleaned email after recency, history enrichment, and opt-out exclusion. |
-| `current_mailing_{ca,tx,fl,ny,pa,can,other}` | Exhaustive disjoint normalized-state partitions of Working. |
+| Geographic mailing exports | Seven direct normalized-state filters of `current_mailing`; export leaves, not database relations. |
 | `material_costs` | One canonical Use item per period × section × ISBN; LEFT-enriched from pricing. |
 | `section_cost` | Cost aggregates per material-bearing period × section. |
 | `master_section` | One row per material-bearing period × section. |
@@ -154,23 +161,26 @@ This is a navigation index, not a column dictionary. “Section” means a perio
 
 ## Data dependencies
 
-Solid arrows mean data dependency. Dotted arrows mark a projection/subset or a standalone output.
-The mailing branch stays deliberately high-level here; see [`MAILING-FLOW.md`](MAILING-FLOW.md)
-for its selection, recency, history, opt-out, and routing rules.
+Solid arrows mean data dependency. Dotted arrows mark a projection/subset or a report/export leaf.
+All 37 DBML-declared relations below are current and consumed: 27 executable-flow relations,
+seven DQ sidecars, and three report/export views. The seven geographic mailing outputs filter
+`current_mailing` directly; they are export leaves, not database relations or conceptual products.
 
 <page url="https://app.notion.com/p/3cbd9fdd1a1a81d893effd579a76812b">CMM ETL Contract</page>
 
 ```mermaid
 flowchart TD
-    catalog_csv["BMG catalog CSV"] --> catalog["course_catalog_&lt;date&gt;"]
+    catalog_csv["BMG course-materials CSV"] --> catalog["course_catalog_&lt;date&gt;"]
     ipeds_csv["IPEDS CSV"] --> ipeds["ipeds_data"]
     optout_csv["BVA opt-out CSV"] --> optout["opt_out"]
-    panel_csv["BVA panel/history CSV"] --> panel["panel"] --> panel_email["panel_email"]
-    pricing_csv["BMG pricing CSV"] --> pricing["pricing_historical"] --> pw["pricing_wide"]
-    format_tsv["format_type_lookup.tsv"] --> format["format_type_classification"]
-    supply_tsv["supply_keywords.tsv"] --> supply["supply_isbn_classification"]
+    panel_csv["BVA mailing-history CSV"] --> panel["panel"] --> panel_email["panel_email helper"]
+    pricing_csv["BMG costs/pricing CSV"] --> pricing["pricing_historical"] --> pw["pricing_wide"]
+    format_tsv["Internal format-type lookup"] --> format["format_type_classification"]
+    supply_tsv["Internal supply-keyword lookup"] --> supply["supply_isbn_classification (CMM Supplies interim classifier)"]
+    region_values["Internal state/province values"] --> state_region["state_region helper"]
 
     catalog --> status["section_book_status"]
+    catalog --> supply
     supply --> status
     catalog --> comprehensive["comprehensive_data"]
     ipeds --> comprehensive
@@ -188,9 +198,12 @@ flowchart TD
     materials -.-> nouse["course_materials_no_use"]
     materials -.-> canada["course_materials_canada"]
 
-    catalog --> mailing["Mailing Source → Master → Working → geographic views"]
-    panel_email --> mailing
-    optout --> mailing
+    catalog --> mailing_master["master_mailing"] --> recent["recent_periods helper"]
+    mailing_master --> mailing_current["current_mailing"]
+    recent --> mailing_current
+    panel_email --> mailing_current
+    optout --> mailing_current
+    mailing_current -. "seven direct geographic export filters" .-> mailing_geo["ca / tx / fl / ny / pa / can / other"]
 
     use --> costs["material_costs"]
     pw -->|"exact section × ISBN LEFT join"| costs
@@ -209,21 +222,30 @@ flowchart TD
     costs --> master_isbn["master_isbn"]
     enrollment --> sample["sample10_section_ids"]
 
-    comprehensive --> dq["__data_quality_* snapshots"]
+    comprehensive --> dq["seven __data_quality_* sidecars"]
     pricing --> dq
     pw --> dq
     pricing_csv -. "2d reread" .-> dq
 ```
 
-`state_region` is built during IMPORT and joined at query time by Metabase questions. It does not
-enrich `comprehensive_data` or a release table.
+`state_region` is a current IMPORT helper joined at query time by Metabase questions; it does not
+enrich `comprehensive_data` or a release table. Pending CMM IA, external-pricing, discipline, and
+25-institution inputs/scopes have no nodes in this flow. Keep History is a behavior proposal, not
+a table.
+
+## Current database topology
+
+The intended current database contains only relations declared in `schema.dbml`: the 37 relations
+shown in the grouped dictionary. Live validation for this revision confirmed 28 tables and nine
+views, with all 45 explicitly retired relations absent; `0_cleanup.sql` enforces that boundary on
+future full runs.
 
 ### Export dependencies
 
 ```mermaid
 flowchart LR
     comprehensive["comprehensive_data"] --> raw["01 sample + 30 faculty"]
-    mailing["Mailing Master / Working / state views"] --> mail["10, 11, 20–27 mailing"]
+    mailing["Mailing Master / Working"] --> mail["10, 11, 20–27 mailing"]
     masters["master_section / master_course / master_course_material"] --> model["31–34 model/sample"]
     termmasters["master_institution / master_isbn"] --> term["35–36 term masters"]
     canonical["catalog + enrollment + materials + costs + masters + sample"] --> checks["37–39, 41 reconciliation"]
@@ -247,14 +269,14 @@ writes `output/<SQL basename>.csv`.
 | 2 | `10_master_mailing.sql` | Selected `master_mailing` columns; pre-history/pre-opt-out audit, not send-ready. |
 | 3 | `11_current_mailing.sql` | Selected `current_mailing` Working columns. |
 | 4 | `11_recent_mailing.sql` | All Working columns; same population as wrapper 3. |
-| 5 | `20_california_mailing.sql` | `current_mailing_ca`. |
-| 6 | `21_texas_mailing.sql` | `current_mailing_tx`. |
-| 7 | `22_florida_mailing.sql` | `current_mailing_fl`. |
-| 8 | `23_newyork_mailing.sql` | `current_mailing_ny`. |
+| 5 | `20_california_mailing.sql` | Direct `current_mailing` filter for normalized state `CA`. |
+| 6 | `21_texas_mailing.sql` | Direct `current_mailing` filter for normalized state `TX`. |
+| 7 | `22_florida_mailing.sql` | Direct `current_mailing` filter for normalized state `FL`. |
+| 8 | `23_newyork_mailing.sql` | Direct `current_mailing` filter for normalized state `NY`. |
 | 9 | `24_texas_fall_series.sql` | Texas Working rows whose source period starts with `Fall`. |
-| 10 | `25_pennsylvania_mailing.sql` | `current_mailing_pa`. |
-| 11 | `26_canada_mailing.sql` | `current_mailing_can`. |
-| 12 | `27_other_mailing.sql` | Residual `current_mailing_other`, including NULL/blank/unknown states. |
+| 10 | `25_pennsylvania_mailing.sql` | Direct `current_mailing` filter for normalized state `PA`. |
+| 11 | `26_canada_mailing.sql` | Direct `current_mailing` filter for normalized state `CAN`. |
+| 12 | `27_other_mailing.sql` | Direct residual `current_mailing` filter, including NULL/blank/unknown states. |
 | 13 | `30_faculty_records.sql` | Filters `comprehensive_data` to non-NULL `instructor`, `course_number`, `section`, and `course_title`; groups by faculty identity, instructor, school, email, and department, with per-period record and section lists. |
 | 14 | `31_master_section.sql` | Full all-term `master_section`. |
 | 15 | `32_master_course.sql` | Full all-term `master_course`. |

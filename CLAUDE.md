@@ -13,11 +13,15 @@
 - `HANDOFF.md` — current work status, how to run things, gotchas (read first when picking up)
 - `README.md` — high-level project + pipeline overview
 
-Notion sync reads the explicit `scripts/notion_sync_docs.txt` manifest (51
+Notion sync reads the explicit `scripts/notion_sync_docs.txt` manifest (44
 documents): four canonical documents, three top-level issue-detail documents,
-and 44 generated relation pages. The three issue-detail pages are children of
-the CMM ETL page; relation pages live under the stable Relation dictionaries
-container beneath Data Dictionary. There is no recursive repository sweep.
+and 37 generated relation pages. The relation index groups current/consumed
+relations as sources, lookup/reference inputs, processing helpers, canonical
+outputs, DQ sidecars, and report views. Geographic mailing is seven direct
+`current_mailing` export filters, not relation pages.
+The three issue-detail pages are children of the CMM ETL page; relation pages
+live under the stable Relation dictionaries container beneath Data Dictionary.
+There is no recursive repository sweep.
 Use `NOTION_KEYRING=0` with the sync helper; run its read-only manifest
 preflight before `--apply` when publishing changes. Repo-only guidance,
 historical notes, and `comms/` source captures are not synced.

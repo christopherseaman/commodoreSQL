@@ -21,13 +21,6 @@ docs/data-dictionary/course_materials_no_use.md
 docs/data-dictionary/course_materials_post_2024.md
 docs/data-dictionary/course_materials_use.md
 docs/data-dictionary/current_mailing.md
-docs/data-dictionary/current_mailing_ca.md
-docs/data-dictionary/current_mailing_can.md
-docs/data-dictionary/current_mailing_fl.md
-docs/data-dictionary/current_mailing_ny.md
-docs/data-dictionary/current_mailing_other.md
-docs/data-dictionary/current_mailing_pa.md
-docs/data-dictionary/current_mailing_tx.md
 docs/data-dictionary/format_type_classification.md
 docs/data-dictionary/ipeds_data.md
 docs/data-dictionary/master_course.md

@@ -18,13 +18,13 @@ flowchart LR
     R --> W
     P[panel_email<br/>existing history] -->|LEFT JOIN| W
     O[opt_out] -->|NOT EXISTS| W
-    W --> CA[CA]
-    W --> TX[TX]
-    W --> FL[FL]
-    W --> NY[NY]
-    W --> PA[PA]
-    W --> CAN[CAN]
-    W --> OTHER[Other residual]
+    W --> CA[CA export filter]
+    W --> TX[TX export filter]
+    W --> FL[FL export filter]
+    W --> NY[NY export filter]
+    W --> PA[PA export filter]
+    W --> CAN[CAN export filter]
+    W --> OTHER[Other residual export filter]
     M --> E10[10_master_mailing.csv]
     W --> E11[11_current / 11_recent]
     CA --> E20[20 California]
@@ -48,8 +48,8 @@ flowchart LR
 | 5 | `master_mailing`; one nonblank cleaned email | Select one coherent catalog row: newest `period_sortable`, largest enrollment, then stable IDs and contact/course fields. | Only `email IS NOT NULL AND TRIM(email) != ''`. No history, opt-out, recency, geography, or random filter. |
 | 6 | `recent_periods`; at most 12 terms | Distinct non-NULL terms represented after Master selection, descending, limit 12. | The window is based on Master-selected rows, not every source term. |
 | 7 | `current_mailing`; at most one email | Start from Master, LEFT JOIN `panel_email`, retain response year. | Term is in `recent_periods`; `NOT EXISTS` in `opt_out`. Missing history does not exclude. This is Mailing Working. |
-| 8 | seven geography views | Classify with `UPPER(TRIM(state))`; retain original `state`. | Exact CA/TX/FL/NY/PA/CAN. Other is `COALESCE(...,'') NOT IN (...)`, so NULL, blank, and unknown values are included. |
-| 9 | mailing CSV wrappers | Project Master, Working, or a geographic view. | Texas Fall adds `period LIKE 'Fall%'`. All other 11/20–27 exports inherit Working filters. |
+| 8 | seven geographic export filters; no database relations | Classify `current_mailing` with `UPPER(TRIM(state))`; retain original `state`. | Exact CA/TX/FL/NY/PA/CAN. Other is `COALESCE(...,'') NOT IN (...)`, so NULL, blank, and unknown values are included. |
+| 9 | mailing CSV wrappers | Query Master or Working directly. | Texas Fall adds `period LIKE 'Fall%'`. All 11/20–27 exports inherit Working filters. |
 
 ## Export contract
 
@@ -58,17 +58,17 @@ flowchart LR
 | `10_master_mailing` | `master_mailing` | projection only | No; pre-history and pre-opt-out staging/audit |
 | `11_current_mailing` | `current_mailing` | selected columns | Eligible list; not necessarily send-ready |
 | `11_recent_mailing` | `current_mailing` | all columns; not a separate population | Eligible list; not necessarily send-ready |
-| `20_california_mailing` | `current_mailing_ca` | none | Eligible list; not necessarily send-ready |
-| `21_texas_mailing` | `current_mailing_tx` | none | Eligible list; not necessarily send-ready |
-| `22_florida_mailing` | `current_mailing_fl` | none | Eligible list; not necessarily send-ready |
-| `23_newyork_mailing` | `current_mailing_ny` | none | Eligible list; not necessarily send-ready |
-| `24_texas_fall_series` | `current_mailing_tx` | original period begins `Fall`; newest first | Eligible list; not necessarily send-ready |
-| `25_pennsylvania_mailing` | `current_mailing_pa` | none | Eligible list; not necessarily send-ready |
-| `26_canada_mailing` | `current_mailing_can` | none | Eligible list; not necessarily send-ready |
-| `27_other_mailing` | `current_mailing_other` | none | Eligible list; not necessarily send-ready |
+| `20_california_mailing` | `current_mailing` | normalized state = CA | Eligible list; not necessarily send-ready |
+| `21_texas_mailing` | `current_mailing` | normalized state = TX | Eligible list; not necessarily send-ready |
+| `22_florida_mailing` | `current_mailing` | normalized state = FL | Eligible list; not necessarily send-ready |
+| `23_newyork_mailing` | `current_mailing` | normalized state = NY | Eligible list; not necessarily send-ready |
+| `24_texas_fall_series` | `current_mailing` | normalized state = TX; original period begins `Fall`; newest first | Eligible list; not necessarily send-ready |
+| `25_pennsylvania_mailing` | `current_mailing` | normalized state = PA | Eligible list; not necessarily send-ready |
+| `26_canada_mailing` | `current_mailing` | normalized state = CAN | Eligible list; not necessarily send-ready |
+| `27_other_mailing` | `current_mailing` | normalized state is not CA/TX/FL/NY/PA/CAN | Eligible list; not necessarily send-ready |
 
-The seven geography views are disjoint and exhaustive. DQ requires Working row count, distinct
-email count, unioned geography row count, and unioned distinct-email count to agree.
+The seven predicates are disjoint and exhaustive. DQ requires the Working row count to equal its
+distinct-email count and the sum of all seven conditional row counts.
 
 Working and state exports are eligibility lists, not guaranteed send-ready files. The pipeline
 records cleaning actions and loose email DQ counters, but does not perform final email-syntax

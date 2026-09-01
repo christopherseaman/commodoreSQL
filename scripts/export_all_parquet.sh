@@ -19,7 +19,7 @@ mkdir -p "$PARQUET_TMP_DIR" "$PARQUET_OUTPUT_DIR"
 echo "Export process started at: $(date)"
 
 # Discover and process SQL export files
-mapfile -t export_files < <(find sql/exports -type f -name "*.sql" | sort)
+mapfile -t export_files < <(find sql/exports -maxdepth 1 -type f -name "*.sql" | sort)
 total_exports=${#export_files[@]}
 current_export=0
 successful_exports=0

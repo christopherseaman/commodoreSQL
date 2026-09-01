@@ -1,2 +1,4 @@
 -- Export California mailing list
-SELECT * FROM current_mailing_ca;
+SELECT *
+FROM current_mailing
+WHERE UPPER(TRIM(state)) = 'CA';

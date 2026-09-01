@@ -894,132 +894,6 @@ Table current_mailing [note: 'view'] {
   Note: 'Whiteboard Mailing Working view. Recent master_mailing rows excluding any email present in opt_out, LEFT-enriched with panel_response_year from panel_email.'
 }
 
-Table current_mailing_ca [note: 'view'] {
-  unit_id bigint
-  school varchar
-  state varchar
-  department varchar
-  course_level varchar
-  course_subject varchar
-  period varchar
-  period_sortable varchar
-  period_date date
-  instructor varchar
-  first_name varchar
-  last_name varchar
-  email varchar
-  panel_response_year varchar
-  Note: 'current_mailing WHERE UPPER(TRIM(state)) = "CA". Same columns as current_mailing.'
-}
-
-Table current_mailing_tx [note: 'view'] {
-  unit_id bigint
-  school varchar
-  state varchar
-  department varchar
-  course_level varchar
-  course_subject varchar
-  period varchar
-  period_sortable varchar
-  period_date date
-  instructor varchar
-  first_name varchar
-  last_name varchar
-  email varchar
-  panel_response_year varchar
-  Note: 'current_mailing WHERE UPPER(TRIM(state)) = "TX". Same columns as current_mailing.'
-}
-
-Table current_mailing_fl [note: 'view'] {
-  unit_id bigint
-  school varchar
-  state varchar
-  department varchar
-  course_level varchar
-  course_subject varchar
-  period varchar
-  period_sortable varchar
-  period_date date
-  instructor varchar
-  first_name varchar
-  last_name varchar
-  email varchar
-  panel_response_year varchar
-  Note: 'current_mailing WHERE UPPER(TRIM(state)) = "FL". Same columns as current_mailing.'
-}
-
-Table current_mailing_ny [note: 'view'] {
-  unit_id bigint
-  school varchar
-  state varchar
-  department varchar
-  course_level varchar
-  course_subject varchar
-  period varchar
-  period_sortable varchar
-  period_date date
-  instructor varchar
-  first_name varchar
-  last_name varchar
-  email varchar
-  panel_response_year varchar
-  Note: 'current_mailing WHERE UPPER(TRIM(state)) = "NY". Same columns as current_mailing.'
-}
-
-Table current_mailing_pa [note: 'view'] {
-  unit_id bigint
-  school varchar
-  state varchar
-  department varchar
-  course_level varchar
-  course_subject varchar
-  period varchar
-  period_sortable varchar
-  period_date date
-  instructor varchar
-  first_name varchar
-  last_name varchar
-  email varchar
-  panel_response_year varchar
-  Note: 'current_mailing WHERE UPPER(TRIM(state)) = "PA". Same columns as current_mailing.'
-}
-
-Table current_mailing_can [note: 'view'] {
-  unit_id bigint
-  school varchar
-  state varchar
-  department varchar
-  course_level varchar
-  course_subject varchar
-  period varchar
-  period_sortable varchar
-  period_date date
-  instructor varchar
-  first_name varchar
-  last_name varchar
-  email varchar
-  panel_response_year varchar
-  Note: 'current_mailing WHERE UPPER(TRIM(state)) = "CAN". Same columns as current_mailing.'
-}
-
-Table current_mailing_other [note: 'view'] {
-  unit_id bigint
-  school varchar
-  state varchar
-  department varchar
-  course_level varchar
-  course_subject varchar
-  period varchar
-  period_sortable varchar
-  period_date date
-  instructor varchar
-  first_name varchar
-  last_name varchar
-  email varchar
-  panel_response_year varchar
-  Note: 'Complete residual after normalized CA, TX, FL, NY, PA, and CAN partitions; includes NULL, blank, and unknown state values. Same columns as current_mailing.'
-}
-
 // ---------------------------------------------------------------------------
 // EDA — Canonical material/cost and aggregated records (2b_course_materials.sql,
 // 3b_material_costs.sql,
@@ -1523,13 +1397,6 @@ Ref: comprehensive_data.email > panel_email.email
 // mailing list chain (email is unique via grouped deterministic top-one selection)
 Ref: current_mailing.email > master_mailing.email
 Ref: current_mailing.period_sortable > recent_periods.period_sortable
-Ref: current_mailing_ca.email > current_mailing.email
-Ref: current_mailing_tx.email > current_mailing.email
-Ref: current_mailing_fl.email > current_mailing.email
-Ref: current_mailing_ny.email > current_mailing.email
-Ref: current_mailing_pa.email > current_mailing.email
-Ref: current_mailing_can.email > current_mailing.email
-Ref: current_mailing_other.email > current_mailing.email
 
 // canonical Course Materials path (composite material keys are documented in table notes)
 // course_materials is built from comprehensive_data and material_costs is LEFT-enriched by pricing_wide;
@@ -1577,13 +1444,6 @@ TableGroup eda_mailing {
   master_mailing
   recent_periods
   current_mailing
-  current_mailing_ca
-  current_mailing_tx
-  current_mailing_fl
-  current_mailing_ny
-  current_mailing_pa
-  current_mailing_can
-  current_mailing_other
 }
 
 TableGroup eda_records {

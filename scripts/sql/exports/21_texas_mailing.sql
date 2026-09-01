@@ -1,2 +1,4 @@
 -- Export Texas mailing list
-SELECT * FROM current_mailing_tx;
+SELECT *
+FROM current_mailing
+WHERE UPPER(TRIM(state)) = 'TX';
