@@ -1,155 +1,78 @@
 # CommodoreSQL
 
-A DuckDB pipeline that integrates course-catalog data (~103M rows) with institutional
-characteristics (IPEDS), bookstore pricing, and opt-out/panel lists — to support targeted
-mailing lists and analysis of course-materials cost and OER/Inclusive-Access adoption.
+CommodoreSQL is a DuckDB pipeline for course-material analysis and mailing-list production.
+It combines BMG and BVA inputs with IPEDS metadata and a Metabase reporting layer.
 
-> **Where to look:** current work status, how to run things, and gotchas in
-> [`HANDOFF.md`](HANDOFF.md) · exact execution/file lineage in
-> [`SCHEMA.md`](SCHEMA.md#data-lineage) · release-facing process, filters, and derived-field
-> semantics in [`CMM-ETL.md`](CMM-ETL.md) · authoritative full column dictionary in
-> [`DATA-DICTIONARY.md`](DATA-DICTIONARY.md), generated from [`schema.dbml`](schema.dbml) · detailed
-> Master Section appendix in [`MASTER-SECTION-DICTIONARY.md`](MASTER-SECTION-DICTIONARY.md) · naming standards in
-> [`CLAUDE.md`](CLAUDE.md) · dashboard and report inventory in
-> [`DASHBOARDS-REPORTS.md`](DASHBOARDS-REPORTS.md) · historical design decisions in
-> [`260529-DECISIONS.md`](260529-DECISIONS.md).
+## Documentation
 
-The explicit Notion documentation sync is read-only by default. Preview the four tagged
-documents with `python3 scripts/sync_notion_docs.py SCHEMA.md CMM-ETL.md DATA-DICTIONARY.md
-DASHBOARDS-REPORTS.md`; add `--apply` to push changes. Apply is non-transactional, so review
-the preview and treat each document update independently.
+- [`HANDOFF.md`](HANDOFF.md) — current branch, release state, blockers, and pickup steps
+- [`SCHEMA.md`](SCHEMA.md) — execution order, relations, and data lineage
+- [`CMM-ETL.md`](CMM-ETL.md) — release-facing processing contract
+- [`DATA-DICTIONARY.md`](DATA-DICTIONARY.md) — authoritative relation and column dictionary
+- [`schema.dbml`](schema.dbml) — canonical machine-readable schema
+- [`DASHBOARDS-REPORTS.md`](DASHBOARDS-REPORTS.md) — Metabase inventory
+- [`COURSE-MATERIAL-POPULATIONS.md`](COURSE-MATERIAL-POPULATIONS.md) — population and denominator guide
+- [`MAILING-FLOW.md`](MAILING-FLOW.md) — mailing Master, Working, and export flow
+- [`PRICING-CATALOG-MATCHING.md`](PRICING-CATALOG-MATCHING.md) — pricing/catalog identity limitation
 
-## Data sources
+## Inputs and configuration
 
-CSVs live under `data/<date>/`; paths are configured in `scripts/dot.env`.
+Source files live under `data/<date>/`; configure paths and runtime settings in `scripts/dot.env`.
 
-BMG owns the course-materials source and raw pricing/cost observations; BVA owns opt-out and
-mailing-history sources; IPEDS owns institution metadata. The executable table names below are
-established compatibility names, not source-prefixed naming claims. Derived outputs omit source
-acronyms.
+| Owner | Input | Imported relation |
+|---|---|---|
+| BMG | `DiscoveryExtract.*.csv` | `course_catalog_<date>` |
+| BMG | `BookPricing.Historical_*.csv` | `pricing_historical` |
+| BVA | `OptOut_*.csv` | `opt_out` |
+| BVA | `panel_*.csv` | `panel` / `panel_email` |
+| IPEDS | `IPEDS_2024.csv` | `ipeds_data` |
+| Internal | `format_type_lookup.tsv` | `format_type_classification` |
 
-| Owner | File | Compatibility target | Rows |
-|---|---|---|---:|
-| BMG | `DiscoveryExtract.*.csv` | `course_catalog_<date>` | ~103M |
-| IPEDS | `IPEDS_2024.csv` | `ipeds_data` | ~7K |
-| BVA | `OptOut_*.csv` | `opt_out` | variable |
-| BVA | `panel_*.csv` | `panel` | variable |
-| Internal | `format_type_lookup.tsv` | `format_type_classification` | 69 |
-| BMG | `BookPricing.Historical_*.csv` | `pricing_historical` | snapshot-dependent (~27.3M current rows) |
-
-## Running the pipeline
+## Run
 
 ```bash
 scripts/run_sql.sh
 ```
 
-The runner loads `scripts/dot.env`, templates each `scripts/sql/*.sql` file (env vars via
-`envsubst`, e.g. `${CONFIG}`), and executes it against the DuckDB database at `MAIN_DB`
-(`duckdb/commodore.duckdb`). It runs three stages, each skippable by setting a flag:
-
-| Stage | Flag to skip | What it does |
-|-------|--------------|--------------|
-| IMPORT | `NO_IMPORT` | Load CSVs; Stage 3 parses BMG pricing; derive composite keys; retain raw panel plus one-row-per-email `panel_email`; build enriched source-row `comprehensive_data`; classify catalog OER/IA; canonicalize `course_materials` and `section_enrollment`; build BMG-owned pricing history/wide tables and non-mutating DQ comparisons |
-| EDA | `NO_EDA` | Materialize Mailing Master from the normalized course-material import; build Mailing Working/history/opt-out and geographic views; build canonical `material_costs` as the only pricing enrichment of `course_materials_use`, section/course records, and materialize `scripts/sql/models/*.sql` rollups |
-| EXPORT | `NO_EXPORT` | Auto-discover the 24 `scripts/sql/exports/*.sql` wrappers, wrap each in a temp table, and `COPY` to CSV in `output/` |
-
-The runner rejects mailing exports when the same invocation runs IMPORT but skips
-`3_mailing_lists.sql`; this prevents a newly refreshed course-material import from being paired
-with a stale persisted Mailing Master. A wrapper-only export with `NO_IMPORT=1` remains supported.
+The runner loads `scripts/dot.env`, applies `envsubst` to SQL, and runs IMPORT, EDA/model,
+and EXPORT against `MAIN_DB`. Set `NO_IMPORT=1`, `NO_EDA=1`, or `NO_EXPORT=1` to
+skip a stage. The pipeline drops and recreates managed relations, so it is re-runnable.
 
 ```bash
-NO_IMPORT=1 NO_EXPORT=1 scripts/run_sql.sh   # rebuild just the EDA records
+NO_IMPORT=1 NO_EXPORT=1 scripts/run_sql.sh  # run EDA + models from existing import state
 ```
 
-Update `CSV_DATE` in `scripts/dot.env` for a new data drop. The pipeline drops-before-creates
-and is re-runnable.
+## Relation flow
 
-## Key outputs
+```text
+source CSVs
+  -> comprehensive_data
+  -> course_materials + section_enrollment
+  -> course_materials_use -> material_costs
+  -> pricing_historical -> pricing_wide -> material_costs
+  -> section_cost
+  -> master_section / master_institution / master_isbn
 
-- **`comprehensive_data`** — exactly one enriched, normalized BMG source row (catalog × IPEDS ×
-  opt-out × one-row-per-email panel lookup × format-type × section status), with row-level 2024+
-  Use/NoUse/Canada, coverage, enrollment, placeholder, supply, required, and OER/IA flags. It
-  remains the source for faculty and raw DQ; the rebuilt source and enriched tables
-  each contain 102,885,609 rows.
-- **`course_materials`** — first canonical processed table at one
-  `(period_sortable, section_id, isbn13)`, plus one NULL-ISBN audit row per section when present;
-  source counts, representative fields, variants/conflicts, and population flags are retained.
-  It contains 96,663,781 rows; the four `course_materials_*` views are direct canonical
-  projections.
-- **`section_enrollment`** — exact one-row-per-section enrollment assignment and provenance,
-  built during canonical Course Materials stage and retaining the complete valid 2024+ spine.
-- **`material_costs`** (materialized TABLE) — one row per
-  `(period_sortable, section_id, isbn13)` canonical Use item. It is the approved item input:
-  catalog-owned fields come from `course_materials`, while a LEFT join to `pricing_wide`
-  adds bookstore URL, all 18 price cells, format/price bounds, rental range, and buy bounds.
-  Every Use item remains present, including items without a pricing-row match or valid price.
-- **`section_cost`** — section-level required/optional cost rollups consumed from
-  `material_costs`; it is not the item-level input.
-- **`master_section`** (materialized TABLE) / **`master_course`** (view) — one row per
-  material-bearing section-offering / course-offering (2024+). Master Section is the section-level
-  rollup of canonical `material_costs` items, with section dimensions and assigned enrollment from
-  `section_enrollment`; all price/cost fields roll through `section_cost`. The independent
-  `section_enrollment` table retains the complete valid section population.
-- **`pricing_historical`** / **`pricing_wide`** — indexed, deduplicated source pricing and its
-  one-row-per-`(section_id, isbn13)` provenance/price pivot. Neither table receives catalog
-  required-inference, OER/IA, or IPEDS fields, and there is no required-only pricing view.
-  `2d_data_quality.sql` compares pricing to catalog without mutating either table. Exact-match
-  evidence and future proposals are centralized in the
-  [issue #21 limitation](CMM-ETL.md#current-limitation--pricing-to-catalog-section-matching-issue-21).
-- **`master_section`** / **`master_institution`** / **`master_isbn`** (materialized TABLEs) —
-  the three per-term CMM release masters. `material_costs` is exported alongside them;
-  `master_isbn` consumes it. Institution and strict term×ISBN rollups live in
-  `scripts/sql/models/`; combined exports live in `output/`.
-- **`sample10_section_ids`** — canonical deterministic section-level sample membership;
-  sampled exports and reconciliation reuse this table rather than drawing independently.
-- **Mailing lists** — the persisted `master_mailing` table deterministically selects one row per
-  cleaned email directly from the normalized course-material import by newest period, enrollment,
-  then stable source fields. It is deliberately upstream of mailing history and opt-out policy.
-  `current_mailing` is the whiteboard's Mailing Working view: it keeps Master rows in the newest
-  12 periods, joins the one-row-per-email `panel_email` history lookup, and excludes emails in
-  `opt_out`. Its `CA`/`TX`/`FL`/`NY`/`PA`/`CAN`/`Other` views normalize with
-  `UPPER(TRIM(state))`; Other is the complete NULL/blank/unknown residual. The newer history file
-  itself remains pending in #56. Master is a staging/audit population; Working and its geographic
-  views are the send-ready, opt-out-filtered populations. The exact logic and filters at every step
-  are in the [mailing contract](CMM-ETL.md#mailing-source-master-and-working-contract-66), with the
-  full source-to-export [lineage diagram](SCHEMA.md#mailing-source-master-working-and-export-lineage).
+course-material source -> master_mailing -> current_mailing -> geographic exports
+```
 
-To create separate release-dated files for every material-bearing term, or only Fall 2025:
+`course_materials` is the canonical catalog item spine; `material_costs` left-enriches its
+Use items with exact section×ISBN pricing. `section_enrollment` owns the complete section
+population, while the three master relations are material-bearing release rollups.
+
+## Release exports
 
 ```bash
-scripts/export_cmm_masters.sh
-scripts/export_cmm_masters.sh 2025-4
+scripts/export_cmm_masters.sh             # every material-bearing term
+scripts/export_cmm_masters.sh 2025-4      # one term
+scripts/export_course_materials.sh 20260901
+scripts/export_course_materials.sh 20260901 2025-4
 ```
 
-To export the five canonical Course Materials relations (optionally for one `YYYY-N` term):
-
-```bash
-scripts/export_course_materials.sh              # all terms, date from today
-scripts/export_course_materials.sh 20250828      # all terms, explicit release date
-scripts/export_course_materials.sh 20250828 2025-4
-```
-
-Files are written under `output/course_materials` (configurable) as dated
-`course_materials`, `course_materials_post_2024`, `course_materials_use_post_2024`,
-`course_materials_nouse_post_2024`, and `course_materials_can_post_2024` CSVs.
-
-Each selected term emits `master_section`, `master_institution`, `master_isbn`, and
-`material_costs` CSVs under `output/cmm/`. All four releases follow the canonical Use/material
-population: Master Section and Institution contain sections represented by `material_costs`,
-including sections whose Use items have no pricing match or valid price. Complete catalog and
-enrollment populations remain available upstream in `comprehensive_data` and `section_enrollment`.
-The material-cost baseline is expected to contain **12,806,060** Use rows. Per-term files are
-direct filters of the materialized masters; full Material Costs export is
-`scripts/sql/exports/40_material_costs_by_term.sql`.
-Full exports retain `period_sortable` and do not multiply rows across terms. Source/input readiness remains tracked in #51; Spring 2026 and
-`cmm_discipline` are external pending inputs, not landed local tables.
-Exact cross-model and key-set checks are exported by `38_cmm_release_reconciliation.sql` and
-`39_cmm_release_key_reconciliation.sql`; `41_material_costs_reconciliation.sql` reconciles raw
-source rows through canonical `course_materials` to `material_costs`; every row must match.
+CMM files go under `output/cmm/`; Course Materials files go under `output/course_materials/`.
+Both are configurable, and the Course Materials exporter refuses to overwrite files.
 
 ## Metabase
 
-Dashboards and questions are config-as-code: SQL questions (with frontmatter) in
-`metabase/questions/`, dashboard layouts in `metabase/dashboards/`, IDs in `metabase/ids.json`,
-synced via `metabase/sync.py`. The local image is built/launched by `metabase.sh` (custom
-glibc-based image so the DuckDB driver works). It connects read-only to `duckdb/commodore.duckdb`.
+Questions, models, dashboards, and IDs live under `metabase/`. Preview with
+`python3 metabase/sync.py --dry-run`; `./metabase.sh` recreates the read-only service.

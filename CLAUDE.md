@@ -3,20 +3,24 @@
 ## Documentation hierarchy
 
 - `SCHEMA.md` — current data model overview (tables, pipeline stages, lineage diagram)
-- `DATA-DICTIONARY.md` — authoritative project-wide relation and column dictionary (generated from `schema.dbml`)
+- `DATA-DICTIONARY.md` — generated concise project-wide relation index (from `schema.dbml`)
+- `docs/data-dictionary/<relation>.md` — one generated five-column field dictionary page per declared table/view
 - `schema.dbml` — canonical machine-readable column definitions, types, and relationships (load in dbdiagram.io)
 - `CMM-ETL.md` — canonical release-facing ETL contract and processing semantics
-- `MASTER-SECTION-DICTIONARY.md` — detailed repo-level Master Section business/NULL/denominator appendix embedded in `DATA-DICTIONARY.md`
+- `MASTER-SECTION-DICTIONARY.md` — separate linked repo-level Master Section business/NULL/denominator appendix
 - `DASHBOARDS-REPORTS.md` — dashboard, report, and Metabase question inventory
 - `CLAUDE.md` (this file) — naming standards and conventions
 - `HANDOFF.md` — current work status, how to run things, gotchas (read first when picking up)
 - `README.md` — high-level project + pipeline overview
 
-Only the four explicitly tagged Notion documents (`SCHEMA.md`, `CMM-ETL.md`,
-`DATA-DICTIONARY.md`, and `DASHBOARDS-REPORTS.md`) are pushed by the
-documentation sync. `CMM-ETL.md` is a synced child under the Data Lineage
-Overview page, not a fourth Overview peer. Repo-only guidance, historical notes,
-and `comms/` source captures are not swept automatically.
+Notion sync reads the explicit `scripts/notion_sync_docs.txt` manifest (51
+documents): four canonical documents, three top-level issue-detail documents,
+and 44 generated relation pages. The three issue-detail pages are children of
+the CMM ETL page; relation pages live under the stable Relation dictionaries
+container beneath Data Dictionary. There is no recursive repository sweep.
+Use `NOTION_KEYRING=0` with the sync helper; run its read-only manifest
+preflight before `--apply` when publishing changes. Repo-only guidance,
+historical notes, and `comms/` source captures are not synced.
 
 ## Naming standards
 

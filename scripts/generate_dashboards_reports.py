@@ -20,6 +20,9 @@ EXPECTED = {
     "standalone": 9,
 }
 
+MAX_RENDERED_LINES = 450
+MAX_RENDERED_WORDS = 4_500
+
 GROUPS = [
     (
         "Reporting & analytical surfaces",
@@ -155,15 +158,49 @@ def clean(text: str) -> str:
     return re.sub(r"\s+", " ", text).strip()
 
 
-def card_block(stem: str, ids: dict, questions: dict[str, tuple[str, str]]) -> str:
+def table_cell(text: str) -> str:
+    return clean(text).replace("|", "\\|")
+
+
+def scope_label(description: str) -> str:
+    """Keep the lead scope/population sentence; SQL frontmatter has the detail."""
+    normalized = clean(description)
+    sentences = re.split(r"(?<=[.!?])\s+(?=[A-Z])", normalized)
+    if re.fullmatch(r"(?:Issue|BMG task) #\d+\.", sentences[0]) and len(sentences) > 1:
+        return sentences[1]
+    return sentences[0]
+
+
+def card_row(stem: str, ids: dict, questions: dict[str, tuple[str, str]]) -> str:
     title, description = questions[stem]
-    return (
-        f"#### {title}\n\n"
-        f"- Stem: `{stem}`\n"
-        f"- ID: `{ids[stem]}`\n"
-        f"- Source: `metabase/questions/{stem}.sql`\n"
-        f"- Scope: {clean(description)}\n"
+    return " | ".join(
+        (
+            f"| {table_cell(title)}",
+            f"`{ids[stem]}`",
+            f"[`{stem}`](metabase/questions/{stem}.sql)",
+            f"{table_cell(scope_label(description))} |",
+        )
     )
+
+
+def validate_rendered(rendered: str) -> None:
+    lines = rendered.splitlines()
+    words = rendered.split()
+    expected_question_rows = EXPECTED["placements"] + EXPECTED["standalone"]
+    checks = {
+        "legacy card blocks remain": "\n#### " not in rendered,
+        "dashboard card table count mismatch": rendered.count("| Card | ID | Source | Scope / population |")
+        == EXPECTED["dashboards"] + len(STANDALONE_GROUPS),
+        "model table count mismatch": rendered.count("| Model | ID | Source | Scope / population |") == 1,
+        "question row count mismatch": rendered.count("](metabase/questions/") == expected_question_rows,
+        "dashboard source count mismatch": rendered.count("](metabase/dashboards/") == EXPECTED["dashboards"],
+        "model row count mismatch": rendered.count("](metabase/models/") == EXPECTED["models"],
+        f"rendered line budget exceeds {MAX_RENDERED_LINES}": len(lines) <= MAX_RENDERED_LINES,
+        f"rendered word budget exceeds {MAX_RENDERED_WORDS}": len(words) <= MAX_RENDERED_WORDS,
+    }
+    for error, passed in checks.items():
+        if not passed:
+            raise ValueError(error)
 
 
 def render() -> str:
@@ -191,32 +228,46 @@ def render() -> str:
             lines += [
                 f"### {meta['name']}",
                 "",
-                f"- ID: `{ids[key]}`",
-                f"- Source: `metabase/dashboards/{path.name}`",
-                f"- Scope: {clean(meta.get('description', ''))}",
+                f"ID `{ids[key]}` · [`{path.stem}`](metabase/dashboards/{path.name}) · {clean(meta.get('description', ''))}",
                 "",
+                "| Card | ID | Source | Scope / population |",
+                "|---|---:|---|---|",
             ]
             for stem in dashboard["cards"]:
-                lines += card_block(stem, ids, questions).splitlines() + [""]
+                lines.append(card_row(stem, ids, questions))
+            lines.append("")
     lines += ["## Standalone cards", ""]
     for group, stems in STANDALONE_GROUPS:
-        lines += [f"### {group}", ""]
+        lines += [
+            f"### {group}",
+            "",
+            "| Card | ID | Source | Scope / population |",
+            "|---|---:|---|---|",
+        ]
         for stem in stems:
-            lines += card_block(stem, ids, questions).splitlines() + [""]
-    lines += ["## Models", ""]
+            lines.append(card_row(stem, ids, questions))
+        lines.append("")
+    lines += [
+        "## Models",
+        "",
+        "| Model | ID | Source | Scope / population |",
+        "|---|---:|---|---|",
+    ]
     for key in ("model_master_institution", "model_master_isbn", "model_master_section", "model_master_section_us_intro_fall2025"):
         title, description = models[key]
         stem = key.removeprefix("model_")
-        lines += [
-            f"### {title}",
-            "",
-            f"- Stem: `{key}`",
-            f"- ID: `{ids[key]}`",
-            f"- Source: `metabase/models/{stem}.sql`",
-            f"- Scope: {clean(description)}",
-            "",
-        ]
+        lines.append(
+            " | ".join(
+                (
+                    f"| {table_cell(title)}",
+                    f"`{ids[key]}`",
+                    f"[`{key}`](metabase/models/{stem}.sql)",
+                    f"{table_cell(scope_label(description))} |",
+                )
+            )
+        )
     lines += [
+        "",
         "## Coverage checks",
         "",
         f"- Dashboards: {EXPECTED['dashboards']}; questions: {EXPECTED['questions']}; models: {EXPECTED['models']}",
@@ -230,7 +281,9 @@ def render() -> str:
         "When adding or renaming a dashboard, card, or model, update its source frontmatter and `metabase/ids.json`, preserve dashboard JSON card order, then run `python3 scripts/generate_dashboards_reports.py --check`.",
         "",
     ]
-    return "\n".join(lines)
+    rendered = "\n".join(lines)
+    validate_rendered(rendered)
+    return rendered
 
 
 def main() -> int:
