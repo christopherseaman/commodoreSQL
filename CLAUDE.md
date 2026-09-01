@@ -3,6 +3,7 @@
 ## Documentation hierarchy
 
 - `SCHEMA.md` — current data model overview (tables, pipeline stages, lineage diagram)
+- `CMM-DATA-FLOW.md` — stakeholder-oriented source-to-report flow and step logic
 - `DATA-DICTIONARY.md` — generated concise project-wide relation index (from `schema.dbml`)
 - `docs/data-dictionary/<relation>.md` — one generated five-column field dictionary page per declared table/view
 - `schema.dbml` — canonical machine-readable column definitions, types, and relationships (load in dbdiagram.io)
@@ -13,8 +14,8 @@
 - `HANDOFF.md` — current work status, how to run things, gotchas (read first when picking up)
 - `README.md` — high-level project + pipeline overview
 
-Notion sync reads the explicit `scripts/notion_sync_docs.txt` manifest (44
-documents): four canonical documents, three top-level issue-detail documents,
+Notion sync reads the explicit `scripts/notion_sync_docs.txt` manifest (45
+documents): five canonical documents, three top-level issue-detail documents,
 and 37 generated relation pages. The relation index groups current/consumed
 relations as sources, lookup/reference inputs, processing helpers, canonical
 outputs, DQ sidecars, and report views. Geographic mailing is seven direct

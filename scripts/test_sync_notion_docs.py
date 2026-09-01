@@ -196,15 +196,15 @@ if sys.argv[1:3] == ['pages', 'get']:
         self.docs.append(two)
         self.assertNotEqual(self.invoke(one, two).returncode, 0)
 
-    def test_manifest_is_explicit_and_has_44_entries(self):
+    def test_manifest_is_explicit_and_has_45_entries(self):
         names = SYNC.load_manifest(Path("scripts/notion_sync_docs.txt"), ROOT)
-        self.assertEqual(len(names), 44)
+        self.assertEqual(len(names), 45)
         self.assertEqual(len(names), len(set(names)))
-        self.assertEqual(names[:7], [
-            "SCHEMA.md", "CMM-ETL.md", "DATA-DICTIONARY.md", "DASHBOARDS-REPORTS.md",
+        self.assertEqual(names[:8], [
+            "CMM-DATA-FLOW.md", "SCHEMA.md", "CMM-ETL.md", "DATA-DICTIONARY.md", "DASHBOARDS-REPORTS.md",
             "COURSE-MATERIAL-POPULATIONS.md", "MAILING-FLOW.md", "PRICING-CATALOG-MATCHING.md",
         ])
-        self.assertTrue(all(name.startswith("docs/data-dictionary/") for name in names[7:]))
+        self.assertTrue(all(name.startswith("docs/data-dictionary/") for name in names[8:]))
 
     def test_direct_dictionary_child_is_allowed(self):
         path = self.data_dictionary_doc_path("allowed.md")

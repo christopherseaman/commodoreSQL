@@ -6,11 +6,6 @@ notion-sync: push
 
 # Course Material Monitor (CMM) ETL contract
 
-This is the canonical release-facing contract for the implemented DuckDB pipeline. SQL controls
-executable behavior; [`schema.dbml`](schema.dbml) controls machine-readable definitions. See
-[`SCHEMA.md`](SCHEMA.md) for lineage and exports, [`DATA-DICTIONARY.md`](DATA-DICTIONARY.md) for
-relations and columns, and [`DASHBOARDS-REPORTS.md`](DASHBOARDS-REPORTS.md) for reporting surfaces.
-
 ## 1. Authority, ownership, and source snapshot
 
 - BMG owns course-material and raw bookstore pricing/cost observations.
@@ -52,17 +47,16 @@ it executes the following order:
 | Import | `1a_supply_classification.sql` | Classify 2024+ ISBNs from title include/exclude keywords. Blank/unmatched ISBNs are not supplies; attribution is deterministic. |
 | Import | `1b_section_filter.sql` | Build one `section_book_status` row per catalog `section_id`; `has_required` is any required, non-supply item. |
 | Import | `2_oer_classification.sql` | Rebuild `comprehensive_data` at normalized BMG source-row grain with IPEDS, lookup, panel, opt-out, required, and population flags. |
-| Import | `2b_course_materials.sql` | Build the full 2024+ `section_enrollment` spine and canonical `course_materials` plus population views. See [`COURSE-MATERIAL-POPULATIONS.md`](COURSE-MATERIAL-POPULATIONS.md). |
+| Import | `2b_course_materials.sql` | Build the full 2024+ `section_enrollment` spine and canonical `course_materials` plus population views. |
 | Import | `2c_pricing_wide.sql` | Pivot pricing to one `(section_id, isbn13)` row with 18 price cells, option/bounds fields, and rental-term bounds. |
 | Import | `2d_data_quality.sql` | Materialize import-state metrics and drill-downs, including non-mutating exact pricing/catalog comparisons. These are diagnostics, not release denominators. |
-| EDA | `3_mailing_lists.sql` | Build Master and Working mailing relations. Seven geographic exports filter Working directly. See [`MAILING-FLOW.md`](MAILING-FLOW.md). |
-| EDA | `3b_material_costs.sql` | LEFT-enrich every canonical Use item from `pricing_wide` on exact section × ISBN. See [`PRICING-CATALOG-MATCHING.md`](PRICING-CATALOG-MATCHING.md). |
+| EDA | `3_mailing_lists.sql` | Build Master and Working mailing relations. Seven geographic exports filter Working directly. |
+| EDA | `3b_material_costs.sql` | LEFT-enrich every canonical Use item from `pricing_wide` on exact section × ISBN. |
 | EDA | `4_merged_records.sql` | Build `section_cost`, `master_section`, `master_course`, `master_course_material`, and the Fall 2025 compatibility projection. |
 | Models | `scripts/sql/models/*.sql` | Materialize discovered models, including `master_institution`, `master_isbn`, and `sample10_section_ids`. |
-| Exports | `scripts/sql/exports/*.sql` | Unless `NO_EXPORT` is set, execute discovered wrappers in lexical order and write `output/<basename>.csv`. Standalone per-term and Parquet exporters are separate commands. |
+| Exports | `scripts/sql/exports/*.sql` | Unless `NO_EXPORT` is set, execute discovered wrappers in lexical order and write `output/<basename>.csv`. Standalone course-material, per-term master, and Parquet exporters are separate commands. |
 
-The pipeline is DROP/recreate and re-runnable. Exact file and output topology is in
-[`SCHEMA.md`](SCHEMA.md#operational-stages).
+The pipeline is DROP/recreate and re-runnable.
 
 The intended current database contains only DBML-managed relations. The 37 current relations are
 all consumed: 27 executable-flow relations, seven DQ sidecars, and three report/export views.
@@ -103,8 +97,7 @@ January 1, April 1, July 1, and October 1.
 
 ## 4. Population, selection, and enrollment rules
 
-The authoritative row and canonical-item predicates are detailed in
-[`COURSE-MATERIAL-POPULATIONS.md`](COURSE-MATERIAL-POPULATIONS.md). In summary:
+The implemented row and canonical-item predicates are:
 
 - Use is 2024+, non-Canada, non-NULL ISBN, non-supply, not `*No Book Details*`, and not
   no-material (`*No Books Required*` or `supply_category='placeholder_no_material'`).
@@ -150,9 +143,8 @@ LEFT JOIN pricing_wide pw
  AND CAST(cm.isbn13 AS VARCHAR) = pw.isbn13
 ```
 
-This exact match is incomplete and intentionally unchanged. The evidence, alternatives, and
-release gates are in [`PRICING-CATALOG-MATCHING.md`](PRICING-CATALOG-MATCHING.md); any broader
-matching strategy is unimplemented.
+This exact match is incomplete and intentionally unchanged. Any broader matching strategy is
+unimplemented.
 
 | Field | Meaning |
 |---|---|
@@ -202,8 +194,7 @@ Every percentage or crosstab states its grain and denominator:
 
 Metabase must route release-facing item analyses to `material_costs`, release-facing section
 analyses to `master_section`, and complete-population diagnostics to `comprehensive_data` or
-`section_enrollment` with the broader denominator labeled. The full dashboard/question inventory
-is in [`DASHBOARDS-REPORTS.md`](DASHBOARDS-REPORTS.md).
+`section_enrollment` with the broader denominator labeled.
 
 The stable 10% sample is selected from all `section_enrollment` rows by unsigned first-64-bit
 MD5 of `section_id` modulo 10, bucket zero (`md5-prefix64-mod10-v1`). Join the single
@@ -215,8 +206,8 @@ section-cluster totals may be expanded by ten; distinct institution or ISBN doma
 The following are boundaries, not current facts: Spring 2026 BMG course materials; the additional
 institution/IPEDS input; additional-term BMG pricing; updated BVA mailing history (issue #56);
 external pricing; discipline lookup; and later campus-level IA data. The current mailing branch
-uses the existing `panel_email` snapshot; see [`MAILING-FLOW.md`](MAILING-FLOW.md). The pricing
-table is rebuilt to the latest row per logical key and is not a cross-snapshot history store.
+uses the existing `panel_email` snapshot. The pricing table is rebuilt to the latest row per
+logical key and is not a cross-snapshot history store.
 
 Before using new inputs, record source identity and dates, verify schemas and term mappings, rerun
 grain/conservation/coverage checks, and resolve any source-specific join policy. The meaning and
