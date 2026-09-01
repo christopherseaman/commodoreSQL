@@ -1,0 +1,6 @@
+{
+  "period_sortable": {
+    "display-name": "Term",
+    "field": "material_costs.period_sortable"
+  }
+}

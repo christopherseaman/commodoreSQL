@@ -51,6 +51,17 @@ and IPEDS owns institution metadata; existing source-table names are compatibili
   corrected ISBN pseudo-SKU, pricing-NULL, course-material-grain, Fall 2025 filter, and mailing-flow
   semantics. The sync helper uses one idempotent synchronous `replace_content` request, rejects
   requests at or above 500,000 bytes before mutation, and never falls back to non-idempotent appends.
+- **#74 Coverage & Scope dashboard is implemented and live-validated without a rebuild.** Dashboard
+  **19** contains cards **173–180** (questions 65–72), with a `Term` filter defaulting to `2025-4`;
+  all 14 cards execute individually with that default (card 71 returns 481 profiles after its fix).
+  Fall 2025 coverage is 6,309,856 canonical `course_materials` item groups and 6,319,066
+  reconstructed source rows, split into 2,754,111 Use and 3,555,745 NoUse groups. The complete
+  `section_enrollment` spine has 5,007,488 sections versus 1,509,634 retained `master_section`
+  sections. Raw pricing has 5,459,527 unique observations, including 9 invalid/NULL-price rows
+  and 65,543 valid zero-price rows; canonical pricing matches 1,837,586 items, including 3
+  matched items without a valid price. All 18/18 price cells reconcile. Institution coverage has
+  481 profiles summing to all 2,216 institutions and 1,509,634 retained sections. These are
+  current-snapshot validation facts only; no pipeline rebuild was performed.
 - **#69 pricing ownership cleanup:** `pricing_historical` remains an indexed, deduplicated
   source-owned snapshot after import, `1b_section_filter.sql` builds only catalog
   `section_book_status`, and `pricing_wide` contains only pricing source/provenance and price

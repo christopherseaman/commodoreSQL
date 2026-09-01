@@ -1,0 +1,6 @@
+{
+  "period_sortable": {
+    "display-name": "Term",
+    "field": "pricing_historical.period_sortable"
+  }
+}

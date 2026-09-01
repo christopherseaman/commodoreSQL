@@ -6,5 +6,6 @@ SELECT format_count, COUNT(*) AS canonical_required_material_rows
 FROM material_costs
 WHERE is_required_inferred
   AND has_pricing_match
+[[ AND {{period_sortable}} ]]
 GROUP BY format_count
 ORDER BY format_count

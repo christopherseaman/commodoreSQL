@@ -10,5 +10,6 @@ SELECT
     ROUND(100.0 * COUNT(*) FILTER (WHERE is_ia)  / NULLIF(COUNT(*) FILTER (WHERE is_ia  IS NOT NULL), 0), 2) AS pct_ia_of_classified
 FROM material_costs
 WHERE has_formattype
+[[ AND {{period_sortable}} ]]
 GROUP BY period_date, period_sortable
 ORDER BY period_date

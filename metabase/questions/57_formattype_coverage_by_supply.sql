@@ -5,6 +5,7 @@ WITH base AS (
     SELECT "ISBN13", is_supply, "FormatType"
     FROM comprehensive_data
     WHERE period_date >= '2024-01-01' AND "ISBN13" IS NOT NULL
+    [[ AND {{period_sortable}} ]]
 ),
 totals AS (
     SELECT

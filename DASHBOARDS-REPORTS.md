@@ -217,6 +217,110 @@ This is the authoritative inventory of repository-defined Metabase dashboards, c
 - Source: `metabase/questions/34_coverage_oer_ia_isbn.sql`
 - Scope: ISBN and OER/IA-classification coverage among canonical material_costs items rolled into material-bearing Master Section rows. The section denominator is not the complete catalog or section_enrollment population; raising FormatType coverage requires an external ISBN→OER/IA source.
 
+### BMG Coverage & Scope
+
+- ID: `19`
+- Source: `metabase/dashboards/bmg_coverage_scope.json`
+- Scope: Current snapshot coverage map from BMG source observations through canonical Course Materials, enrollment, pricing, and release populations. The Term filter defaults to the current snapshot term (2025-4) and applies to all 14 cards; card descriptions identify each source or canonical grain and denominator.
+
+#### Coverage & Scope — Course Material Population by Term
+
+- Stem: `65_coverage_course_material_population_by_term`
+- ID: `173`
+- Source: `metabase/questions/65_coverage_course_material_population_by_term.sql`
+- Scope: Current-snapshot coverage from the canonical course_materials item-group spine (one period × section × ISBN, including one NULL-ISBN audit group per section), while reconstructed_source_rows sums source_row_count back to the enriched BMG source-row grain. All percentages named pct_*_of_item_groups use canonical item groups, not reconstructed source rows; Use-specific counts use the canonical retained Use population.
+
+#### Coverage & Scope — Course Material Exclusion Overlap
+
+- Stem: `66_coverage_course_material_exclusion_overlap`
+- ID: `174`
+- Source: `metabase/questions/66_coverage_course_material_exclusion_overlap.sql`
+- Scope: Current-snapshot overlap audit at the canonical course_materials_post_2024 item-group grain (one period × section × ISBN audit group). Each row is an exact combination of independent Canada, supply, no-details, no-materials, and missing-ISBN flags; no mutually exclusive primary reason is imposed. included (no exclusions) is the zero-exclusion combination, while canonical_disposition exposes the canonical Use/NoUse result and population_classification_conflict separately exposes disagreement among source rows. reconstructed_source_rows returns to the enriched BMG source-row grain, while pct_of_term_item_groups uses canonical post-2024 item groups.
+
+#### Coverage & Scope — Canonical Material Classification by Term
+
+- Stem: `67_coverage_course_material_classification_by_term`
+- ID: `175`
+- Source: `metabase/questions/67_coverage_course_material_classification_by_term.sql`
+- Scope: Current-snapshot classification frequencies over canonical material_costs Use items (one period × section × ISBN). A single source scan is expanded into six dimensions: catalog book_format, catalog FormatType, catalog book_status, inferred-required, OER, and IA. OER/IA NULLs are explicitly labeled unclassified. pct_of_term_dimension_items uses canonical item rows within each term and dimension, not source rows or sections.
+
+#### Coverage & Scope — Complete Section Enrollment by Term
+
+- Stem: `68_coverage_section_enrollment_by_term`
+- ID: `176`
+- Source: `metabase/questions/68_coverage_section_enrollment_by_term.sql`
+- Scope: Current-snapshot enrollment coverage over the complete valid 2024+ section_enrollment spine, where section_count is the full section denominator and raw versus assigned enrollment remain distinct. The enrollment_source columns count assignment provenance. canonical_material_bearing_section_count is a separately named comparison to retained master_section rows and is not the full-spine denominator.
+
+#### Coverage & Scope — Raw Pricing Options by Term
+
+- Stem: `69_coverage_pricing_source_options_by_term`
+- ID: `177`
+- Source: `metabase/questions/69_coverage_pricing_source_options_by_term.sql`
+- Scope: Current-snapshot source coverage at the BMG-owned pricing_historical observation grain, grouped by term × source option × condition × format with no canonical Use, required, or inferred-required filter. valid_price means price < 9999, so zero is valid; key counts use distinct raw section × ISBN pairs. This source denominator is deliberately different from canonical material_costs items.
+
+#### Coverage & Scope — Canonical Use Pricing by Term
+
+- Stem: `70_coverage_canonical_pricing_by_term`
+- ID: `178`
+- Source: `metabase/questions/70_coverage_canonical_pricing_by_term.sql`
+- Scope: Current-snapshot pricing and classification coverage over canonical material_costs Use items (one period × section × ISBN). inferred_required_item_count uses catalog is_required_inferred; inferred_optional_item_count is its complement. item_count is the percentage denominator; section/course/institution/ISBN columns are distinct canonical denominators. has_pricing_match records exact source-key presence, while valid_price_item_count requires non-NULL price_min after the <9999 rule (zero remains valid), so matched_without_valid_price is kept separate. Option presence is independent of valid price and price_avg is not used.
+
+#### Coverage & Scope — Canonical Retained Sections by Institution Profile
+
+- Stem: `71_coverage_canonical_by_institution`
+- ID: `179`
+- Source: `metabase/questions/71_coverage_canonical_by_institution.sql`
+- Scope: Complete institution-profile coverage summary from canonical master_institution at one row per period_sortable × state × control × level × size × institution_type. institution_count counts source institution rows (including the explicit NULL-institution bucket), and bookstore_url_institution_count counts rows with a nonblank bookstore URL. All section, course, material, source-required, inferred-required, inferred-optional, priced, supply, OER, IA, and enrollment metrics are summed across the profile. canonical_retained_section_count is the summed canonical retained-section denominator for every pct_* column; it is not the complete section_enrollment spine. source_required_section_count is the source-required count from section_book_status, while inferred-required and inferred-optional counts are the catalog-inferred split.
+
+#### Coverage & Scope — Canonical Price Cells by Term
+
+- Stem: `72_coverage_canonical_price_cells_by_term`
+- ID: `180`
+- Source: `metabase/questions/72_coverage_canonical_price_cells_by_term.sql`
+- Scope: Current-snapshot price-cell coverage from canonical master_isbn term × ISBN rows. The 18 option × condition × format section-count cells are summed once per term and then normalized; canonical_section_item_occurrences = SUM(section_id_count) is the denominator, isbn_count is the number of canonical ISBN rows, and price_cell_occurrence_count can overlap across cells for the same section × ISBN. This is a canonical retained Use population, not raw pricing_historical observations.
+
+#### FormatType Classification Coverage Over Time (2024+)
+
+- Stem: `32_formattype_coverage_over_time`
+- ID: `83`
+- Source: `metabase/questions/32_formattype_coverage_over_time.sql`
+- Scope: Share of canonical deduplicated material_costs items that carry a FormatType (and are thus OER/IA-classifiable). Pair with "OER/IA Rate Among Classified Materials".
+
+#### OER/IA Rate Among Classified Materials (2024+)
+
+- Stem: `31_oer_ia_rate_among_classified`
+- ID: `82`
+- Source: `metabase/questions/31_oer_ia_rate_among_classified.sql`
+- Scope: OER/IA as a share of canonical Use materials that HAVE a FormatType classification (denominator excludes unclassified).
+
+#### FormatType Coverage by Supply Status (2024+)
+
+- Stem: `57_formattype_coverage_by_supply`
+- ID: `162`
+- Source: `metabase/questions/57_formattype_coverage_by_supply.sql`
+- Scope: Issue #42. FormatType fill rate split by is_supply (#36) over raw comprehensive_data rows dated 2024+ with non-null ISBN13. Canada and NoUse rows remain included; no canonical #58 Use filter is applied. Empty FormatType = NULL or ''. Row denominators are all rows in this scope; ISBN denominators are distinct ISBN13s in this scope. share_of_all_empty_formattype_rows/isbns show how much of the overall gap each segment explains: supplies are a small slice -- 1.47% of empty-FormatType rows (72,587 of 4,945,299) and 0.70% of empty-FormatType distinct ISBNs (2,371 of 340,532). Supplies themselves are less well filled per-row (75.05% of supply rows empty vs 34.62% non-supply) and per-ISBN (94.09% of the 2,520 supply ISBNs never carry a FormatType vs 51.11% non-supply). Surprising bit: 149 of 2,520 supply ISBNs (5.91%) DO carry a FormatType -- mostly science_lab/art_drafting kits recorded as Book or Bundle (bundled with a textbook).
+
+#### Coverage — Enrollment Fill-Potential (sections, 2024+)
+
+- Stem: `33_coverage_enrollment_fill`
+- ID: `91`
+- Source: `metabase/questions/33_coverage_enrollment_fill.sql`
+- Scope: Enrollment coverage among material-bearing Master Section rows. Enrollment is NOT imputed here — these counts show how many retained sections missing enrollment have each fill signal available (has_enrollment_* are pure availability flags). Signals overlap (a section can have more than one), so the fillable rows do not sum to (missing − unfillable). pct_of_all_sections means all material-bearing sections in this model, not the complete section_enrollment population.
+
+#### DQ — Pricing → Catalog Match Rate by Period
+
+- Stem: `10_dq_pricing_match_by_period`
+- ID: `60`
+- Source: `metabase/questions/10_dq_pricing_match_by_period.sql`
+- Scope: Percent of pricing rows whose (section_id, isbn13) is found in catalog, by period. Drops here flag schema/format drift.
+
+#### DQ — Canonical Required Material format_count Distribution
+
+- Stem: `27_dq_pricing_format_count_distribution_filtered`
+- ID: `78`
+- Source: `metabase/questions/27_dq_pricing_format_count_distribution_filtered.sql`
+- Scope: format_count distribution for canonical Course Materials Use items that are inferred-required and have an exact pricing match. One row is one material_costs (period, section, ISBN) item; this is the canonical comparison to the raw pricing DQ cards, not a filtered raw-pricing population.
+
 ### Data Lineage — by School
 
 - ID: `14`
@@ -620,15 +724,6 @@ This is the authoritative inventory of repository-defined Metabase dashboards, c
 - Source: `metabase/questions/62_master_isbn_title_cluster_candidates.sql`
 - Scope: BMG issue #45 part (b)/(c), over raw Fall-2025 comprehensive_data rows with non-null ISBN13 and nonblank normalized Title; no canonical #58 Use or is_supply filter is applied. Since ISBN13-side variability is empirically zero (see the companion per-ISBN13 variability card -- 0 rows), the real 'same book listed many ways' problem runs the other direction: one normalized title (LOWER(TRIM(Title))) spread across many distinct ISBN13s. One row per normalized title with more than one distinct ISBN13 (36,691 titles as of this run). n_isbn13 = distinct ISBN13 count under the title; n_authors = distinct normalized Author strings across ALL rows under the title (not per-ISBN13); author_diversity_ratio = n_authors/n_isbn13, an UNVALIDATED review diagnostic only (low ratio, e.g. under 0.05, tends to flag non-identifying placeholder titles like 'Cognella Textbook'; high ratio, e.g. 0.4+, tends to reflect genuinely distinct books sharing a generic title like 'Macroeconomics' -- do NOT auto-collapse on this alone, per the #45 caution that a precision-estimated rule, following the #36 supply-classifier precedent, is still needed). blessed_isbn13/title/author/publisher/rows = the ISBN13 with the most catalog rows (adoption count) within the title cluster, i.e. the proposed canonical/modal candidate; every other ISBN13 in the cluster is an implicit non-blessed/duplicate candidate. Across all 36,691 clusters, 69,339 ISBN13s (417,112 rows) are non-blessed candidates; 17,894 clusters (40,645 ISBN13s) have n_authors=1, the strongest same-book signal. This is a REVIEW CANDIDATE list for BMG/Jeff sign-off, not an applied correction -- no pipeline table or column has been changed. Blank-ISBN13 rows are excluded (cannot be keyed by ISBN13, ~54% of catalog).
 
-### Raw FormatType coverage diagnostic
-
-#### FormatType Coverage by Supply Status (2024+)
-
-- Stem: `57_formattype_coverage_by_supply`
-- ID: `162`
-- Source: `metabase/questions/57_formattype_coverage_by_supply.sql`
-- Scope: Issue #42. FormatType fill rate split by is_supply (#36) over raw comprehensive_data rows dated 2024+ with non-null ISBN13. Canada and NoUse rows remain included; no canonical #58 Use filter is applied. Empty FormatType = NULL or ''. Row denominators are all rows in this scope; ISBN denominators are distinct ISBN13s in this scope. share_of_all_empty_formattype_rows/isbns show how much of the overall gap each segment explains: supplies are a small slice -- 1.47% of empty-FormatType rows (72,587 of 4,945,299) and 0.70% of empty-FormatType distinct ISBNs (2,371 of 340,532). Supplies themselves are less well filled per-row (75.05% of supply rows empty vs 34.62% non-supply) and per-ISBN (94.09% of the 2,520 supply ISBNs never carry a FormatType vs 51.11% non-supply). Surprising bit: 149 of 2,520 supply ISBNs (5.91%) DO carry a FormatType -- mostly science_lab/art_drafting kits recorded as Book or Bundle (bundled with a textbook).
-
 ## Models
 
 ### Master Institution by Term
@@ -661,8 +756,8 @@ This is the authoritative inventory of repository-defined Metabase dashboards, c
 
 ## Coverage checks
 
-- Dashboards: 13; questions: 62; models: 4
-- Dashboard card placements: 65; unique dashboard-used questions: 52; standalone questions: 10
+- Dashboards: 14; questions: 70; models: 4
+- Dashboard card placements: 79; unique dashboard-used questions: 61; standalone questions: 9
 - Reused cards are intentionally listed under every dashboard where their JSON placement occurs.
 - `.viz.json` and `.params.json` files are sidecars, not additional question cards.
 - Every dashboard, card, and model stem resolves to an ID in `metabase/ids.json`.

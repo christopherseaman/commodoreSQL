@@ -77,5 +77,14 @@
   "63_no_price_choice_by_class": 169,
   "model_master_institution": 170,
   "model_master_isbn": 171,
-  "64_fall2025_unitid_bookstore_url_mapping": 172
+  "64_fall2025_unitid_bookstore_url_mapping": 172,
+  "65_coverage_course_material_population_by_term": 173,
+  "66_coverage_course_material_exclusion_overlap": 174,
+  "67_coverage_course_material_classification_by_term": 175,
+  "68_coverage_section_enrollment_by_term": 176,
+  "69_coverage_pricing_source_options_by_term": 177,
+  "70_coverage_canonical_pricing_by_term": 178,
+  "71_coverage_canonical_by_institution": 179,
+  "72_coverage_canonical_price_cells_by_term": 180,
+  "dashboard_bmg_coverage_scope": 19
 }

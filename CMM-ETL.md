@@ -425,15 +425,34 @@ selected sections once. Full catalog/enrollment diagnostics must explicitly sour
 
 The grouped inventory below covers every tracked Metabase question, model, and dashboard.
 
+The 2026-08-14 coverage/scope request exposed reporting gaps even though many narrow DQ cards and
+optional legacy summary queries already existed. Issue #74 closes the current-input gaps as follows:
+
+| Requested surface | Prior reporting gap | Current coverage |
+|---|---|---|
+| Course-material counts, exclusions, and overlap | Counts were dispersed across raw DQ, release extracts, and optional summaries; no report reconciled canonical item groups with reconstructed BMG source rows or preserved overlapping exclusion reasons. | Q65–66 |
+| Material frequencies and established crosstabs | Existing cards covered individual FormatType, OER/IA, status, enrollment, or supply questions with different denominators; there was no denominator-labelled consolidated surface. | Q67 plus reused Q31–33 and Q57 |
+| Complete section/enrollment scope | Existing enrollment cards described retained material-bearing sections, not the complete valid 2024+ section spine. | Q68 plus reused Q33 for the retained-section comparison |
+| Raw cost option/condition/format and rental scope | Pricing DQ cards were separate checks rather than a grouped source-observation inventory. | Q69 plus reused Q10 |
+| Canonical price-match and valid-price coverage | Existing cost reports and required-material DQ did not jointly distinguish unmatched items, matched items without valid prices, zero prices, and option presence over all canonical Use items. | Q70 plus reused Q27 |
+| Institution and ISBN price-cell coverage | Materialized rollups existed, but no complete dashboard summary avoided the institution table's 2,000-row display limit or normalized all 18 price cells against the canonical item denominator. | Q71–72 |
+
 | Artifact group | Tracked artifacts | Population contract |
 |---|---|---|
+| Coverage and scope questions (#74) | **65–72** | Q65/Q66 read canonical `course_materials` item-group grains and use `reconstructed_source_rows` only as a bridge back to enriched BMG source-row counts; Q66's exclusion flags overlap and are not a mutually exclusive reason taxonomy. Q67/Q70 use canonical `material_costs` Use items; Q68 uses the complete `section_enrollment` spine and compares it explicitly with retained `master_section`; Q69 reads raw BMG `pricing_historical` observations with no required/inferred-required filter; Q71 is the complete institution-profile aggregation from `master_institution`; Q72 is the canonical `master_isbn` 18-price-cell rollup. Raw-source and canonical denominators are intentionally different. |
 | Canonical material-row questions | **02, 04–05, 27, 31–32, 36, 48, 59–60, 63** | Use `material_costs` or the exact `course_materials_use` predicate at an explicitly named raw grain; Q27 is the canonical required-material comparison, and required-status cuts are subsets of Use rather than replacement population rules. |
 | Canonical material-section rollups | **24–26, 30, 33–35, 37–45, 47, 54–56** | Read one-row-per-material-section denominators and canonical measures from `master_section`, `section_cost`, or their rollups. Questions 30 and 40 filter through distinct `material_costs` section keys only when the material dashboard filter is supplied. |
 | Intentional raw catalog/listing/DQ questions | **01, 03, 13–18, 23, 46, 50–51, 57–58, 61–62** | May retain NoUse, Canada, supplies, and/or missing ISBNs as each diagnostic requires; descriptions must state the raw scope and that it is not a release denominator. |
 | Intentional pricing-only DQ/lineage/report questions | **06–12, 19–22, 52–53, 64** | Q19–22 and Q52 are all/raw-pricing views; this group may use broad `pricing_historical`/`pricing_wide` rows to inspect dedupe, rental terms, exact matching, pivots, outliers, and source-locator coverage. These are not material or section denominators. |
 | Models | `master_section`, `master_institution`, `master_isbn`, `master_section_us_intro_fall2025` | Master Section and Institution are material-bearing; Master ISBN is canonical Use-only; the BMG model is the documented Fall-2025 required-bearing subset. |
+| Coverage dashboard | `bmg_coverage_scope` | Deliberately places raw-source, complete-spine, and canonical cards together while naming every grain and denominator; it defaults to `2025-4` and does not imply that unlike populations should have equal row counts. |
 | Canonical material dashboards | `bmg_cost_hypothesis`, `bmg_enrollment_dq`, `bmg_overview`, `course_materials_cost`, `data_coverage`, `oer_ia_adoption`, `oer_ia_status_filtered`, `report` | Compose the canonical item and material-section questions above; dashboard descriptions state any narrower analytical subset. |
 | Intentional DQ/lineage dashboards | `data_lineage`, `data_quality_catalog`, `data_quality_pricing`, `data_quality_pricing_filtered`, `filter_include_quality` | Present explicitly labeled raw, pricing-only, lineage, or required-inference diagnostics and do not define release populations. `data_lineage` is a selected school-level teaching path, not the complete execution/export map in `SCHEMA.md`. |
+
+The #74 Coverage & Scope dashboard is a current-snapshot coverage map, not a historical
+trend store or forecast. Its default term is `2025-4`; the local source snapshot ends there,
+and Spring 2026 course/pricing inputs and other external updates remain pending. Absence from
+these cards therefore does not establish absence from a future release population.
 
 When an older question reconstructs a pre-#58 material predicate, migrate its presentation
 logic to this routing contract (#61); do not treat the legacy predicate as an alternative

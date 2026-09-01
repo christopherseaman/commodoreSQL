@@ -12,12 +12,12 @@ from pathlib import Path
 
 ROOT = Path(__file__).resolve().parents[1]
 EXPECTED = {
-    "dashboards": 13,
-    "questions": 62,
+    "dashboards": 14,
+    "questions": 70,
     "models": 4,
-    "placements": 65,
-    "dashboard_used": 52,
-    "standalone": 10,
+    "placements": 79,
+    "dashboard_used": 61,
+    "standalone": 9,
 }
 
 GROUPS = [
@@ -39,7 +39,7 @@ GROUPS = [
     ),
     (
         "Coverage & lineage",
-        ["data_coverage.json", "data_lineage.json"],
+        ["data_coverage.json", "bmg_coverage_scope.json", "data_lineage.json"],
     ),
     (
         "Data quality dashboards",
@@ -77,10 +77,6 @@ STANDALONE_GROUPS = [
             "61_master_isbn_variability",
             "62_master_isbn_title_cluster_candidates",
         ],
-    ),
-    (
-        "Raw FormatType coverage diagnostic",
-        ["57_formattype_coverage_by_supply"],
     ),
 ]
 
