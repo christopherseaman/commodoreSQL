@@ -119,7 +119,7 @@ RELATION_GROUPS: tuple[tuple[str, str, tuple[str, ...]], ...] = (
     ),
     (
         "Lookup/reference inputs (3 relations)",
-        "Current reference or classification relations; CMM Supplies remains an interim internal classifier.",
+        "Current reference or classification relations, including CMM-owned supply rules.",
         ("state_region", "format_type_classification", "supply_isbn_classification"),
     ),
     (

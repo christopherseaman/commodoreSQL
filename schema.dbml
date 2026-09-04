@@ -25,7 +25,7 @@ Enum source_files {
   "data/2025.12.15/panel_20260108.csv" [note: 'BVA mailing/panel history → compatibility table panel']
   "data/2025.12.15/format_type_lookup.tsv" [note: '→ format_type_classification (69 rows)']
   "data/BookPricing.Historical_20260224.csv" [note: 'BMG raw pricing/cost observations → compatibility table pricing_historical (~27.3M current rows)']
-  "scripts/sql/lookups/supply_keywords.tsv" [note: '→ supply_isbn_classification; 97 include + 26 exclude title patterns']
+  "scripts/sql/lookups/supply_keywords.tsv" [note: 'CMM-owned → supply_isbn_classification; 97 include + 26 exclude title patterns']
 }
 
 // ---------------------------------------------------------------------------

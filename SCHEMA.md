@@ -18,7 +18,7 @@ Paths are configured in `scripts/dot.env`.
 | BVA | `OptOut_*.csv` | `opt_out` |
 | BVA | `panel_*.csv` | `panel`, `panel_email` |
 | Internal | `format_type_lookup.tsv` | `format_type_classification` |
-| Internal | `scripts/sql/lookups/supply_keywords.tsv` | supply classification/audit |
+| CMM | `scripts/sql/lookups/supply_keywords.tsv` | supply classification/audit |
 
 ## Operational stages
 
@@ -157,6 +157,6 @@ Faculty ID uses email, falling back to instructor + school.
 
 ## Pending inputs and non-current paths
 
-Spring 2026 catalog/pricing, updated IPEDS, authoritative Supplies, external pricing, discipline, updated mailing history, campus IA, bookstore-brand, and shared 25-institution inputs have no SQL nodes until files, grains, keys, and semantics are validated (issues #23, #51, #52, #56, #57, #60, #72, #75). Keep History is not implemented. Pricing import rebuilds `pricing_historical` and retains the latest logical-key row within the configured snapshot; matching is exact and non-mutating. Current baselines describe loaded data only.
+Spring 2026 catalog/pricing, updated IPEDS, external pricing, discipline, updated mailing history, campus IA, bookstore-brand, and the 25 institution list have no SQL nodes until files, grains, keys, and semantics are validated (issues #23, #51, #52, #56, #57, #60, #72). Keep History is not implemented. Pricing import rebuilds `pricing_historical` and retains the latest logical-key row within the configured snapshot; matching is exact and non-mutating. Current baselines describe loaded data only.
 
 <page url="https://app.notion.com/p/3cbd9fdd1a1a81d893effd579a76812b">CMM ETL Contract</page>

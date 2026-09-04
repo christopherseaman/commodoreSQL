@@ -28,7 +28,7 @@ Retained BMG, BVA, and IPEDS observations loaded from the five current external 
 
 ## Lookup/reference inputs (3 relations)
 
-Current reference or classification relations; CMM Supplies remains an interim internal classifier.
+Current reference or classification relations, including CMM-owned supply rules.
 
 | Relation | Kind | Grain / key | Stage |
 |---|---|---|---|

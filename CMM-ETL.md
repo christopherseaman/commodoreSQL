@@ -9,7 +9,7 @@ notion-sync: push
 ## Authority and snapshot
 
 - BMG owns course-material and raw bookstore pricing/cost observations; BVA owns opt-out and mailing-history inputs; IPEDS owns institution metadata.
-- Classifications and derived outputs are internal. Executable source-table names are compatibility names, not source-prefix claims.
+- Derived outputs are internal; supply rules are CMM-owned. Executable source-table names are compatibility names, not source-prefix claims.
 
 | Recorded source | Imported relation | Purpose |
 |---|---|---|
@@ -19,12 +19,12 @@ notion-sync: push
 | `panel_20260108.csv` | `panel` | BVA response history |
 | `format_type_lookup.tsv` | `format_type_classification` | OER/IA lookup |
 | `BookPricing.Historical_20260224.csv` | `pricing_historical` | BMG pricing observations |
-| `supply_keywords.tsv` | `supply_isbn_classification` | Interim internal supply classifier |
+| `supply_keywords.tsv` | `supply_isbn_classification` | CMM-owned supply-title rules |
 
 Releases record filenames, snapshot dates, pipeline commit, and configuration. Spring 2026 inputs are not asserted as loaded.
 
 - Current external sources: BMG materials/pricing, IPEDS, BVA opt-out, and BVA mailing history.
-- Pending: CMM IA, external pricing, discipline, Fall 2025 bookstore-brand, and 25-institution scope.
+- Pending: CMM IA, external pricing, discipline, Fall 2025 bookstore-brand, and the 25 institution list.
 - Keep History is a behavior decision, not a source table.
 
 ## Execution and stages
@@ -134,7 +134,7 @@ values remain.
 
 Metabase routes item analyses to `material_costs`, section analyses to `master_section`, and complete-population diagnostics to `comprehensive_data`/`section_enrollment` with denominator labeled. The stable 10% sample hashes `section_id` with unsigned first-64-bit MD5 modulo 10, bucket zero (`md5-prefix64-mod10-v1`), joins `sample10_section_ids` at each stage, and expands only additive section-cluster totals; not distinct institution/ISBN domains.
 
-Pending boundaries: Spring 2026 materials, updated IPEDS, additional-term pricing, BVA history (#56), authoritative Supplies, external pricing, discipline, later campus IA, bookstore-brand, and 25-institution package.
+Pending boundaries: Spring 2026 materials, updated IPEDS, additional-term pricing, BVA history (#56), external pricing, discipline, later campus IA, bookstore-brand, and the 25 institution list.
 
 - Current mailing uses `panel_email`; pricing is latest-per-key within the configured snapshot, not cross-snapshot history.
 - New inputs require identity/date, schema and term checks, grain/conservation/coverage validation, and source-specific join policy.

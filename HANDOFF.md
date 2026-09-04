@@ -53,9 +53,8 @@ Exact matching remains active. [Evidence and constraints](PRICING-CATALOG-MATCHI
 - [#52](https://github.com/christopherseaman/commodoreSQL/issues/52) — `cmm_discipline`
 - [#56](https://github.com/christopherseaman/commodoreSQL/issues/56) — updated BVA mailing history
 - [#57](https://github.com/christopherseaman/commodoreSQL/issues/57) — campus IA (`cmm_ia`)
-- [#60](https://github.com/christopherseaman/commodoreSQL/issues/60) — 25-institution fixture/extracts
+- [#60](https://github.com/christopherseaman/commodoreSQL/issues/60) — 25 institution list and scoped outputs
 - [#72](https://github.com/christopherseaman/commodoreSQL/issues/72) — bookstore-brand lookup
-- [#75](https://github.com/christopherseaman/commodoreSQL/issues/75) — authoritative supplies lookup
 - [#76](https://github.com/christopherseaman/commodoreSQL/issues/76) — snapshot-retention decision
 
 ### Held decision: #26
