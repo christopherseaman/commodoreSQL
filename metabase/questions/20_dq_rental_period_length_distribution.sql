@@ -1,6 +1,6 @@
 -- name: DQ — Raw Digital Rental Period Length Distribution
 -- display: bar
--- description: Histogram of non-NULL rental_days values across all raw vendor digital rental rows. No catalog-derived inferred-required or canonical-Use filter is applied; physical rentals are outside this card.
+-- description: All raw digital rental rows with non-NULL rental_days. Histogram of non-NULL rental_days values across all raw vendor digital rental rows. No catalog-derived inferred-required or canonical-Use filter is applied; physical rentals are outside this card.
 
 SELECT
     rental_days,

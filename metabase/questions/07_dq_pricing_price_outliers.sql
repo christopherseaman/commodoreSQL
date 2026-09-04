@@ -1,6 +1,6 @@
 -- name: DQ — Pricing Price Outliers
 -- display: bar
--- description: Row counts at price boundaries — bookstores often use $0 as placeholder; > $1000 is unusual
+-- description: Raw pricing rows at zero, sentinel, and outlier boundaries. Row counts at price boundaries — bookstores often use $0 as placeholder; > $1000 is unusual
 
 SELECT metric_name, metric_value
 FROM __data_quality_metrics

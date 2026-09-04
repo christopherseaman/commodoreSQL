@@ -1,6 +1,6 @@
 -- name: Raw Inferred-Required vs Not-Inferred Counts by Course Level and Period
 -- display: table
--- description: Legacy raw diagnostic of the inferred-required flag, grouped by course level and period (2024+). The FALSE group means only "not inferred required": it also retains literal-required rows that fail the section-level inference rule, NULL statuses, supplies, placeholders, Canada, and other NoUse rows. This is not the canonical Use population or a release metric.
+-- description: Raw 2024+ catalog rows, by inferred-required flag, level, and term. Legacy raw diagnostic of the inferred-required flag, grouped by course level and period (2024+). The FALSE group means only "not inferred required": it also retains literal-required rows that fail the section-level inference rule, NULL statuses, supplies, placeholders, Canada, and other NoUse rows. This is not the canonical Use population or a release metric.
 
 SELECT
     c.course_level,

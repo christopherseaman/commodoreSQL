@@ -21,7 +21,7 @@ EXPECTED = {
 }
 
 MAX_RENDERED_LINES = 450
-MAX_RENDERED_WORDS = 4_500
+MAX_RENDERED_WORDS = 2_500
 
 GROUPS = [
     (
@@ -82,7 +82,6 @@ STANDALONE_GROUPS = [
         ],
     ),
 ]
-
 
 def metadata(path: Path) -> tuple[str, str]:
     name = description = ""
@@ -163,7 +162,7 @@ def table_cell(text: str) -> str:
 
 
 def scope_label(description: str) -> str:
-    """Keep the lead scope/population sentence; SQL frontmatter has the detail."""
+    """Use the concise first sentence from authoritative metadata."""
     normalized = clean(description)
     sentences = re.split(r"(?<=[.!?])\s+(?=[A-Z])", normalized)
     if re.fullmatch(r"(?:Issue|BMG task) #\d+\.", sentences[0]) and len(sentences) > 1:
@@ -176,8 +175,7 @@ def card_row(stem: str, ids: dict, questions: dict[str, tuple[str, str]]) -> str
     return " | ".join(
         (
             f"| {table_cell(title)}",
-            f"`{ids[stem]}`",
-            f"[`{stem}`](metabase/questions/{stem}.sql)",
+            f"[`{ids[stem]}`](metabase/questions/{stem}.sql)",
             f"{table_cell(scope_label(description))} |",
         )
     )
@@ -189,9 +187,9 @@ def validate_rendered(rendered: str) -> None:
     expected_question_rows = EXPECTED["placements"] + EXPECTED["standalone"]
     checks = {
         "legacy card blocks remain": "\n#### " not in rendered,
-        "dashboard card table count mismatch": rendered.count("| Card | ID | Source | Scope / population |")
+        "dashboard card table count mismatch": rendered.count("| Card | ID | Scope |")
         == EXPECTED["dashboards"] + len(STANDALONE_GROUPS),
-        "model table count mismatch": rendered.count("| Model | ID | Source | Scope / population |") == 1,
+        "model table count mismatch": rendered.count("| Model | ID | Scope |") == 1,
         "question row count mismatch": rendered.count("](metabase/questions/") == expected_question_rows,
         "dashboard source count mismatch": rendered.count("](metabase/dashboards/") == EXPECTED["dashboards"],
         "model row count mismatch": rendered.count("](metabase/models/") == EXPECTED["models"],
@@ -215,7 +213,6 @@ def render() -> str:
         "",
         "# Dashboards & Reports",
         "",
-        "This is the authoritative inventory of repository-defined Metabase dashboards, cards, and models. Dashboard order is conceptual: reporting surfaces, BMG Fall 2025 analysis, coverage/lineage, data quality, then standalone analytical extracts and review diagnostics. Card order follows each dashboard JSON layout. Scope descriptions come from SQL frontmatter; this document makes no claims about live query results.",
         "",
     ]
     for group, files in GROUPS:
@@ -228,10 +225,10 @@ def render() -> str:
             lines += [
                 f"### {meta['name']}",
                 "",
-                f"ID `{ids[key]}` · [`{path.stem}`](metabase/dashboards/{path.name}) · {clean(meta.get('description', ''))}",
+                f"ID `{ids[key]}` · [`{path.stem}`](metabase/dashboards/{path.name}) · {scope_label(meta.get('description', ''))}",
                 "",
-                "| Card | ID | Source | Scope / population |",
-                "|---|---:|---|---|",
+                "| Card | ID | Scope |",
+                "|---|---:|---|",
             ]
             for stem in dashboard["cards"]:
                 lines.append(card_row(stem, ids, questions))
@@ -241,8 +238,8 @@ def render() -> str:
         lines += [
             f"### {group}",
             "",
-            "| Card | ID | Source | Scope / population |",
-            "|---|---:|---|---|",
+            "| Card | ID | Scope |",
+            "|---|---:|---|",
         ]
         for stem in stems:
             lines.append(card_row(stem, ids, questions))
@@ -250,8 +247,8 @@ def render() -> str:
     lines += [
         "## Models",
         "",
-        "| Model | ID | Source | Scope / population |",
-        "|---|---:|---|---|",
+        "| Model | ID | Scope |",
+        "|---|---:|---|",
     ]
     for key in ("model_master_institution", "model_master_isbn", "model_master_section", "model_master_section_us_intro_fall2025"):
         title, description = models[key]
@@ -260,8 +257,7 @@ def render() -> str:
             " | ".join(
                 (
                     f"| {table_cell(title)}",
-                    f"`{ids[key]}`",
-                    f"[`{key}`](metabase/models/{stem}.sql)",
+                    f"[`{ids[key]}`](metabase/models/{stem}.sql)",
                     f"{table_cell(scope_label(description))} |",
                 )
             )
@@ -272,13 +268,11 @@ def render() -> str:
         "",
         f"- Dashboards: {EXPECTED['dashboards']}; questions: {EXPECTED['questions']}; models: {EXPECTED['models']}",
         f"- Dashboard card placements: {EXPECTED['placements']}; unique dashboard-used questions: {EXPECTED['dashboard_used']}; standalone questions: {EXPECTED['standalone']}",
-        "- Reused cards are intentionally listed under every dashboard where their JSON placement occurs.",
-        "- `.viz.json` and `.params.json` files are sidecars, not additional question cards.",
-        "- Every dashboard, card, and model stem resolves to an ID in `metabase/ids.json`.",
+        "IDs link to sources; placements repeat.",
         "",
-        "## Maintenance",
+        "## Regeneration",
         "",
-        "When adding or renaming a dashboard, card, or model, update its source frontmatter and `metabase/ids.json`, preserve dashboard JSON card order, then run `python3 scripts/generate_dashboards_reports.py --check`.",
+        "`python3 scripts/generate_dashboards_reports.py` prints this inventory; `--check` detects drift.",
         "",
     ]
     rendered = "\n".join(lines)

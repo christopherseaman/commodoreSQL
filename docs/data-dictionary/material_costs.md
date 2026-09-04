@@ -15,132 +15,132 @@ notion-sync: push
 
 | Column | Type | Example / structure | Direct upstream source / derivation | Description |
 |---|---|---|---|---|
-| `isbn13` | `bigint` | 13-digit numeric ISBN or numeric source identifier; NULL when absent | Passthrough from `course_materials_use.isbn13`. | Book or material identifier used for cross-source matching. |
-| `book_title` | `varchar` | Material title text; source punctuation and casing retained | Passthrough from `course_materials_use.book_title`. | Canonical title selected for the grouped ISBN. |
-| `author` | `varchar` | Person or organization name; source punctuation and casing retained | Passthrough from `course_materials_use.author`. | Author credited for the adopted course material. |
-| `publisher` | `varchar` | Publisher-name text; original spelling and casing retained | Passthrough from `course_materials_use.publisher`. | Publisher credited for the adopted course material. |
-| `imprint` | `varchar` | Publishing-imprint text; original spelling and casing retained | Passthrough from `course_materials_use.imprint`. | Publishing imprint named for the adopted material. |
-| `book_format` | `varchar` | Source material format; pricing uses `physical`, `digital`, or unavailable format | Passthrough from `course_materials_use.book_format`. | Physical or digital format of the material. |
-| `format_type` | `varchar` | Catalog format classification label; original spelling retained | Passthrough from `course_materials_use.format_type`. | Catalog classification label for the material format. |
-| `book_status` | `varchar` | Lowercase `required`, `recommended`, `option`, or missing status | Passthrough from `course_materials_use.book_status`. | Adoption priority assigned to the course material. |
-| `isbn_book_title` | `varchar` | Canonical title text selected for the term and ISBN | Passthrough from `course_materials_use.isbn_book_title`. | Canonical title selected for the term-level ISBN. |
-| `isbn_author` | `varchar` | Canonical author text selected for the term and ISBN | Passthrough from `course_materials_use.isbn_author`. | Canonical author selected for the term-level ISBN. |
-| `isbn_publisher` | `varchar` | Canonical publisher text selected for the term and ISBN | Passthrough from `course_materials_use.isbn_publisher`. | Canonical publisher selected for the term-level ISBN. |
-| `isbn_title_variant_count` | `bigint` | Non-negative whole-number count | Passthrough from `course_materials_use.isbn_title_variant_count`. | Distinct ISBN title variants found within grouped catalog rows. |
-| `isbn_author_variant_count` | `bigint` | Non-negative whole-number count | Passthrough from `course_materials_use.isbn_author_variant_count`. | Distinct ISBN author variants found within grouped catalog rows. |
-| `isbn_publisher_variant_count` | `bigint` | Non-negative whole-number count | Passthrough from `course_materials_use.isbn_publisher_variant_count`. | Distinct ISBN publisher variants found within grouped catalog rows. |
-| `unit_id` | `bigint` | IPEDS institution identifier | Passthrough from `course_materials_use.unit_id`. | IPEDS institution identifier used throughout the pipeline. |
-| `school` | `varchar` | Institution-name text; source spelling and casing retained | Passthrough from `course_materials_use.school`. | Institution or school name attached to the course. |
-| `state` | `varchar` | Normalized state or province code, such as `CA` or `CAN` | Passthrough from `course_materials_use.state`. | State or province code for the institution. |
-| `dept_code` | `varchar` | Short department code, such as `BIOL` | Passthrough from `course_materials_use.dept_code`. | Short code identifying the academic department. |
-| `department` | `varchar` | Academic department label, such as `Biology` | Passthrough from `course_materials_use.department`. | Academic department responsible for the course. |
-| `dept_description` | `varchar` | Expanded source description of the academic department | Passthrough from `course_materials_use.dept_description`. | Expanded description of the academic department. |
-| `course_number` | `varchar` | Source course number; leading zeros and suffixes retained | Passthrough from `course_materials_use.course_number`. | Catalog number identifying the course within its department. |
-| `section` | `varchar` | Source section code; leading zeros and punctuation retained | Passthrough from `course_materials_use.section`. | Source code distinguishing sections of the same course. |
-| `course_title` | `varchar` | Course title text; source punctuation and casing retained | Passthrough from `course_materials_use.course_title`. | Official title assigned to the course. |
-| `course_level` | `varchar` | Category such as `Introductory or general undergraduate` | Passthrough from `course_materials_use.course_level`. | Instructional level assigned to the course. |
-| `course_subject` | `varchar` | Source subject label, such as `Biology` | Passthrough from `course_materials_use.course_subject`. | Subject area assigned to the course. |
-| `period` | `varchar` | Academic term label such as `Fall 2024` | Passthrough from `course_materials_use.period`. | Human-readable academic term label from the source. |
-| `enrollments` | `integer` | Reported student count; source noise can include negative values | Passthrough from `course_materials_use.enrollments`. | Enrollment reported directly for the course section. |
-| `seats_taken` | `integer` | Reported occupied seats; `9999` is the source sentinel | Passthrough from `course_materials_use.seats_taken`. | Occupied seats reported for the course section. |
-| `instructor` | `varchar` | Instructor-name text; source punctuation and casing retained | Passthrough from `course_materials_use.instructor`. | Instructor name attached to the course section. |
-| `first_name` | `varchar` | Given-name text; source punctuation and casing retained | Passthrough from `course_materials_use.first_name`. | Given name of the course instructor. |
-| `last_name` | `varchar` | Family-name text; source punctuation and casing retained | Passthrough from `course_materials_use.last_name`. | Family name of the course instructor. |
-| `email` | `varchar` | Lowercase, trimmed email text | Passthrough from `course_materials_use.email`. | Normalized instructor email used for contact and matching. |
-| `course_id` | `varchar` | `unit_id::department-code::course-number` composite | Passthrough from `course_materials_use.course_id`. | Stable identifier for the institution-level course offering. |
-| `section_id` | `varchar` | period-specific section key | Passthrough from `course_materials_use.section_id`. | Period-specific identifier for the distinct section offering. |
-| `period_sortable` | `varchar` | YYYY-N | Passthrough from `course_materials_use.period_sortable`. | Sortable academic term code used for chronological ordering. |
-| `period_date` | `date` | Canonical date: YYYY-01-01, YYYY-04-01, YYYY-07-01, or YYYY-10-01 | Passthrough from `course_materials_use.period_date`. | Canonical starting date assigned to the academic term. |
-| `is_oer` | `boolean` | TRUE or FALSE | Passthrough from `course_materials_use.is_oer`. | Whether the material is an open educational resource. |
-| `oer_category` | `varchar` | Category such as `book_oer`, `pure_oer`, or `non_oer` | Passthrough from `course_materials_use.oer_category`. | Open-resource category assigned to the material format. |
-| `is_ia` | `boolean` | TRUE or FALSE | Passthrough from `course_materials_use.is_ia`. | Whether the material uses inclusive access. |
-| `ia_category` | `varchar` | Category such as `book_ia`, `ebook_ia`, or `non_ia` | Passthrough from `course_materials_use.ia_category`. | Inclusive-access category assigned to the material format. |
-| `is_supply` | `boolean` | TRUE or FALSE | Passthrough from `course_materials_use.is_supply`. | Whether the material is classified as a course supply. |
-| `supply_category` | `varchar` | Supply category label selected by keyword rules | Passthrough from `course_materials_use.supply_category`. | Supply classification assigned from matched title keywords. |
-| `institution_name` | `varchar` | Official IPEDS institution-name text | Passthrough from `course_materials_use.institution_name`. | Canonical institution name supplied by IPEDS. |
-| `sector` | `varchar` | IPEDS sector descriptor, such as `Public, 4-year or above` | Passthrough from `course_materials_use.sector`. | IPEDS sector classification for the institution. |
-| `level` | `varchar` | IPEDS label such as `Four or more years` | Passthrough from `course_materials_use.level`. | IPEDS award-level classification for the institution. |
-| `control` | `varchar` | IPEDS label such as `Public` or `Private not-for-profit` | Passthrough from `course_materials_use.control`. | Institution ownership and governance classification used for reporting. |
-| `size` | `varchar` | IPEDS size-band label, such as `20,000 and above` | Passthrough from `course_materials_use.size`. | IPEDS institutional enrollment-size classification used for reporting. |
-| `enrollment_2024` | `integer` | Non-negative 2024 student count; NULL when unavailable | Passthrough from `course_materials_use.enrollment_2024`. | Total institutional enrollment reported to IPEDS for 2024. |
-| `distance_enrollment_2024` | `integer` | Non-negative 2024 student count; NULL when unavailable | Passthrough from `course_materials_use.distance_enrollment_2024`. | IPEDS 2024 students enrolled in distance education. |
-| `institution_type` | `varchar` | Derived institution-type category label | Passthrough from `course_materials_use.institution_type`. | Derived institution type used for reporting groups. |
-| `panel_response_year` | `varchar` | Campaign label shaped `OER_YYYY`, such as `OER_2025` | Passthrough from `course_materials_use.panel_response_year`. | Latest recorded panel response campaign label. |
-| `is_opted_out` | `boolean` | TRUE or FALSE | Passthrough from `course_materials_use.is_opted_out`. | Whether the contact appears in the opt-out list. |
-| `opt_out_source` | `varchar` | BVA source-system label for the opt-out entry | Passthrough from `course_materials_use.opt_out_source`. | BVA source label explaining the opt-out record. |
-| `is_required_inferred` | `boolean` | TRUE or FALSE | Passthrough from `course_materials_use.is_required_inferred`. | Whether the material is treated as required after fallback. |
-| `is_post_2024` | `boolean` | TRUE or FALSE | Passthrough from `course_materials_use.is_post_2024`. | Whether the academic term begins during 2024 or later. |
-| `has_isbn` | `boolean` | TRUE or FALSE | Passthrough from `course_materials_use.has_isbn`. | Whether the material has a non-NULL ISBN. |
-| `has_formattype` | `boolean` | TRUE or FALSE | Passthrough from `course_materials_use.has_formattype`. | Whether the material has a nonblank FormatType classification. |
-| `has_enrollment` | `boolean` | TRUE or FALSE | Passthrough from `course_materials_use.has_enrollment`. | Whether usable enrollment information is available. |
-| `has_enrollment_own_seats` | `boolean` | TRUE or FALSE | Passthrough from `course_materials_use.has_enrollment_own_seats`. | Whether the section reports usable occupied seats. |
-| `no_details` | `boolean` | TRUE or FALSE | Passthrough from `course_materials_use.no_details`. | Whether the title carries the no-details placeholder. |
-| `no_materials` | `boolean` | TRUE or FALSE | Passthrough from `course_materials_use.no_materials`. | Whether the row explicitly indicates no course materials. |
-| `is_canada` | `boolean` | TRUE or FALSE | Passthrough from `course_materials_use.is_canada`. | Whether the source row belongs to Canada. |
-| `is_course_material_use` | `boolean` | TRUE or FALSE | Passthrough from `course_materials_use.is_course_material_use`. | Whether the material belongs to the analysis population. |
-| `is_course_material_no_use` | `boolean` | TRUE or FALSE | Passthrough from `course_materials_use.is_course_material_no_use`. | Whether the material belongs to the excluded population. |
-| `has_enrollment_sibling` | `boolean` | TRUE or FALSE | Passthrough from `course_materials_use.has_enrollment_sibling`. | Whether a sibling section reports enrollment. |
-| `has_enrollment_sibling_seats` | `boolean` | TRUE or FALSE | Passthrough from `course_materials_use.has_enrollment_sibling_seats`. | Whether a sibling section reports usable occupied seats. |
-| `enrollment_assigned` | `integer` | Rounded student count from the ladder; raw negatives can propagate | Passthrough from `course_materials_use.enrollment_assigned`. | Best available section enrollment from the assignment ladder. |
-| `enrollment_source` | `varchar` | `own`, `own_seats`, `sibling_enroll`, `sibling_seats`, `class_median`, `level_median`, or `none` | Passthrough from `course_materials_use.enrollment_source`. | Assignment-ladder rung that supplied the section enrollment. |
-| `has_book_status_required` | `boolean` | TRUE or FALSE | Passthrough from `course_materials_use.has_book_status_required`. | Whether grouped rows include explicit required status. |
-| `has_book_status_optional_recommended` | `boolean` | TRUE or FALSE | Passthrough from `course_materials_use.has_book_status_optional_recommended`. | Whether grouped rows include optional or recommended status. |
-| `source_row_count` | `bigint` | Non-negative whole-number count | Passthrough from `course_materials_use.source_row_count`. | Catalog rows collapsed into the canonical material item. |
-| `title_variant_count` | `bigint` | Non-negative whole-number count | Passthrough from `course_materials_use.title_variant_count`. | Distinct title variants found within grouped catalog rows. |
-| `author_variant_count` | `bigint` | Non-negative whole-number count | Passthrough from `course_materials_use.author_variant_count`. | Distinct author variants found within grouped catalog rows. |
-| `publisher_variant_count` | `bigint` | Non-negative whole-number count | Passthrough from `course_materials_use.publisher_variant_count`. | Distinct publisher variants found within grouped catalog rows. |
-| `imprint_variant_count` | `bigint` | Non-negative whole-number count | Passthrough from `course_materials_use.imprint_variant_count`. | Distinct imprint variants found within grouped catalog rows. |
-| `book_format_variant_count` | `bigint` | Non-negative whole-number count | Passthrough from `course_materials_use.book_format_variant_count`. | Distinct book format variants found within grouped catalog rows. |
-| `format_type_variant_count` | `bigint` | Non-negative whole-number count | Passthrough from `course_materials_use.format_type_variant_count`. | Distinct FormatType variants found within grouped catalog rows. |
-| `book_status_variant_count` | `bigint` | Non-negative whole-number count | Passthrough from `course_materials_use.book_status_variant_count`. | Distinct book status variants found within grouped catalog rows. |
-| `catalog_metadata_conflict` | `boolean` | TRUE or FALSE | Passthrough from `course_materials_use.catalog_metadata_conflict`. | Flags conflicting bibliographic values among grouped catalog rows. |
-| `is_required_inferred_conflict` | `boolean` | TRUE or FALSE | Passthrough from `course_materials_use.is_required_inferred_conflict`. | Whether grouped rows disagree on inferred-required status. |
-| `is_oer_conflict` | `boolean` | TRUE or FALSE | Passthrough from `course_materials_use.is_oer_conflict`. | Whether grouped rows disagree on open-resource classification. |
-| `is_ia_conflict` | `boolean` | TRUE or FALSE | Passthrough from `course_materials_use.is_ia_conflict`. | Whether grouped rows disagree on inclusive-access classification. |
-| `bookstore_url` | `varchar` | Absolute `http://` or `https://` bookstore URL | LEFT JOIN passthrough from `pricing_wide.bookstore_url` on `(section_id, isbn13)`. | Bookstore page providing the observed material prices. |
-| `price_buy_new_physical` | `decimal(10,2)` | USD amount such as `123.45`; stored as `DECIMAL(10,2)` | LEFT JOIN passthrough from `pricing_wide.price_buy_new_physical` on `(section_id, isbn13)`. | Price for new physical purchase offerings. |
-| `price_buy_new_digital` | `decimal(10,2)` | USD amount such as `123.45`; stored as `DECIMAL(10,2)` | LEFT JOIN passthrough from `pricing_wide.price_buy_new_digital` on `(section_id, isbn13)`. | Price for new digital purchase offerings. |
-| `price_buy_new_na` | `decimal(10,2)` | USD amount such as `123.45`; stored as `DECIMAL(10,2)` | LEFT JOIN passthrough from `pricing_wide.price_buy_new_na` on `(section_id, isbn13)`. | Price for new unspecified-format purchase offerings. |
-| `price_buy_used_physical` | `decimal(10,2)` | USD amount such as `123.45`; stored as `DECIMAL(10,2)` | LEFT JOIN passthrough from `pricing_wide.price_buy_used_physical` on `(section_id, isbn13)`. | Price for used physical purchase offerings. |
-| `price_buy_used_digital` | `decimal(10,2)` | USD amount such as `123.45`; stored as `DECIMAL(10,2)` | LEFT JOIN passthrough from `pricing_wide.price_buy_used_digital` on `(section_id, isbn13)`. | Price for used digital purchase offerings. |
-| `price_buy_used_na` | `decimal(10,2)` | USD amount such as `123.45`; stored as `DECIMAL(10,2)` | LEFT JOIN passthrough from `pricing_wide.price_buy_used_na` on `(section_id, isbn13)`. | Price for used unspecified-format purchase offerings. |
-| `price_buy_na_physical` | `decimal(10,2)` | USD amount such as `123.45`; stored as `DECIMAL(10,2)` | LEFT JOIN passthrough from `pricing_wide.price_buy_na_physical` on `(section_id, isbn13)`. | Price for unspecified-condition physical purchase offerings. |
-| `price_buy_na_digital` | `decimal(10,2)` | USD amount such as `123.45`; stored as `DECIMAL(10,2)` | LEFT JOIN passthrough from `pricing_wide.price_buy_na_digital` on `(section_id, isbn13)`. | Price for unspecified-condition digital purchase offerings. |
-| `price_buy_na_na` | `decimal(10,2)` | USD amount such as `123.45`; stored as `DECIMAL(10,2)` | LEFT JOIN passthrough from `pricing_wide.price_buy_na_na` on `(section_id, isbn13)`. | Price for unspecified-condition unspecified-format purchase offerings. |
-| `price_rental_new_physical` | `decimal(10,2)` | USD amount such as `123.45`; stored as `DECIMAL(10,2)` | LEFT JOIN passthrough from `pricing_wide.price_rental_new_physical` on `(section_id, isbn13)`. | Price for new physical rental offerings. |
-| `price_rental_new_digital` | `decimal(10,2)` | USD amount such as `123.45`; stored as `DECIMAL(10,2)` | LEFT JOIN passthrough from `pricing_wide.price_rental_new_digital` on `(section_id, isbn13)`. | Price for new digital rental offerings. |
-| `price_rental_new_na` | `decimal(10,2)` | USD amount such as `123.45`; stored as `DECIMAL(10,2)` | LEFT JOIN passthrough from `pricing_wide.price_rental_new_na` on `(section_id, isbn13)`. | Price for new unspecified-format rental offerings. |
-| `price_rental_used_physical` | `decimal(10,2)` | USD amount such as `123.45`; stored as `DECIMAL(10,2)` | LEFT JOIN passthrough from `pricing_wide.price_rental_used_physical` on `(section_id, isbn13)`. | Price for used physical rental offerings. |
-| `price_rental_used_digital` | `decimal(10,2)` | USD amount such as `123.45`; stored as `DECIMAL(10,2)` | LEFT JOIN passthrough from `pricing_wide.price_rental_used_digital` on `(section_id, isbn13)`. | Price for used digital rental offerings. |
-| `price_rental_used_na` | `decimal(10,2)` | USD amount such as `123.45`; stored as `DECIMAL(10,2)` | LEFT JOIN passthrough from `pricing_wide.price_rental_used_na` on `(section_id, isbn13)`. | Price for used unspecified-format rental offerings. |
-| `price_rental_na_physical` | `decimal(10,2)` | USD amount such as `123.45`; stored as `DECIMAL(10,2)` | LEFT JOIN passthrough from `pricing_wide.price_rental_na_physical` on `(section_id, isbn13)`. | Price for unspecified-condition physical rental offerings. |
-| `price_rental_na_digital` | `decimal(10,2)` | USD amount such as `123.45`; stored as `DECIMAL(10,2)` | LEFT JOIN passthrough from `pricing_wide.price_rental_na_digital` on `(section_id, isbn13)`. | Price for unspecified-condition digital rental offerings. |
-| `price_rental_na_na` | `decimal(10,2)` | USD amount such as `123.45`; stored as `DECIMAL(10,2)` | LEFT JOIN passthrough from `pricing_wide.price_rental_na_na` on `(section_id, isbn13)`. | Price for unspecified-condition unspecified-format rental offerings. |
-| `format_count` | `bigint` | COUNT(DISTINCT option × condition × format) FILTERed to buy/rental; counts offered tuples independently of price validity, so it can exceed the number of non-NULL pivot cells; max 18 | LEFT JOIN passthrough from `pricing_wide.format_count` on `(section_id, isbn13)`. | Distinct option-condition-format combinations offered for the material. |
-| `has_buy` | `boolean` | BOOL_OR(book_option = buy) — a buy listing is offered (option presence, independent of price validity) | LEFT JOIN passthrough from `pricing_wide.has_buy` on `(section_id, isbn13)`. | Whether any purchase offer exists for the material. |
-| `has_rent` | `boolean` | BOOL_OR(book_option = rental) — a rental listing is offered (≫ rental_days_min coverage, since many rentals lack a term) | LEFT JOIN passthrough from `pricing_wide.has_rent` on `(section_id, isbn13)`. | Whether any rental offer exists for the material. |
-| `price_min` | `decimal(10,2)` | USD amount such as `123.45`; stored as `DECIMAL(10,2)` | LEFT JOIN passthrough from `pricing_wide.price_min` on `(section_id, isbn13)`. | Lowest valid price across available material offerings. |
-| `price_max` | `decimal(10,2)` | USD amount such as `123.45`; stored as `DECIMAL(10,2)` | LEFT JOIN passthrough from `pricing_wide.price_max` on `(section_id, isbn13)`. | Highest valid price across available material offerings. |
-| `price_avg` | `double` | USD midpoint `(price_min + price_max) / 2.0`, not `AVG()` | LEFT JOIN passthrough from `pricing_wide.price_avg` on `(section_id, isbn13)`. | Legacy midpoint between minimum and maximum material prices. |
-| `rental_days_min` | `integer` | shortest rental term offered for this (section, isbn) | LEFT JOIN passthrough from `pricing_wide.rental_days_min` on `(section_id, isbn13)`. | Shortest available rental term measured in days. |
-| `rental_days_max` | `integer` | longest rental term offered (~95 distinct values, summarized as range) | LEFT JOIN passthrough from `pricing_wide.rental_days_max` on `(section_id, isbn13)`. | Longest available rental term measured in days. |
-| `price_buy_min` | `decimal(10,2)` | USD amount such as `123.45`; stored as `DECIMAL(10,2)` | LEFT JOIN passthrough from `pricing_wide.price_buy_min` on `(section_id, isbn13)`. | Lowest valid purchase price across available material offerings. |
-| `price_buy_max` | `decimal(10,2)` | USD amount such as `123.45`; stored as `DECIMAL(10,2)` | LEFT JOIN passthrough from `pricing_wide.price_buy_max` on `(section_id, isbn13)`. | Highest valid purchase price across available material offerings. |
+| `isbn13` | `bigint` | 13-digit numeric ISBN or numeric source identifier; NULL when absent | `course_materials_use.isbn13` passthrough. | Book or material identifier used for cross-source matching. |
+| `book_title` | `varchar` | Material title; source punctuation/casing retained | `course_materials_use.book_title` passthrough. | Canonical title selected for the grouped ISBN. |
+| `author` | `varchar` | Person/organization name; source punctuation/casing retained | `course_materials_use.author` passthrough. | Author credited for the adopted course material. |
+| `publisher` | `varchar` | Publisher name; original spelling/casing retained | `course_materials_use.publisher` passthrough. | Publisher credited for the adopted course material. |
+| `imprint` | `varchar` | Publishing imprint; original spelling/casing retained | `course_materials_use.imprint` passthrough. | Publishing imprint named for the adopted material. |
+| `book_format` | `varchar` | Source material format; pricing uses `physical`, `digital`, or unavailable format | `course_materials_use.book_format` passthrough. | Physical or digital format of the material. |
+| `format_type` | `varchar` | Catalog FormatType label; original spelling retained | `course_materials_use.format_type` passthrough. | Catalog classification label for the material format. |
+| `book_status` | `varchar` | Lowercase `required`, `recommended`, `option`, or missing status | `course_materials_use.book_status` passthrough. | Adoption priority assigned to the course material. |
+| `isbn_book_title` | `varchar` | Canonical title text selected for the term and ISBN | `course_materials_use.isbn_book_title` passthrough. | Canonical title selected for the term-level ISBN. |
+| `isbn_author` | `varchar` | Canonical author text selected for the term and ISBN | `course_materials_use.isbn_author` passthrough. | Canonical author selected for the term-level ISBN. |
+| `isbn_publisher` | `varchar` | Canonical publisher text selected for the term and ISBN | `course_materials_use.isbn_publisher` passthrough. | Canonical publisher selected for the term-level ISBN. |
+| `isbn_title_variant_count` | `bigint` | Non-negative whole-number count | `course_materials_use.isbn_title_variant_count` passthrough. | Distinct ISBN title variants found within grouped catalog rows. |
+| `isbn_author_variant_count` | `bigint` | Non-negative whole-number count | `course_materials_use.isbn_author_variant_count` passthrough. | Distinct ISBN author variants found within grouped catalog rows. |
+| `isbn_publisher_variant_count` | `bigint` | Non-negative whole-number count | `course_materials_use.isbn_publisher_variant_count` passthrough. | Distinct ISBN publisher variants found within grouped catalog rows. |
+| `unit_id` | `bigint` | IPEDS institution identifier | `course_materials_use.unit_id` passthrough. | IPEDS institution identifier used throughout the pipeline. |
+| `school` | `varchar` | Institution name; source spelling/casing retained | `course_materials_use.school` passthrough. | Institution or school name attached to the course. |
+| `state` | `varchar` | Normalized state or province code, such as `CA` or `CAN` | `course_materials_use.state` passthrough. | State or province code for the institution. |
+| `dept_code` | `varchar` | Department code, such as `BIOL` | `course_materials_use.dept_code` passthrough. | Short code identifying the academic department. |
+| `department` | `varchar` | Academic department, such as `Biology` | `course_materials_use.department` passthrough. | Academic department responsible for the course. |
+| `dept_description` | `varchar` | Expanded source description of the academic department | `course_materials_use.dept_description` passthrough. | Expanded description of the academic department. |
+| `course_number` | `varchar` | Source course number; zeros/suffixes retained | `course_materials_use.course_number` passthrough. | Catalog number identifying the course within its department. |
+| `section` | `varchar` | Source section code; zeros/punctuation retained | `course_materials_use.section` passthrough. | Source code distinguishing sections of the same course. |
+| `course_title` | `varchar` | Course title; source punctuation/casing retained | `course_materials_use.course_title` passthrough. | Official title assigned to the course. |
+| `course_level` | `varchar` | Category such as `Introductory or general undergraduate` | `course_materials_use.course_level` passthrough. | Instructional level assigned to the course. |
+| `course_subject` | `varchar` | Source subject, such as `Biology` | `course_materials_use.course_subject` passthrough. | Subject area assigned to the course. |
+| `period` | `varchar` | Academic term label such as `Fall 2024` | `course_materials_use.period` passthrough. | Human-readable academic term label from the source. |
+| `enrollments` | `integer` | Reported student count; source noise can include negative values | `course_materials_use.enrollments` passthrough. | Enrollment reported directly for the course section. |
+| `seats_taken` | `integer` | Reported occupied seats; `9999` is the source sentinel | `course_materials_use.seats_taken` passthrough. | Occupied seats reported for the course section. |
+| `instructor` | `varchar` | Instructor name; source punctuation/casing retained | `course_materials_use.instructor` passthrough. | Instructor name attached to the course section. |
+| `first_name` | `varchar` | Given name; source punctuation/casing retained | `course_materials_use.first_name` passthrough. | Given name of the course instructor. |
+| `last_name` | `varchar` | Family name; source punctuation/casing retained | `course_materials_use.last_name` passthrough. | Family name of the course instructor. |
+| `email` | `varchar` | Lowercase, trimmed email text | `course_materials_use.email` passthrough. | Normalized instructor email used for contact and matching. |
+| `course_id` | `varchar` | `unit_id::department-code::course-number` composite | `course_materials_use.course_id` passthrough. | Stable identifier for the institution-level course offering. |
+| `section_id` | `varchar` | period-specific section key | `course_materials_use.section_id` passthrough. | Period-specific identifier for the distinct section offering. |
+| `period_sortable` | `varchar` | YYYY-N | `course_materials_use.period_sortable` passthrough. | Sortable academic term code used for chronological ordering. |
+| `period_date` | `date` | Canonical date: YYYY-01-01, YYYY-04-01, YYYY-07-01, or YYYY-10-01 | `course_materials_use.period_date` passthrough. | Canonical starting date assigned to the academic term. |
+| `is_oer` | `boolean` | TRUE or FALSE | `course_materials_use.is_oer` passthrough. | Whether the material is an open educational resource. |
+| `oer_category` | `varchar` | Category such as `book_oer`, `pure_oer`, or `non_oer` | `course_materials_use.oer_category` passthrough. | Open-resource category assigned to the material format. |
+| `is_ia` | `boolean` | TRUE or FALSE | `course_materials_use.is_ia` passthrough. | Whether the material uses inclusive access. |
+| `ia_category` | `varchar` | Category such as `book_ia`, `ebook_ia`, or `non_ia` | `course_materials_use.ia_category` passthrough. | Inclusive-access category assigned to the material format. |
+| `is_supply` | `boolean` | TRUE or FALSE | `course_materials_use.is_supply` passthrough. | Whether the material is classified as a course supply. |
+| `supply_category` | `varchar` | Supply category label selected by keyword rules | `course_materials_use.supply_category` passthrough. | Supply classification assigned from matched title keywords. |
+| `institution_name` | `varchar` | Official IPEDS institution-name text | `course_materials_use.institution_name` passthrough. | Canonical institution name supplied by IPEDS. |
+| `sector` | `varchar` | IPEDS sector descriptor, such as `Public, 4-year or above` | `course_materials_use.sector` passthrough. | IPEDS sector classification for the institution. |
+| `level` | `varchar` | IPEDS label such as `Four or more years` | `course_materials_use.level` passthrough. | IPEDS award-level classification for the institution. |
+| `control` | `varchar` | IPEDS label such as `Public` or `Private not-for-profit` | `course_materials_use.control` passthrough. | Institution ownership and governance classification used for reporting. |
+| `size` | `varchar` | IPEDS size-band label, such as `20,000 and above` | `course_materials_use.size` passthrough. | IPEDS institutional enrollment-size classification used for reporting. |
+| `enrollment_2024` | `integer` | Non-negative 2024 student count; NULL when unavailable | `course_materials_use.enrollment_2024` passthrough. | Total institutional enrollment reported to IPEDS for 2024. |
+| `distance_enrollment_2024` | `integer` | Non-negative 2024 student count; NULL when unavailable | `course_materials_use.distance_enrollment_2024` passthrough. | IPEDS 2024 students enrolled in distance education. |
+| `institution_type` | `varchar` | Derived institution-type category label | `course_materials_use.institution_type` passthrough. | Derived institution type used for reporting groups. |
+| `panel_response_year` | `varchar` | Campaign label shaped `OER_YYYY`, such as `OER_2025` | `course_materials_use.panel_response_year` passthrough. | Latest recorded panel response campaign label. |
+| `is_opted_out` | `boolean` | TRUE or FALSE | `course_materials_use.is_opted_out` passthrough. | Whether the contact appears in the opt-out list. |
+| `opt_out_source` | `varchar` | BVA source-system label for the opt-out entry | `course_materials_use.opt_out_source` passthrough. | BVA source label explaining the opt-out record. |
+| `is_required_inferred` | `boolean` | TRUE or FALSE | `course_materials_use.is_required_inferred` passthrough. | Whether the material is treated as required after fallback. |
+| `is_post_2024` | `boolean` | TRUE or FALSE | `course_materials_use.is_post_2024` passthrough. | Whether the academic term begins during 2024 or later. |
+| `has_isbn` | `boolean` | TRUE or FALSE | `course_materials_use.has_isbn` passthrough. | Whether the material has a non-NULL ISBN. |
+| `has_formattype` | `boolean` | TRUE or FALSE | `course_materials_use.has_formattype` passthrough. | Whether the material has a nonblank FormatType classification. |
+| `has_enrollment` | `boolean` | TRUE or FALSE | `course_materials_use.has_enrollment` passthrough. | Whether usable enrollment information is available. |
+| `has_enrollment_own_seats` | `boolean` | TRUE or FALSE | `course_materials_use.has_enrollment_own_seats` passthrough. | Whether the section reports usable occupied seats. |
+| `no_details` | `boolean` | TRUE or FALSE | `course_materials_use.no_details` passthrough. | Whether the title carries the no-details placeholder. |
+| `no_materials` | `boolean` | TRUE or FALSE | `course_materials_use.no_materials` passthrough. | Whether the row explicitly indicates no course materials. |
+| `is_canada` | `boolean` | TRUE or FALSE | `course_materials_use.is_canada` passthrough. | Whether the source row belongs to Canada. |
+| `is_course_material_use` | `boolean` | TRUE or FALSE | `course_materials_use.is_course_material_use` passthrough. | Whether the material belongs to the analysis population. |
+| `is_course_material_no_use` | `boolean` | TRUE or FALSE | `course_materials_use.is_course_material_no_use` passthrough. | Whether the material belongs to the excluded population. |
+| `has_enrollment_sibling` | `boolean` | TRUE or FALSE | `course_materials_use.has_enrollment_sibling` passthrough. | Whether a sibling section reports enrollment. |
+| `has_enrollment_sibling_seats` | `boolean` | TRUE or FALSE | `course_materials_use.has_enrollment_sibling_seats` passthrough. | Whether a sibling section reports usable occupied seats. |
+| `enrollment_assigned` | `integer` | Rounded student count from the ladder; raw negatives can propagate | `course_materials_use.enrollment_assigned` passthrough. | Best available section enrollment from the assignment ladder. |
+| `enrollment_source` | `varchar` | `own`, `own_seats`, `sibling_enroll`, `sibling_seats`, `class_median`, `level_median`, or `none` | `course_materials_use.enrollment_source` passthrough. | Assignment-ladder rung that supplied the section enrollment. |
+| `has_book_status_required` | `boolean` | TRUE or FALSE | `course_materials_use.has_book_status_required` passthrough. | Whether grouped rows include explicit required status. |
+| `has_book_status_optional_recommended` | `boolean` | TRUE or FALSE | `course_materials_use.has_book_status_optional_recommended` passthrough. | Whether grouped rows include optional or recommended status. |
+| `source_row_count` | `bigint` | Non-negative whole-number count | `course_materials_use.source_row_count` passthrough. | Catalog rows collapsed into the canonical material item. |
+| `title_variant_count` | `bigint` | Non-negative whole-number count | `course_materials_use.title_variant_count` passthrough. | Distinct title variants found within grouped catalog rows. |
+| `author_variant_count` | `bigint` | Non-negative whole-number count | `course_materials_use.author_variant_count` passthrough. | Distinct author variants found within grouped catalog rows. |
+| `publisher_variant_count` | `bigint` | Non-negative whole-number count | `course_materials_use.publisher_variant_count` passthrough. | Distinct publisher variants found within grouped catalog rows. |
+| `imprint_variant_count` | `bigint` | Non-negative whole-number count | `course_materials_use.imprint_variant_count` passthrough. | Distinct imprint variants found within grouped catalog rows. |
+| `book_format_variant_count` | `bigint` | Non-negative whole-number count | `course_materials_use.book_format_variant_count` passthrough. | Distinct book format variants found within grouped catalog rows. |
+| `format_type_variant_count` | `bigint` | Non-negative whole-number count | `course_materials_use.format_type_variant_count` passthrough. | Distinct FormatType variants found within grouped catalog rows. |
+| `book_status_variant_count` | `bigint` | Non-negative whole-number count | `course_materials_use.book_status_variant_count` passthrough. | Distinct book status variants found within grouped catalog rows. |
+| `catalog_metadata_conflict` | `boolean` | TRUE or FALSE | `course_materials_use.catalog_metadata_conflict` passthrough. | Flags conflicting bibliographic values among grouped catalog rows. |
+| `is_required_inferred_conflict` | `boolean` | TRUE or FALSE | `course_materials_use.is_required_inferred_conflict` passthrough. | Whether grouped rows disagree on inferred-required status. |
+| `is_oer_conflict` | `boolean` | TRUE or FALSE | `course_materials_use.is_oer_conflict` passthrough. | Whether grouped rows disagree on open-resource classification. |
+| `is_ia_conflict` | `boolean` | TRUE or FALSE | `course_materials_use.is_ia_conflict` passthrough. | Whether grouped rows disagree on inclusive-access classification. |
+| `bookstore_url` | `varchar` | Absolute `http://` or `https://` bookstore URL | `pricing_wide.bookstore_url` LEFT JOIN on `(section_id, isbn13)`. | Bookstore page providing the observed material prices. |
+| `price_buy_new_physical` | `decimal(10,2)` | USD amount such as `123.45`; stored as `DECIMAL(10,2)` | `pricing_wide.price_buy_new_physical` LEFT JOIN on `(section_id, isbn13)`. | Price for new physical purchase offerings. |
+| `price_buy_new_digital` | `decimal(10,2)` | USD amount such as `123.45`; stored as `DECIMAL(10,2)` | `pricing_wide.price_buy_new_digital` LEFT JOIN on `(section_id, isbn13)`. | Price for new digital purchase offerings. |
+| `price_buy_new_na` | `decimal(10,2)` | USD amount such as `123.45`; stored as `DECIMAL(10,2)` | `pricing_wide.price_buy_new_na` LEFT JOIN on `(section_id, isbn13)`. | Price for new unspecified-format purchase offerings. |
+| `price_buy_used_physical` | `decimal(10,2)` | USD amount such as `123.45`; stored as `DECIMAL(10,2)` | `pricing_wide.price_buy_used_physical` LEFT JOIN on `(section_id, isbn13)`. | Price for used physical purchase offerings. |
+| `price_buy_used_digital` | `decimal(10,2)` | USD amount such as `123.45`; stored as `DECIMAL(10,2)` | `pricing_wide.price_buy_used_digital` LEFT JOIN on `(section_id, isbn13)`. | Price for used digital purchase offerings. |
+| `price_buy_used_na` | `decimal(10,2)` | USD amount such as `123.45`; stored as `DECIMAL(10,2)` | `pricing_wide.price_buy_used_na` LEFT JOIN on `(section_id, isbn13)`. | Price for used unspecified-format purchase offerings. |
+| `price_buy_na_physical` | `decimal(10,2)` | USD amount such as `123.45`; stored as `DECIMAL(10,2)` | `pricing_wide.price_buy_na_physical` LEFT JOIN on `(section_id, isbn13)`. | Price for unspecified-condition physical purchase offerings. |
+| `price_buy_na_digital` | `decimal(10,2)` | USD amount such as `123.45`; stored as `DECIMAL(10,2)` | `pricing_wide.price_buy_na_digital` LEFT JOIN on `(section_id, isbn13)`. | Price for unspecified-condition digital purchase offerings. |
+| `price_buy_na_na` | `decimal(10,2)` | USD amount such as `123.45`; stored as `DECIMAL(10,2)` | `pricing_wide.price_buy_na_na` LEFT JOIN on `(section_id, isbn13)`. | Price for unspecified-condition unspecified-format purchase offerings. |
+| `price_rental_new_physical` | `decimal(10,2)` | USD amount such as `123.45`; stored as `DECIMAL(10,2)` | `pricing_wide.price_rental_new_physical` LEFT JOIN on `(section_id, isbn13)`. | Price for new physical rental offerings. |
+| `price_rental_new_digital` | `decimal(10,2)` | USD amount such as `123.45`; stored as `DECIMAL(10,2)` | `pricing_wide.price_rental_new_digital` LEFT JOIN on `(section_id, isbn13)`. | Price for new digital rental offerings. |
+| `price_rental_new_na` | `decimal(10,2)` | USD amount such as `123.45`; stored as `DECIMAL(10,2)` | `pricing_wide.price_rental_new_na` LEFT JOIN on `(section_id, isbn13)`. | Price for new unspecified-format rental offerings. |
+| `price_rental_used_physical` | `decimal(10,2)` | USD amount such as `123.45`; stored as `DECIMAL(10,2)` | `pricing_wide.price_rental_used_physical` LEFT JOIN on `(section_id, isbn13)`. | Price for used physical rental offerings. |
+| `price_rental_used_digital` | `decimal(10,2)` | USD amount such as `123.45`; stored as `DECIMAL(10,2)` | `pricing_wide.price_rental_used_digital` LEFT JOIN on `(section_id, isbn13)`. | Price for used digital rental offerings. |
+| `price_rental_used_na` | `decimal(10,2)` | USD amount such as `123.45`; stored as `DECIMAL(10,2)` | `pricing_wide.price_rental_used_na` LEFT JOIN on `(section_id, isbn13)`. | Price for used unspecified-format rental offerings. |
+| `price_rental_na_physical` | `decimal(10,2)` | USD amount such as `123.45`; stored as `DECIMAL(10,2)` | `pricing_wide.price_rental_na_physical` LEFT JOIN on `(section_id, isbn13)`. | Price for unspecified-condition physical rental offerings. |
+| `price_rental_na_digital` | `decimal(10,2)` | USD amount such as `123.45`; stored as `DECIMAL(10,2)` | `pricing_wide.price_rental_na_digital` LEFT JOIN on `(section_id, isbn13)`. | Price for unspecified-condition digital rental offerings. |
+| `price_rental_na_na` | `decimal(10,2)` | USD amount such as `123.45`; stored as `DECIMAL(10,2)` | `pricing_wide.price_rental_na_na` LEFT JOIN on `(section_id, isbn13)`. | Price for unspecified-condition unspecified-format rental offerings. |
+| `format_count` | `bigint` | COUNT(DISTINCT option × condition × format) FILTERed to buy/rental; counts offered tuples independently of price validity, so it can exceed the number of non-NULL pivot cells; max 18 | `pricing_wide.format_count` LEFT JOIN on `(section_id, isbn13)`. | Distinct option-condition-format combinations offered for the material. |
+| `has_buy` | `boolean` | BOOL_OR(book_option = buy) — a buy listing is offered (option presence, independent of price validity) | `pricing_wide.has_buy` LEFT JOIN on `(section_id, isbn13)`. | Whether any purchase offer exists for the material. |
+| `has_rent` | `boolean` | BOOL_OR(book_option = rental) — a rental listing is offered (≫ rental_days_min coverage, since many rentals lack a term) | `pricing_wide.has_rent` LEFT JOIN on `(section_id, isbn13)`. | Whether any rental offer exists for the material. |
+| `price_min` | `decimal(10,2)` | USD amount such as `123.45`; stored as `DECIMAL(10,2)` | `pricing_wide.price_min` LEFT JOIN on `(section_id, isbn13)`. | Lowest valid price across available material offerings. |
+| `price_max` | `decimal(10,2)` | USD amount such as `123.45`; stored as `DECIMAL(10,2)` | `pricing_wide.price_max` LEFT JOIN on `(section_id, isbn13)`. | Highest valid price across available material offerings. |
+| `price_avg` | `double` | USD midpoint `(price_min + price_max) / 2.0`, not `AVG()` | `pricing_wide.price_avg` LEFT JOIN on `(section_id, isbn13)`. | Legacy midpoint between minimum and maximum material prices. |
+| `rental_days_min` | `integer` | shortest rental term offered for this (section, isbn) | `pricing_wide.rental_days_min` LEFT JOIN on `(section_id, isbn13)`. | Shortest available rental term measured in days. |
+| `rental_days_max` | `integer` | longest rental term offered (~95 distinct values, summarized as range) | `pricing_wide.rental_days_max` LEFT JOIN on `(section_id, isbn13)`. | Longest available rental term measured in days. |
+| `price_buy_min` | `decimal(10,2)` | USD amount such as `123.45`; stored as `DECIMAL(10,2)` | `pricing_wide.price_buy_min` LEFT JOIN on `(section_id, isbn13)`. | Lowest valid purchase price across available material offerings. |
+| `price_buy_max` | `decimal(10,2)` | USD amount such as `123.45`; stored as `DECIMAL(10,2)` | `pricing_wide.price_buy_max` LEFT JOIN on `(section_id, isbn13)`. | Highest valid purchase price across available material offerings. |
 | `has_pricing_match` | `boolean` | TRUE when the LEFT pricing_wide join found a section/ISBN row; independent of whether that row has a valid price_min | `pricing_wide.section_id IS NOT NULL` after the exact `(section_id, isbn13)` LEFT JOIN. | Whether an exact section-and-ISBN pricing match exists. |
-| `panel_source_row_count` | `bigint` | Non-negative whole-number count | Passthrough from `course_materials_use.panel_source_row_count`. | Panel-history rows collapsed into the contact lookup. |
-| `panel_response_year_variant_count` | `bigint` | Non-negative whole-number count | Passthrough from `course_materials_use.panel_response_year_variant_count`. | Distinct campaign labels found among grouped panel-history rows. |
-| `use_source_row_count` | `bigint` | Non-negative whole-number count | Passthrough from `course_materials_use.use_source_row_count`. | Included catalog rows collapsed into the canonical item. |
-| `no_use_source_row_count` | `bigint` | Non-negative whole-number count | Passthrough from `course_materials_use.no_use_source_row_count`. | Excluded catalog rows collapsed into the canonical item. |
-| `has_use_source_row` | `boolean` | TRUE or FALSE | Passthrough from `course_materials_use.has_use_source_row`. | Whether grouped rows include retained-population evidence. |
-| `has_no_use_source_row` | `boolean` | TRUE or FALSE | Passthrough from `course_materials_use.has_no_use_source_row`. | Whether grouped rows include excluded-population evidence. |
-| `population_classification_conflict` | `boolean` | TRUE or FALSE | Passthrough from `course_materials_use.population_classification_conflict`. | Flags simultaneous Use and NoUse evidence within groups. |
-| `instructor_variant_count` | `bigint` | Non-negative whole-number count | Passthrough from `course_materials_use.instructor_variant_count`. | Distinct instructor variants found within grouped catalog rows. |
-| `email_variant_count` | `bigint` | Non-negative whole-number count | Passthrough from `course_materials_use.email_variant_count`. | Distinct email variants found within grouped catalog rows. |
-| `contact_metadata_conflict` | `boolean` | TRUE or FALSE | Passthrough from `course_materials_use.contact_metadata_conflict`. | Flags conflicting instructor or email values within groups. |
-| `is_supply_conflict` | `boolean` | TRUE or FALSE | Passthrough from `course_materials_use.is_supply_conflict`. | Whether grouped rows disagree on supply classification. |
-| `no_details_conflict` | `boolean` | TRUE or FALSE | Passthrough from `course_materials_use.no_details_conflict`. | Flags disagreement about the no-details placeholder within groups. |
-| `no_materials_conflict` | `boolean` | TRUE or FALSE | Passthrough from `course_materials_use.no_materials_conflict`. | Flags disagreement about no-materials evidence within groups. |
-| `is_canada_conflict` | `boolean` | TRUE or FALSE | Passthrough from `course_materials_use.is_canada_conflict`. | Whether grouped rows disagree on Canadian classification. |
-| `is_null_isbn_audit` | `boolean` | TRUE or FALSE | Passthrough from `course_materials_use.is_null_isbn_audit`. | Whether the row audits a NULL-ISBN source group. |
-| `has_nonnull_isbn_in_section` | `boolean` | TRUE or FALSE | Passthrough from `course_materials_use.has_nonnull_isbn_in_section`. | Whether the section contains another non-NULL ISBN. |
-| `is_no_adoption_section` | `boolean` | TRUE or FALSE | Passthrough from `course_materials_use.is_no_adoption_section`. | Whether the section has no non-NULL adopted ISBN. |
+| `panel_source_row_count` | `bigint` | Non-negative whole-number count | `course_materials_use.panel_source_row_count` passthrough. | Panel-history rows collapsed into the contact lookup. |
+| `panel_response_year_variant_count` | `bigint` | Non-negative whole-number count | `course_materials_use.panel_response_year_variant_count` passthrough. | Distinct campaign labels found among grouped panel-history rows. |
+| `use_source_row_count` | `bigint` | Non-negative whole-number count | `course_materials_use.use_source_row_count` passthrough. | Included catalog rows collapsed into the canonical item. |
+| `no_use_source_row_count` | `bigint` | Non-negative whole-number count | `course_materials_use.no_use_source_row_count` passthrough. | Excluded catalog rows collapsed into the canonical item. |
+| `has_use_source_row` | `boolean` | TRUE or FALSE | `course_materials_use.has_use_source_row` passthrough. | Whether grouped rows include retained-population evidence. |
+| `has_no_use_source_row` | `boolean` | TRUE or FALSE | `course_materials_use.has_no_use_source_row` passthrough. | Whether grouped rows include excluded-population evidence. |
+| `population_classification_conflict` | `boolean` | TRUE or FALSE | `course_materials_use.population_classification_conflict` passthrough. | Flags simultaneous Use and NoUse evidence within groups. |
+| `instructor_variant_count` | `bigint` | Non-negative whole-number count | `course_materials_use.instructor_variant_count` passthrough. | Distinct instructor variants found within grouped catalog rows. |
+| `email_variant_count` | `bigint` | Non-negative whole-number count | `course_materials_use.email_variant_count` passthrough. | Distinct email variants found within grouped catalog rows. |
+| `contact_metadata_conflict` | `boolean` | TRUE or FALSE | `course_materials_use.contact_metadata_conflict` passthrough. | Flags conflicting instructor or email values within groups. |
+| `is_supply_conflict` | `boolean` | TRUE or FALSE | `course_materials_use.is_supply_conflict` passthrough. | Whether grouped rows disagree on supply classification. |
+| `no_details_conflict` | `boolean` | TRUE or FALSE | `course_materials_use.no_details_conflict` passthrough. | Flags disagreement about the no-details placeholder within groups. |
+| `no_materials_conflict` | `boolean` | TRUE or FALSE | `course_materials_use.no_materials_conflict` passthrough. | Flags disagreement about no-materials evidence within groups. |
+| `is_canada_conflict` | `boolean` | TRUE or FALSE | `course_materials_use.is_canada_conflict` passthrough. | Whether grouped rows disagree on Canadian classification. |
+| `is_null_isbn_audit` | `boolean` | TRUE or FALSE | `course_materials_use.is_null_isbn_audit` passthrough. | Whether the row audits a NULL-ISBN source group. |
+| `has_nonnull_isbn_in_section` | `boolean` | TRUE or FALSE | `course_materials_use.has_nonnull_isbn_in_section` passthrough. | Whether the section contains another non-NULL ISBN. |
+| `is_no_adoption_section` | `boolean` | TRUE or FALSE | `course_materials_use.is_no_adoption_section` passthrough. | Whether the section has no non-NULL adopted ISBN. |

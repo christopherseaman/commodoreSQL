@@ -15,7 +15,7 @@ notion-sync: push
 
 | Column | Type | Example / structure | Direct upstream source / derivation | Description |
 |---|---|---|---|---|
-| `FormatType` | `varchar` | Catalog format classification label; original spelling retained | Lookup TSV field `format_type`; direct tab-delimited import. | Catalog classification label for the material format. |
+| `FormatType` | `varchar` | Catalog FormatType label; original spelling retained | Lookup TSV field `format_type`; direct tab-delimited import. | Catalog classification label for the material format. |
 | `is_oer` | `boolean` | TRUE or FALSE | Lookup TSV field `is_oer`; direct tab-delimited import cast to BOOLEAN. | Whether the material is an open educational resource. |
 | `oer_category` | `varchar` | Category such as `book_oer`, `pure_oer`, or `non_oer` | Lookup TSV field `oer_category`; direct tab-delimited import. | Open-resource category assigned to the material format. |
 | `is_ia` | `boolean` | TRUE or FALSE | Lookup TSV field `is_ia`; direct tab-delimited import cast to BOOLEAN. | Whether the material uses inclusive access. |

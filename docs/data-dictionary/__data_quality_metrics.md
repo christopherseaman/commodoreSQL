@@ -15,7 +15,7 @@ notion-sync: push
 
 | Column | Type | Example / structure | Direct upstream source / derivation | Description |
 |---|---|---|---|---|
-| `category` | `varchar` | catalog \| pricing \| wide \| oer_ia \| cross_table | Literal metric family emitted by `2d_data_quality.sql`. | High-level grouping for related data quality checks. |
+| `category` | `varchar` | `catalog`, `pricing`, `wide`, `oer_ia`, or `cross_table` | Literal metric family emitted by `2d_data_quality.sql`. | High-level grouping for related data quality checks. |
 | `check_id` | `varchar` | short identifier, e.g., dedupe_stages, price_outliers | Literal executable check identifier emitted by `2d_data_quality.sql`. | Stable identifier for the data quality check. |
 | `metric_name` | `varchar` | Executable metric label, such as `rows_removed_by_dedupe` | Literal scalar measure name emitted by `2d_data_quality.sql`. | Human-readable name of the data quality metric. |
 | `metric_value` | `bigint` | Signed BIGINT keyed by `(category, check_id, metric_name)`; counts are non-negative, parity differences may be negative | Keyed by `(category, check_id, metric_name)`: exact `COUNT`, `SUM`, or subtraction expression over `comprehensive_data`, `pricing_historical`, `pricing_wide`, or raw `${PRICING_CSV}`; parity differences may be negative. | Scalar result identified by its three metric keys. |

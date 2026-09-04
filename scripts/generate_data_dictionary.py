@@ -576,7 +576,7 @@ def resolve_field_metadata(
             for column in relation.columns:
                 inherited = resolved[(base_name, column.name)]
                 inherited_item = FieldMetadata(
-                    f"Inherited unchanged from `{base_name}.{column.name}` (`SELECT *`).",
+                    f"Inherited `{base_name}.{column.name}` via `SELECT *`.",
                     inherited.values,
                     f"{inherited.population} View context: {context}",
                     inherited.null_meaning,
@@ -632,7 +632,7 @@ def _resolve_non_inherited(
         return imported
     if r == "panel_email":
         if n == "email":
-            return _metadata(column, "Group key from normalized `panel.email`.", "One cleaned panel email.", "Not expected; NULL emails group together if present in source.", "aggregate")
+            return _metadata(column, "Normalized `panel.email` group key.", "One cleaned panel email.", "Not expected; NULL emails group together if present in source.", "aggregate")
         rules = {
             "panel_response_year": ("`MAX(panel.response_year)`.", "No nonmissing response year for the email."),
             "panel_source_row_count": ("`COUNT(*)` of retained panel rows.", "Never NULL; at least one."),
@@ -656,7 +656,7 @@ def _resolve_non_inherited(
             null = "Not produced." if n in {"isbn13", "n_rows", "matched_pattern", "category"} else "No representative nonmissing title."
             return _metadata(column, rules[n], "One classified non-NULL ISBN in the 2024+ catalog.", null, "aggregate")
     if r == "section_book_status" and n in {"section_id", "has_required"}:
-        source = "Group key from `course_catalog_20251215.section_id`." if n == "section_id" else "`BOOL_OR(book_status='required' AND NOT is_supply)` over catalog rows."
+        source = "`course_catalog_20251215.section_id` group key." if n == "section_id" else "`BOOL_OR(book_status='required' AND NOT is_supply)` over catalog rows."
         null = "Not produced." if n == "section_id" else "Never NULL; false means no nonsupply required-status row."
         return _metadata(column, source, "All catalog rows for the period-specific section.", null, "aggregate")
     if r == "state_region" and n in {"state", "region", "division"}:
@@ -668,7 +668,7 @@ def _resolve_non_inherited(
         if n in catalog:
             base = _source_import_metadata("course_catalog_20251215", catalog[n])
             assert base
-            return FieldMetadata(f"Passthrough from `course_catalog_20251215.{n}`.", base.values,
+            return FieldMetadata(f"`course_catalog_20251215.{n}` passthrough.", base.values,
                                  "One enriched normalized catalog source row.", base.null_meaning, "passthrough")
         return _comprehensive_metadata(column)
     if r == "course_materials":
@@ -686,13 +686,13 @@ def _resolve_non_inherited(
                 base_col = next(c for c in by_name["course_materials"].columns if c.name == n)
                 base = _course_materials_metadata(base_col, by_name)
             assert base
-            return FieldMetadata(f"Passthrough from `course_materials_use.{n}`.", base.values,
+            return FieldMetadata(f"`course_materials_use.{n}` passthrough.", base.values,
                                  "Canonical Use section×ISBN items retained by `material_costs`.", base.null_meaning, "passthrough")
         if n in pw_names:
             base_col = next(c for c in by_name["pricing_wide"].columns if c.name == n)
             base = _pricing_wide_metadata(base_col)
             assert base
-            return FieldMetadata(f"LEFT JOIN passthrough from `pricing_wide.{n}` on `(section_id, isbn13)`.", base.values,
+            return FieldMetadata(f"`pricing_wide.{n}` LEFT JOIN on `(section_id, isbn13)`.", base.values,
                                  "Canonical Use items; pricing is optional exact-match enrichment.",
                                  "No exact pricing row, or the matched pricing aggregate has no valid value.", "joined")
         if n == "has_pricing_match":
@@ -721,7 +721,7 @@ def _resolve_non_inherited(
         rules = {
             "section_id": ("Distinct `section_enrollment.section_id` group key.", "Not produced."),
             "period_sortable": ("`ANY_VALUE(section_enrollment.period_sortable)` for the section.", "Not expected for retained section_enrollment rows."),
-            "section_hash": ("Unsigned integer from `CAST('0x' || LEFT(md5(section_id),16) AS UBIGINT)`.", "Not produced."),
+            "section_hash": ("Prefix `LEFT(md5(section_id),16)` with `0x`; cast to `UBIGINT`.", "Not produced."),
             "sample_bucket": ("`section_hash % 10`, cast to UTINYINT.", "Not produced."),
         }
         if n in rules:
@@ -742,7 +742,7 @@ def _pricing_wide_metadata(column: Column) -> FieldMetadata | None:
             if n == "isbn13"
             else "Not produced for a retained group."
         )
-        return _metadata(column, f"Group key from `pricing_historical.{n}`.", pop, null, "aggregate")
+        return _metadata(column, f"`pricing_historical.{n}` group key.", pop, null, "aggregate")
     if n in max_fields:
         return _metadata(column, f"`MAX(pricing_historical.{n})` for source provenance/metadata.", pop, "No nonmissing value in the group.", "aggregate")
     if n == "required":
@@ -818,7 +818,7 @@ def _course_materials_metadata(column: Column, by_name: dict[str, Relation]) -> 
     source_name = rename.get(n, n)
     if n in {"isbn13", "section_id", "period_sortable"}:
         cast = " and cast to BIGINT" if n == "isbn13" else ""
-        return _metadata(column, f"Group key from `comprehensive_data.{source_name}`{cast}.", pop,
+        return _metadata(column, f"`comprehensive_data.{source_name}` group key{cast}.", pop,
                          "ISBN is NULL only on audit groups; section and sortable-period keys are required.", "aggregate")
     definitive = {
         "is_required_inferred", "is_oer", "is_ia", "is_supply", "is_post_2024",
@@ -849,7 +849,7 @@ def _course_materials_metadata(column: Column, by_name: dict[str, Relation]) -> 
         return _metadata(column, f"`COALESCE(section_enrollment.{n}, representative comprehensive_data.{source_name})`.", pop,
                          "Neither the section-canonical value nor representative source row has a value.", "joined")
     if source_name in comprehensive and n not in COURSE_MATERIAL_DERIVED_FIELDS:
-        return _metadata(column, f"Deterministic representative `comprehensive_data.{source_name}` from the grouped source rows.", pop,
+        return _metadata(column, f"Representative `comprehensive_data.{source_name}` from grouped rows.", pop,
                          "No grouped source row has a nonmissing representative value.", "aggregate")
     if n not in COURSE_MATERIAL_DERIVED_FIELDS:
         return None
@@ -862,11 +862,11 @@ def _course_materials_metadata(column: Column, by_name: dict[str, Relation]) -> 
         return _metadata(column, f"Lexical `MIN(NULLIF(TRIM({attr}),''))` across Use catalog rows for `(period_sortable, isbn13)`.",
                          "All catalog rows for the term×ISBN.", "No nonmissing metadata value for the term×ISBN.", "aggregate")
     if n == "enrollment_assigned" or n == "enrollment_source" or n.startswith("has_enrollment_sibling"):
-        return _metadata(column, f"Exact `section_enrollment.{n}` joined by section ID.", pop,
+        return _metadata(column, f"`section_enrollment.{n}` exact section join.", pop,
                          "Only `enrollment_assigned` is nullable: no assignment ladder rung produced a value; flags/source are non-NULL.", "joined")
     if n.endswith("_variant_count"):
         attr = n.removesuffix("_variant_count")
-        return _metadata(column, f"Count of distinct nonmissing `{attr}` values among duplicate catalog rows for the group.", pop,
+        return _metadata(column, f"Distinct nonmissing `{attr}` count in grouped catalog rows.", pop,
                          "Never NULL; zero means no nonmissing value.", "aggregate")
     if n.endswith("_source_row_count") or n == "source_row_count":
         qualifier = "Use" if n.startswith("use_") else "NoUse" if n.startswith("no_use_") else "all"
@@ -875,7 +875,7 @@ def _course_materials_metadata(column: Column, by_name: dict[str, Relation]) -> 
             if n == "source_row_count"
             else "Never NULL; zero is possible for the filtered count."
         )
-        return _metadata(column, f"Count of {qualifier} `comprehensive_data` rows in the group.", pop, null_meaning, "aggregate")
+        return _metadata(column, f"Count of {qualifier} `comprehensive_data` rows.", pop, null_meaning, "aggregate")
     exact_conflicts = {
         "catalog_metadata_conflict": "True when any title/author/publisher/imprint/format/FormatType/book-status variant count exceeds one.",
         "population_classification_conflict": "True when both Use and NoUse source-row counts exceed zero.",
@@ -936,7 +936,7 @@ def _mailing_metadata(relation: str, column: Column) -> FieldMetadata | None:
                              "All normalized catalog rows sharing one non-NULL, nonblank cleaned email; opt_out and panel history do not participate.", null_meaning, "aggregate")
         if relation == "current_mailing":
             null_meaning = "Not produced; retained current emails are required." if n == "email" else "Selected master row has no value for this field."
-            return _metadata(column, f"Passthrough from `master_mailing.{n}` after membership in `recent_periods` and `NOT EXISTS` exclusion by `opt_out.email`.",
+            return _metadata(column, f"`master_mailing.{n}` passthrough after `recent_periods` and `opt_out.email` filters.",
                              "Master-selected emails in the latest 12 selected periods that have no opt_out match.", null_meaning, "passthrough")
     if relation == "current_mailing" and n == "panel_response_year":
         return _metadata(column, "`panel_email.panel_response_year` LEFT JOINed to `master_mailing` by cleaned email.",
@@ -967,13 +967,13 @@ def _master_course_metadata(column: Column) -> FieldMetadata | None:
     n = column.name
     pop = "Material-bearing `master_section` rows for one course×term."
     if n in {"course_id", "period_sortable"}:
-        return _metadata(column, f"Group key from `master_section.{n}`.", pop, "Not produced.", "aggregate")
+        return _metadata(column, f"`master_section.{n}` group key.", pop, "Not produced.", "aggregate")
     passthrough = {"period", "period_date", "unit_id", "state", "control", "level", "size", "sector", "institution_name", "institution_type", "enrollment_2024", "distance_enrollment_2024"}
     modes = {"school", "department", "course_number", "course_title", "course_level", "course_subject"}
     if n in passthrough:
-        return _metadata(column, f"`ANY_VALUE(master_section.{n})` within the course-term.", pop, "No section has a nonmissing value.", "aggregate")
+        return _metadata(column, f"`ANY_VALUE(master_section.{n})` by course-term.", pop, "No section has a nonmissing value.", "aggregate")
     if n in modes:
-        return _metadata(column, f"`mode(master_section.{n})` within the course-term.", pop, "No section has a nonmissing value.", "aggregate")
+        return _metadata(column, f"`mode(master_section.{n})` by course-term.", pop, "No section has a nonmissing value.", "aggregate")
     expressions = {
         "section_count": "COUNT(DISTINCT section_id)", "enrollment_total": "SUM(enrollments)",
         "seats_taken_total": "SUM(seats_taken)", "total_materials": "SUM(material_count)",
@@ -991,7 +991,7 @@ def _master_course_metadata(column: Column) -> FieldMetadata | None:
     }
     if n in expressions:
         null = "No contributing nonmissing values." if n in {"enrollment_total", "seats_taken_total", "all_publishers"} else "Never NULL for a retained group."
-        return _metadata(column, f"`{expressions[n]}` over master-section rows.", pop, null, "aggregate")
+        return _metadata(column, f"`{expressions[n]}` over `master_section`.", pop, null, "aggregate")
     cost = re.fullmatch(r"(required|optional)_cost_(total|owned)_(min|max)", n)
     if cost:
         status, scope, agg = cost.groups()
@@ -1026,7 +1026,7 @@ def _master_course_material_metadata(column: Column) -> FieldMetadata | None:
     group_keys = {"course_id", "period_sortable", "period", "period_date", "school", "department", "course_number", "course_title", "publisher", "book_status"}
     if n in group_keys:
         filtered = n in {"course_id", "publisher", "period_sortable"}
-        source = f"Group key from `material_costs.{n}`."
+        source = f"`material_costs.{n}` group key."
         if filtered:
             source += f" SQL filters `{n} IS NOT NULL` before grouping."
             null = f"Not produced; SQL excludes rows where `{n}` is NULL before GROUP BY."
@@ -1037,7 +1037,7 @@ def _master_course_material_metadata(column: Column) -> FieldMetadata | None:
     rules = {"material_instances": "COUNT(*)", "sections_using": "COUNT(DISTINCT section_id)", "total_seats_affected": "SUM(seats_taken)"}
     if n in rules:
         null = "No contributing nonmissing seats value." if n == "total_seats_affected" else "Never NULL for a retained group."
-        return _metadata(column, f"`{rules[n]}` over grouped material items.", pop, null, "aggregate")
+        return _metadata(column, f"`{rules[n]}` over grouped items.", pop, null, "aggregate")
     return None
 
 
@@ -1099,7 +1099,7 @@ def _master_isbn_metadata(column: Column) -> FieldMetadata | None:
     n = column.name
     pop = "Canonical Use `material_costs` rows for one term×non-NULL ISBN."
     if n in {"period_sortable", "isbn13"}:
-        return _metadata(column, f"Group key from `material_costs.{n}`.", pop, "Not produced.", "aggregate")
+        return _metadata(column, f"`material_costs.{n}` group key.", pop, "Not produced.", "aggregate")
     if n in {"book_title", "author", "publisher"}:
         src = "isbn_book_title" if n == "book_title" else f"isbn_{n}"
         return _metadata(column, f"`ANY_VALUE(material_costs.{src})`; term×ISBN metadata is canonical upstream.", pop,
@@ -1472,54 +1472,54 @@ _BANNED_DESCRIPTION_FRAGMENTS = (
 )
 
 _TEXT_VALUE_STRUCTURES = {
-    "author": "Person or organization name; source punctuation and casing retained",
-    "book_title": "Material title text; source punctuation and casing retained",
+    "author": "Person/organization name; source punctuation/casing retained",
+    "book_title": "Material title; source punctuation/casing retained",
     "bookstore_url": "Absolute `http://` or `https://` bookstore URL",
     "control": "IPEDS label such as `Public` or `Private not-for-profit`",
-    "course_code": "Source course code; leading zeros and punctuation retained",
+    "course_code": "Source course code; zeros/punctuation retained",
     "course_level": "Category such as `Introductory or general undergraduate`",
-    "course_number": "Source course number; leading zeros and suffixes retained",
-    "course_subject": "Source subject label, such as `Biology`",
-    "course_title": "Course title text; source punctuation and casing retained",
-    "crn": "Source registration-code text; leading zeros retained",
-    "department": "Academic department label, such as `Biology`",
-    "dept_code": "Short department code, such as `BIOL`",
+    "course_number": "Source course number; zeros/suffixes retained",
+    "course_subject": "Source subject, such as `Biology`",
+    "course_title": "Course title; source punctuation/casing retained",
+    "crn": "Source registration code; leading zeros retained",
+    "department": "Academic department, such as `Biology`",
+    "dept_code": "Department code, such as `BIOL`",
     "dept_description": "Expanded source description of the academic department",
-    "dept_name": "Pricing-source department name; original casing retained",
+    "dept_name": "Pricing department name; original casing retained",
     "edition": "Edition text, such as `3rd` or `Revised`",
-    "first_name": "Given-name text; source punctuation and casing retained",
-    "format": "Source material format label; original casing retained",
-    "format_type": "Catalog format classification label; original spelling retained",
-    "formattype": "Catalog format classification label; original spelling retained",
+    "first_name": "Given name; source punctuation/casing retained",
+    "format": "Source material format; original casing retained",
+    "format_type": "Catalog FormatType label; original spelling retained",
+    "formattype": "Catalog FormatType label; original spelling retained",
     "ia_category": "Category such as `book_ia`, `ebook_ia`, or `non_ia`",
-    "imprint": "Publishing-imprint text; original spelling and casing retained",
+    "imprint": "Publishing imprint; original spelling/casing retained",
     "inst_type": "Derived institution-type category label",
-    "institute": "Pricing-source institution name; original casing retained",
+    "institute": "Pricing institution name; original casing retained",
     "institution_name": "Official IPEDS institution-name text",
     "institution_type": "Derived institution-type category label",
     "instnm": "Official IPEDS institution-name text",
-    "instructor": "Instructor-name text; source punctuation and casing retained",
+    "instructor": "Instructor name; source punctuation/casing retained",
     "instructor_name": "Comma-separated distinct instructor names in lexical order",
     "isbn_author": "Canonical author text selected for the term and ISBN",
     "isbn_book_title": "Canonical title text selected for the term and ISBN",
     "isbn_publisher": "Canonical publisher text selected for the term and ISBN",
-    "last_name": "Family-name text; source punctuation and casing retained",
+    "last_name": "Family name; source punctuation/casing retained",
     "level": "IPEDS label such as `Four or more years`",
     "metric_name": "Executable metric label, such as `rows_removed_by_dedupe`",
     "oer_category": "Category such as `book_oer`, `pure_oer`, or `non_oer`",
     "opt_out_source": "BVA source-system label for the opt-out entry",
     "panel_response_year": "Campaign label shaped `OER_YYYY`, such as `OER_2025`",
-    "publisher": "Publisher-name text; original spelling and casing retained",
+    "publisher": "Publisher name; original spelling/casing retained",
     "response_year": "Campaign label shaped `OER_YYYY`, such as `OER_2018`",
-    "school": "Institution-name text; source spelling and casing retained",
-    "section": "Source section code; leading zeros and punctuation retained",
+    "school": "Institution name; source spelling/casing retained",
+    "section": "Source section code; zeros/punctuation retained",
     "section_code": "Pricing-source section code; leading zeros retained",
     "sector": "IPEDS sector descriptor, such as `Public, 4-year or above`",
     "size": "IPEDS size-band label, such as `20,000 and above`",
     "source": "BVA source-system label text",
     "state": "Normalized state or province code, such as `CA` or `CAN`",
     "supply_category": "Supply category label selected by keyword rules",
-    "title": "Material title text; source punctuation and casing retained",
+    "title": "Material title; source punctuation/casing retained",
 }
 
 _INTEGER_VALUE_STRUCTURES = {

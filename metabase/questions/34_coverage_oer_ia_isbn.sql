@@ -1,6 +1,6 @@
 -- name: Coverage — OER/IA Classifiability & ISBN (2024+)
 -- display: table
--- description: ISBN and OER/IA-classification coverage among canonical material_costs items rolled into material-bearing Master Section rows. The section denominator is not the complete catalog or section_enrollment population; raising FormatType coverage requires an external ISBN→OER/IA source.
+-- description: Material-bearing Master Section denominator; canonical-item ISBN/FormatType coverage. ISBN and OER/IA-classification coverage among canonical material_costs items rolled into material-bearing Master Section rows. The section denominator is not the complete catalog or section_enrollment population; raising FormatType coverage requires an external ISBN→OER/IA source.
 SELECT metric, value
 FROM (
     SELECT 1 AS ord, 'sections total'                       AS metric, COUNT(*)                          AS value FROM master_section

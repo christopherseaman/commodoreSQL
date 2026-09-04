@@ -6,219 +6,139 @@ notion-sync: push
 
 # Course Material Monitor (CMM) ETL contract
 
-## 1. Authority, ownership, and source snapshot
+## Authority and snapshot
 
-- BMG owns course-material and raw bookstore pricing/cost observations.
-- BVA owns opt-out and mailing-history inputs.
-- IPEDS owns institution metadata.
-- Project-authored classifications and derived outputs are internal. Existing executable table
-  names are compatibility names, not source-prefix claims.
+- BMG owns course-material and raw bookstore pricing/cost observations; BVA owns opt-out and mailing-history inputs; IPEDS owns institution metadata.
+- Classifications and derived outputs are internal. Executable source-table names are compatibility names, not source-prefix claims.
 
 | Recorded source | Imported relation | Purpose |
 |---|---|---|
 | `DiscoveryExtract.20251215.csv` | `course_catalog_20251215` | BMG catalog/adoptions |
-| `IPEDS_2024.csv` | `ipeds_data` | institution attributes |
-| `OptOut_20251215.csv` | `opt_out` | BVA exclusions; retained source rows with normalized email (not guaranteed one row per email) |
-| `panel_20260108.csv` | `panel` | existing BVA response history |
+| `IPEDS_2024.csv` | `ipeds_data` | Institution attributes |
+| `OptOut_20251215.csv` | `opt_out` | BVA exclusions; normalized-email source rows (duplicates allowed) |
+| `panel_20260108.csv` | `panel` | BVA response history |
 | `format_type_lookup.tsv` | `format_type_classification` | OER/IA lookup |
 | `BookPricing.Historical_20260224.csv` | `pricing_historical` | BMG pricing observations |
-| `supply_keywords.tsv` | `supply_isbn_classification` | internal supply classifier |
+| `supply_keywords.tsv` | `supply_isbn_classification` | Interim internal supply classifier |
 
-A release records the actual filenames and snapshot dates, pipeline commit, and configuration.
-This repository does not assert that pending Spring 2026 inputs have been loaded.
+Releases record filenames, snapshot dates, pipeline commit, and configuration. Spring 2026 inputs are not asserted as loaded.
 
-The five current external sources are BMG course materials, BMG costs/pricing, IPEDS, BVA
-opt-out, and BVA mailing history. CMM Supplies is currently represented by the interim
-`supply_isbn_classification` classifier; configured format-type and supply-keyword lookups are
-internal inputs. CMM IA, external pricing, discipline, the Fall 2025 bookstore-brand lookup,
-and the 25-institution scope remain pending. Keep History is a behavior decision, not a source table.
+- Current external sources: BMG materials/pricing, IPEDS, BVA opt-out, and BVA mailing history.
+- Pending: CMM IA, external pricing, discipline, Fall 2025 bookstore-brand, and 25-institution scope.
+- Keep History is a behavior decision, not a source table.
 
-## 2. Execution order and semantics
+## Execution and stages
 
-`scripts/run_sql.sh` envsubst-templates all SQL and rebuilds selected relations. With no skip flags,
-it executes the following order:
+`scripts/run_sql.sh` renders SQL with `envsubst` and DROP/recreates selected relations. Without skip flags:
 
 | Stage | SQL | Contract |
 |---|---|---|
-| Import | `0_cleanup.sql` | Remove the exact retired legacy/report relations and obsolete geographic mailing projections; fail if any named target remains. |
-| Import | `0_setup.sql` | Normalize catalog, email, enrollment, period, and IDs; import IPEDS, opt-out, and panel. Preserve `panel` source rows and build one-row-per-email `panel_email`. The recorded snapshot is count-preserving, but raw `opt_out`/`ipeds_data` joins do not enforce unique lookup keys; each refresh must prove lookup-key uniqueness and source-row conservation. |
-| Import | `0b_state_region.sql` | Build the state/region lookup; `CAN` maps to `Other`. Canonical facts are not materialized with these fields. |
-| Import | `1_bookprices_import.sql` | Parse pricing and IDs. Collapse byte-identical rows, rows differing only by instructor, then keep the latest `pricing_date` at the natural pricing key; aggregate instructor names. |
-| Import | `1a_supply_classification.sql` | Classify 2024+ ISBNs from title include/exclude keywords. Blank/unmatched ISBNs are not supplies; attribution is deterministic. |
-| Import | `1b_section_filter.sql` | Build one `section_book_status` row per catalog `section_id`; `has_required` is any required, non-supply item. |
-| Import | `2_oer_classification.sql` | Rebuild `comprehensive_data` at normalized BMG source-row grain with IPEDS, lookup, panel, opt-out, required, and population flags. |
-| Import | `2b_course_materials.sql` | Build the full 2024+ `section_enrollment` spine and canonical `course_materials` plus population views. |
-| Import | `2c_pricing_wide.sql` | Pivot pricing to one `(section_id, isbn13)` row with 18 price cells, option/bounds fields, and rental-term bounds. |
-| Import | `2d_data_quality.sql` | Materialize import-state metrics and drill-downs, including non-mutating exact pricing/catalog comparisons. These are diagnostics, not release denominators. |
-| EDA | `3_mailing_lists.sql` | Build Master and Working mailing relations. Seven geographic exports filter Working directly. |
+| Import | `0_cleanup.sql` | Remove exact retired/report relations and obsolete geographic projections; fail if targets remain. |
+| Import | `0_setup.sql` | Normalize catalog, email, enrollment, period, and IDs; import IPEDS/opt-out/panel; preserve `panel`, build one-row-per-email `panel_email`. Refresh DQ must prove lookup-key uniqueness and source-row conservation because raw opt-out/IPEDS joins do not enforce unique keys. |
+| Import | `0b_state_region.sql` | Build lookup; `CAN` maps to `Other`; facts are not materialized with region fields. |
+| Import | `1_bookprices_import.sql` | Deduplicate byte-identical and instructor-only variants; retain latest `pricing_date` at natural key and aggregate instructors. |
+| Import | `1a_supply_classification.sql` | Classify 2024+ ISBNs by title keywords; blank/unmatched ISBNs are not supplies. |
+| Import | `1b_section_filter.sql` | One `section_book_status` row per catalog section; `has_required` is any required non-supply item. |
+| Import | `2_oer_classification.sql` | Rebuild `comprehensive_data` at normalized BMG row grain with IPEDS, lookup, panel, opt-out, required, and population flags. |
+| Import | `2b_course_materials.sql` | Build complete 2024+ `section_enrollment` spine, canonical `course_materials`, and population views. |
+| Import | `2c_pricing_wide.sql` | Pivot to one `(section_id,isbn13)` row with 18 price cells and rental bounds. |
+| Import | `2d_data_quality.sql` | Materialize import-state metrics/drill-downs and non-mutating pricing/catalog comparisons; diagnostics are not release denominators. |
+| EDA | `3_mailing_lists.sql` | Build Master and Working mailing relations; seven geographic exports filter `current_mailing` directly. |
 | EDA | `3b_material_costs.sql` | LEFT-enrich every canonical Use item from `pricing_wide` on exact section × ISBN. |
-| EDA | `4_merged_records.sql` | Build `section_cost`, `master_section`, `master_course`, `master_course_material`, and the Fall 2025 compatibility projection. |
-| Models | `scripts/sql/models/*.sql` | Materialize discovered models, including `master_institution`, `master_isbn`, and `sample10_section_ids`. |
-| Exports | `scripts/sql/exports/*.sql` | Unless `NO_EXPORT` is set, execute discovered wrappers in lexical order and write `output/<basename>.csv`. Standalone course-material, per-term master, and Parquet exporters are separate commands. |
+| EDA | `4_merged_records.sql` | Build `section_cost`, `master_section`, `master_course`, `master_course_material`, and Fall 2025 compatibility projection. |
+| Models | `scripts/sql/models/*.sql` | Materialize discovered models including `master_institution`, `master_isbn`, and `sample10_section_ids`. |
+| Exports | `scripts/sql/exports/*.sql` | Unless `NO_EXPORT`, run lexical wrappers to `output/<basename>.csv`; standalone exporters are separate. |
 
-The pipeline is DROP/recreate and re-runnable.
+The intended database has 37 DBML-managed relations (28 tables, nine views): 27 executable-flow relations, seven DQ sidecars, and three report/export views. Retired relations are removed by cleanup.
 
-The intended current database contains only DBML-managed relations. The 37 current relations are
-all consumed: 27 executable-flow relations, seven DQ sidecars, and three report/export views.
-Geographic mailing is seven direct `current_mailing` export filters, not persisted views. Retired
-relations are removed by `0_cleanup.sql`. Live catalog validation for this revision confirmed the
-exact 37-relation set: 28 tables and nine views, with all 45 named cleanup targets absent.
+## Grains and lineage
 
-## 3. Canonical grains and lineage
+| Relation | Grain / contract |
+|---|---|
+| `course_catalog_20251215` | One normalized BMG source row; source denominator. |
+| `comprehensive_data` | One enriched normalized catalog row; snapshot is count-preserving, but refresh DQ must prove raw lookup uniqueness/conservation. |
+| `section_enrollment` | One `(period_sortable,section_id)` for valid 2024+ sections; complete section/enrollment denominator, independent of materials. |
+| `course_materials` | One `(period_sortable,section_id,isbn13)`; one NULL-ISBN audit row per section when present; retains duplicate/variant/conflict/population evidence. |
+| `pricing_historical` | One `(section_id,isbn13,book_option,book_condition,book_format,rental_days)`; latest source-owned observation after dedupe. |
+| `pricing_wide` | One `(section_id,isbn13)` source-owned pivot; no catalog/IPEDS/OER/IA/required enrichment. |
+| `material_costs` | One canonical Use `(period_sortable,section_id,isbn13)`; catalog spine LEFT-enriched from pricing; unmatched/unpriced remain. |
+| `section_cost` | One material-bearing `(period_sortable,section_id)`; cost bounds from `material_costs`. |
+| `master_section` | One section represented in `material_costs`; dimensions/enrollment from `section_enrollment`, costs from `section_cost`. |
+| `master_course` | One `(course_id,period_sortable)` material-bearing course rollup. |
+| `master_course_material` | One exact group `(course_id,period,period_sortable,period_date,school,department,course_number,course_title,publisher,book_status)`; filters NULL course, publisher, sortable period. |
+| `master_institution` | One `(period_sortable,unit_id)`, including NULL unit bucket; bookstore URL is same-term pricing exception. |
+| `master_isbn` | One `(period_sortable,isbn13)` rollup of canonical Use items. |
 
-| Relation | Grain | Contract |
-|---|---|---|
-| `course_catalog_20251215` | one normalized catalog source row | BMG source denominator. |
-| `comprehensive_data` | exactly one enriched normalized catalog row | The recorded snapshot is one row per normalized catalog row and count-preserving. SQL directly joins raw `opt_out` and `ipeds_data` without enforcing or collapsing duplicate lookup keys, so refresh DQ must prove lookup-key uniqueness and row-count conservation. |
-| `section_enrollment` | one `(period_sortable, section_id)` for valid 2024+ sections | Owns complete section/enrollment denominators and assignment. Independent of material inclusion. |
-| `course_materials` | one `(period_sortable, section_id, isbn13)` | First canonical processed table; NULL ISBN is a single audit row per section when present. Keeps duplicate, variant, conflict, and population evidence. |
-| `pricing_historical` | one `(section_id, isbn13, book_option, book_condition, book_format, rental_days)` | Source-owned latest pricing observation after defined dedupe. |
-| `pricing_wide` | one `(section_id, isbn13)` | Source-owned pricing pivot; no catalog, IPEDS, OER/IA, or required-inference enrichment. |
-| `material_costs` | one canonical Use `(period_sortable, section_id, isbn13)` | Catalog-owned item spine LEFT-enriched from `pricing_wide`; unmatched and unpriced items remain. |
-| `section_cost` | one material-bearing `(period_sortable, section_id)` | Cost bounds aggregated from `material_costs`. |
-| `master_section` | one section represented in `material_costs` | Material-bearing release spine. Section dimensions/enrollment come from `section_enrollment`; price/cost fields come from `section_cost`. |
-| `master_course` | one `(course_id, period_sortable)` | Course rollup of material-bearing sections. |
-| `master_course_material` | one exact group `(course_id, period, period_sortable, period_date, school, department, course_number, course_title, publisher, book_status)` | Material distribution from `material_costs`, filtering NULL `course_id`, `publisher`, and `period_sortable`. |
-| `master_institution` | one `(period_sortable, unit_id)`, including NULL unit bucket | Institution rollup of `master_section`; bookstore URL is the documented same-term pricing exception. |
-| `master_isbn` | one `(period_sortable, isbn13)` | ISBN rollup of canonical Use items in `material_costs`. |
+`section_id = unit_id::dept_code::course_number::section::period_sortable`; `course_id` omits section and period.
 
-`section_id` is period-specific:
+- Missing segments become `UNKNOWN` and do not filter admission.
+- Canonical admission requires non-NULL `period_sortable` and `section_id`; rejected rows remain in `comprehensive_data` and DQ.
+- `period_sortable` maps Winter/Spring/Summer/Fall to `YYYY-1/2/3/4`; `period_date` maps to Jan/Apr/Jul/Oct 1.
 
-```text
-unit_id::dept_code::course_number::section::period_sortable
-```
+## Population and enrollment
 
-`course_id` omits section and period. Missing composite segments become `UNKNOWN`; those component
-values are not an admission filter. Canonical admission requires non-NULL `period_sortable` and
-`section_id`, so rows with UNKNOWN components can remain while rows missing either admission key
-remain only in `comprehensive_data` and DQ counts them.
-`period_sortable` maps Winter/Spring/Summer/Fall to `YYYY-1/2/3/4`; `period_date` maps them to
-January 1, April 1, July 1, and October 1.
+- Use: 2024+, non-Canada, non-NULL ISBN, non-supply, not `*No Book Details*`, and not `*No Books Required*`/`placeholder_no_material`.
+- NoUse is the exact post-2024 complement; both flags are false before 2024. Canada is a separately exposed NoUse subset. Exclusion flags may overlap.
+- `material_costs` preserves every canonical Use item. `master_section` is material-bearing only, not the complete section denominator.
+- Required inference is true for 2024+ rows when a section has a non-supply required item and `book_status='required'`, or has none and `book_status` is NULL. Raw pricing status/required remain source-owned.
+- Fall 2025 Set A/B uses four course levels (introductory/general undergraduate, intermediate undergraduate, non-degree credit, uncategorized) and six public/private nonprofit/private for-profit × two-/four-year sector labels. A: `required_count >= 1`; B: `required_count = 0`, optional-only, not no-adoption.
+- `master_section_us_intro_fall2025`: `period_sortable='2025-4'`, `required_count>=1`, introductory/intermediate, and `state NOT IN ('CAN','')`; NULL state excluded. This is a non-Canada/nonblank proxy, not a country test.
 
-## 4. Population, selection, and enrollment rules
+`section_enrollment` uses the full valid 2024+ section spine. Assignment precedence:
 
-The implemented row and canonical-item predicates are:
+1. own enrollment
+2. own `seats_taken < 9999`
+3. course×period median enrollment, then usable seats
+4. control×level×period median
+5. level×period median
+6. otherwise NULL (`none`)
 
-- Use is 2024+, non-Canada, non-NULL ISBN, non-supply, not `*No Book Details*`, and not
-  no-material (`*No Books Required*` or `supply_category='placeholder_no_material'`).
-- NoUse is the exact post-2024 complement. Use and NoUse are both false before 2024. Canada is a
-  separately exposed subset of NoUse. Exclusion flags may overlap; do not replace them with a
-  single reason.
-- `material_costs` preserves every canonical Use item. `master_section` contains exactly sections
-  with at least one such item; it is not the complete section denominator.
-- Required inference is true for 2024+ catalog rows when a section with any non-supply required
-  item has `book_status='required'`, or when a section without one has NULL `book_status`. Raw
-  pricing `book_status` and `required` remain source-owned and are not overwritten.
-- The Fall 2025 BMG Set A/B scope uses the four levels introductory/general undergraduate,
-  intermediate undergraduate, non-degree credit, and uncategorized, and the six public/private
-  nonprofit/private for-profit × two-/four-year sector labels. Set A has `required_count >= 1`;
-  Set B has `required_count = 0` and is optional-only, not no-adoption.
-- `master_section_us_intro_fall2025` further requires `period_sortable='2025-4'`,
-  `required_count >= 1`, either introductory or intermediate level, and
-  `state NOT IN ('CAN','')`. NULL state is excluded. This is a non-Canada/nonblank proxy, not a
-  validated country test.
+Medians use the four levels and six sectors above, rounded to integers. Sources are `own`,
+`own_seats`, `sibling_enroll`, `sibling_seats`, `class_median`, `level_median`, and `none`; raw
+values remain.
 
-`section_enrollment` uses the full valid 2024+ section spine. Assignment precedence is:
+## Pricing, cost, and NULL semantics
 
-1. own enrollment;
-2. own `seats_taken < 9999`;
-3. course × period median enrollment;
-4. course × period median usable seats;
-5. control × level × period median enrollment;
-6. level × period median enrollment;
-7. otherwise NULL with source `none`.
-
-Medians use the four BMG course levels and exact six-sector reference population above and are
-rounded to integers. `enrollment_source` is `own`, `own_seats`, `sibling_enroll`,
-`sibling_seats`, `class_median`, `level_median`, or `none`; raw values remain available.
-
-## 5. Pricing and cost semantics
-
-`material_costs` joins:
-
-```sql
-FROM course_materials_use cm
-LEFT JOIN pricing_wide pw
-  ON cm.section_id = pw.section_id
- AND CAST(cm.isbn13 AS VARCHAR) = pw.isbn13
-```
-
-This exact match is incomplete and intentionally unchanged. Any broader matching strategy is
-unimplemented.
+`material_costs` LEFT joins `course_materials_use` to `pricing_wide` on exact `section_id` and cast `isbn13`; broader matching is unimplemented.
 
 | Field | Meaning |
 |---|---|
-| `format_count` | Distinct offered option × condition × format tuples for buy/rental, regardless of price validity. |
-| `has_buy`, `has_rent` | Option presence, not proof of a valid price. |
-| `price_min`, `price_max` | Bounds across valid prices; values `>= 9999` are treated as sentinels and nulled. |
-| `price_avg` | Item-level legacy midpoint `(price_min + price_max) / 2.0`, not arithmetic mean; the same item midpoint is carried into `material_costs`. |
-| `*_cost_avg` on `master_section` | Section-level midpoint `(section min + section max) / 2.0`, not an item average. |
-| `*_cost_avg` on `master_course` | Arithmetic `AVG` of the corresponding section midpoints across the course's sections; it is not the midpoint of course-level bounds. |
-| `*_cost_total_*` | Sums of per-ISBN bounds across priced Use items, split by inferred required status. |
-| `*_cost_owned_*` | Buy-only bounds; rental-only items may have total-price coverage but NULL owned cost. |
-| `rental_days_min/max` | Rental-term range. Wide cells use `MAX(price)` across terms; use `pricing_historical` for per-term analysis. |
-| `has_pricing_match` | Exact section × ISBN pricing row exists. It does not imply any valid price cell. |
+| `format_count` | Distinct buy/rental option×condition×format tuples, regardless of price validity. |
+| `has_buy`, `has_rent` | Option presence, not valid-price proof. |
+| `price_min/max` | Bounds across valid prices; `>=9999` sentinels become NULL. |
+| `price_avg` | Legacy item midpoint `(min+max)/2`, not arithmetic mean; carried to `material_costs`. |
+| `*_cost_avg` | Section midpoint; `master_course` uses arithmetic AVG of section midpoints, not course-bound midpoint. |
+| `*_cost_total_*` / `*_cost_owned_*` | Per-ISBN bounds across priced Use items / buy-only cells, split by inferred required status. |
+| `rental_days_min/max` | Term range; wide cells use `MAX(price)` across terms; use `pricing_historical` per term. |
+| `has_pricing_match` | Exact section×ISBN row exists; does not imply a valid price. |
 
-## 6. NULL, dedupe, and DQ invariants
+- NULL IPEDS means no matched metadata; NULL OER/IA means absent or unclassifiable FormatType.
+- NULL pricing means no match or valid price; distinguish with `has_pricing_match`.
+- NULL cost means no valid bound, never zero.
+- Catalog representative selection is deterministic; conflict evidence is retained and pricing never supplies catalog metadata.
+- Rental multiplicity is valid in historical and collapses only in wide.
+- DQ proves raw/canonical conservation, key uniqueness, Use/NoUse partition, mailing reconciliation, and `course_materials_use`→`material_costs` keys.
 
-- NULL IPEDS fields mean no matched institution metadata; they are not zeros or categories.
-- NULL OER/IA means FormatType was absent/unclassifiable; do not silently recode it to false when
-  reporting classification rates.
-- NULL pricing fields in `material_costs` mean no matched value or valid price. Distinguish no
-  exact match (`has_pricing_match=FALSE`) from a matched row with NULL price cells. Neither means
-  zero cost.
-- NULL cost on `master_section` means no valid bound, not zero cost or no adoption.
-- Catalog canonicalization uses a deterministic representative. Counts and conflict flags retain
-  title, author, publisher, imprint, format, FormatType, status, contact, and population
-  disagreements; canonical catalog metadata never comes from pricing.
-- Pricing dedupe follows the three import stages in section 2. Rental-term multiplicity is valid
-  in `pricing_historical` and collapses only in `pricing_wide`.
-- DQ must prove raw-to-canonical conservation, canonical key uniqueness, Use-key conservation,
-  Use/NoUse partition validity, geographic mailing reconciliation, and key conservation from
-  `course_materials_use` through `material_costs`.
+## Denominators, samples, and change control
 
-## 7. Denominators and reporting
-
-Every percentage or crosstab states its grain and denominator:
-
-| Analysis | Required denominator |
+| Analysis | Denominator |
 |---|---|
-| Raw catalog coverage | Labeled catalog rows or distinct section IDs from `comprehensive_data`. |
-| Complete section/enrollment coverage | `section_enrollment`, including no-ISBN/no-adoption sections. |
-| Release item/pricing coverage | Canonical Use keys in `material_costs`; report exact-match and valid-price coverage separately, and total-price versus buy-only coverage separately. |
-| Section cost | Selected material-bearing `master_section` rows, including sections with no valid price. |
-| OER/IA | Named Use item or material-bearing section slice; report `has_formattype` classifiability. |
-| Enrollment weighted | State raw versus `enrollment_assigned` and report the `enrollment_source` mix. |
-| Institution | Material-bearing `master_section` rows in each term × unit; NULL unit remains an explicit unknown bucket. |
-| ISBN | Deduplicated `material_costs` section × ISBN keys; price-cell counts are distinct sections. |
+| Raw catalog | Labeled catalog rows or distinct sections in `comprehensive_data`. |
+| Complete sections | `section_enrollment`, including no-ISBN/no-adoption. |
+| Release item/pricing | Canonical Use keys in `material_costs`; separate exact-match, valid-price, total-price, and buy-only coverage. |
+| Section cost | Selected material-bearing `master_section`, including unpriced sections. |
+| OER/IA | Named Use item or material-bearing section slice; report `has_formattype`. |
+| Enrollment weighted | Raw vs `enrollment_assigned` and `enrollment_source` mix. |
+| Institution | Material-bearing sections by term×unit; NULL unit is explicit. |
+| ISBN | Deduplicated `material_costs` section×ISBN; price-cell counts are distinct sections. |
 
-Metabase must route release-facing item analyses to `material_costs`, release-facing section
-analyses to `master_section`, and complete-population diagnostics to `comprehensive_data` or
-`section_enrollment` with the broader denominator labeled.
+Metabase routes item analyses to `material_costs`, section analyses to `master_section`, and complete-population diagnostics to `comprehensive_data`/`section_enrollment` with denominator labeled. The stable 10% sample hashes `section_id` with unsigned first-64-bit MD5 modulo 10, bucket zero (`md5-prefix64-mod10-v1`), joins `sample10_section_ids` at each stage, and expands only additive section-cluster totals; not distinct institution/ISBN domains.
 
-The stable 10% sample is selected from all `section_enrollment` rows by unsigned first-64-bit
-MD5 of `section_id` modulo 10, bucket zero (`md5-prefix64-mod10-v1`). Join the single
-`sample10_section_ids` membership back to each stage; do not resample per query. Only additive
-section-cluster totals may be expanded by ten; distinct institution or ISBN domains may not.
+Pending boundaries: Spring 2026 materials, updated IPEDS, additional-term pricing, BVA history (#56), authoritative Supplies, external pricing, discipline, later campus IA, bookstore-brand, and 25-institution package.
 
-## 8. Pending inputs and change control
-
-The following are boundaries, not current facts: Spring 2026 BMG course materials; an updated IPEDS
-snapshot; additional-term BMG pricing; updated BVA mailing history (issue #56); authoritative CMM
-Supplies; external pricing; discipline lookup; later campus-level IA data; and the shared
-25-institution review package. The current mailing branch uses the existing `panel_email` snapshot.
-The Fall 2025 bookstore-brand lookup is also pending; when received, it will enrich approved release
-records without reverse-enriching raw pricing. The pricing table is rebuilt to the latest row per
-logical key and is not a cross-snapshot history store.
-
-Before using new inputs, record source identity and dates, verify schemas and term mappings, rerun
-grain/conservation/coverage checks, and resolve any source-specific join policy. The meaning and
-label of owned cost remains an unresolved decision (#26); do not present it as resolved until SQL
-and schema change.
-
-When this document disagrees with executable SQL, SQL output and the authoritative schema win.
-Record and correct the documentation discrepancy; never silently change a denominator or release
-population.
+- Current mailing uses `panel_email`; pricing is latest-per-key within the configured snapshot, not cross-snapshot history.
+- New inputs require identity/date, schema and term checks, grain/conservation/coverage validation, and source-specific join policy.
+- Owned-cost meaning remains unresolved (#26). SQL and authoritative schema win conflicts; document discrepancies rather than silently changing populations.
 
 ## Detail pages
 

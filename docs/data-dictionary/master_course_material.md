@@ -15,16 +15,16 @@ notion-sync: push
 
 | Column | Type | Example / structure | Direct upstream source / derivation | Description |
 |---|---|---|---|---|
-| `course_id` | `varchar` | `unit_id::department-code::course-number` composite | Group key from `material_costs.course_id`. SQL filters `course_id IS NOT NULL` before grouping. | Stable identifier for the institution-level course offering. |
-| `period` | `varchar` | Academic term label such as `Fall 2024` | Group key from `material_costs.period`. SQL groups missing source values together. | Human-readable academic term label from the source. |
-| `period_sortable` | `varchar` | `YYYY-N`; 1=Winter, 2=Spring, 3=Summer, 4=Fall | Group key from `material_costs.period_sortable`. SQL filters `period_sortable IS NOT NULL` before grouping. | Sortable academic term code used for chronological ordering. |
-| `period_date` | `date` | Canonical date: YYYY-01-01, YYYY-04-01, YYYY-07-01, or YYYY-10-01 | Group key from `material_costs.period_date`. SQL groups missing source values together. | Canonical starting date assigned to the academic term. |
-| `school` | `varchar` | Institution-name text; source spelling and casing retained | Group key from `material_costs.school`. SQL groups missing source values together. | Institution or school name attached to the course. |
-| `department` | `varchar` | Academic department label, such as `Biology` | Group key from `material_costs.department`. SQL groups missing source values together. | Academic department responsible for the course. |
-| `course_number` | `varchar` | Source course number; leading zeros and suffixes retained | Group key from `material_costs.course_number`. SQL groups missing source values together. | Catalog number identifying the course within its department. |
-| `course_title` | `varchar` | Course title text; source punctuation and casing retained | Group key from `material_costs.course_title`. SQL groups missing source values together. | Official title assigned to the course. |
-| `publisher` | `varchar` | Publisher-name text; original spelling and casing retained | Group key from `material_costs.publisher`. SQL filters `publisher IS NOT NULL` before grouping. | Publisher credited for the adopted course material. |
-| `book_status` | `varchar` | Lowercase `required`, `recommended`, `option`, or missing status | Group key from `material_costs.book_status`. SQL groups missing source values together. | Adoption priority assigned to the course material. |
-| `material_instances` | `bigint` | Non-negative whole-number count | `COUNT(*)` over grouped material items. | Canonical material occurrences within the course group. |
-| `sections_using` | `bigint` | Non-negative whole-number count | `COUNT(DISTINCT section_id)` over grouped material items. | Distinct course sections using the grouped material. |
-| `total_seats_affected` | `hugeint` | Sum of reported occupied seats; source noise may propagate | `SUM(seats_taken)` over grouped material items. | Reported occupied seats across sections using the material. |
+| `course_id` | `varchar` | `unit_id::department-code::course-number` composite | `material_costs.course_id` group key. SQL filters `course_id IS NOT NULL` before grouping. | Stable identifier for the institution-level course offering. |
+| `period` | `varchar` | Academic term label such as `Fall 2024` | `material_costs.period` group key. SQL groups missing source values together. | Human-readable academic term label from the source. |
+| `period_sortable` | `varchar` | `YYYY-N`; 1=Winter, 2=Spring, 3=Summer, 4=Fall | `material_costs.period_sortable` group key. SQL filters `period_sortable IS NOT NULL` before grouping. | Sortable academic term code used for chronological ordering. |
+| `period_date` | `date` | Canonical date: YYYY-01-01, YYYY-04-01, YYYY-07-01, or YYYY-10-01 | `material_costs.period_date` group key. SQL groups missing source values together. | Canonical starting date assigned to the academic term. |
+| `school` | `varchar` | Institution name; source spelling/casing retained | `material_costs.school` group key. SQL groups missing source values together. | Institution or school name attached to the course. |
+| `department` | `varchar` | Academic department, such as `Biology` | `material_costs.department` group key. SQL groups missing source values together. | Academic department responsible for the course. |
+| `course_number` | `varchar` | Source course number; zeros/suffixes retained | `material_costs.course_number` group key. SQL groups missing source values together. | Catalog number identifying the course within its department. |
+| `course_title` | `varchar` | Course title; source punctuation/casing retained | `material_costs.course_title` group key. SQL groups missing source values together. | Official title assigned to the course. |
+| `publisher` | `varchar` | Publisher name; original spelling/casing retained | `material_costs.publisher` group key. SQL filters `publisher IS NOT NULL` before grouping. | Publisher credited for the adopted course material. |
+| `book_status` | `varchar` | Lowercase `required`, `recommended`, `option`, or missing status | `material_costs.book_status` group key. SQL groups missing source values together. | Adoption priority assigned to the course material. |
+| `material_instances` | `bigint` | Non-negative whole-number count | `COUNT(*)` over grouped items. | Canonical material occurrences within the course group. |
+| `sections_using` | `bigint` | Non-negative whole-number count | `COUNT(DISTINCT section_id)` over grouped items. | Distinct course sections using the grouped material. |
+| `total_seats_affected` | `hugeint` | Sum of reported occupied seats; source noise may propagate | `SUM(seats_taken)` over grouped items. | Reported occupied seats across sections using the material. |

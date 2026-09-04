@@ -1,6 +1,6 @@
 -- name: FormatType Coverage by Course Level and Period (Filtered)
 -- display: table
--- description: FormatType null coverage grouped by course level and period (canonical Use materials, inferred-required only)
+-- description: Canonical inferred-required items, by FormatType coverage, level, and term. FormatType null coverage grouped by course level and period (canonical Use materials, inferred-required only)
 
 SELECT
     c.course_level,

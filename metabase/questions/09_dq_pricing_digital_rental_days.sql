@@ -1,6 +1,6 @@
 -- name: DQ — Digital Rental Days Consistency
 -- display: bar
--- description: Within (section, isbn) digital rental groups: all-NULL and all-set are consistent (benign); mixed is real DQ (~0.04% of pairs).
+-- description: Raw digital rentals grouped by section/ISBN; mixed NULL terms flagged. Within (section, isbn) digital rental groups: all-NULL and all-set are consistent (benign); mixed is real DQ (~0.04% of pairs).
 
 SELECT metric_name, metric_value
 FROM __data_quality_metrics

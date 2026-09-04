@@ -1,5 +1,12 @@
 # CommodoreSQL — Project Conventions
 
+## Documentation style
+
+- Use exact table/view names in diagrams; put logic below them.
+- State shared rules once. Cut repeated introductions, aliases, and qualifications.
+- Preserve fields, filters, grains, and export/report inventories when shortening.
+- Edit generated wording at its source; regenerate and verify Notion tables.
+
 ## Documentation hierarchy
 
 - `SCHEMA.md` — current data model overview (tables, pipeline stages, lineage diagram)

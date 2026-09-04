@@ -1,6 +1,6 @@
 -- name: DQ — Pricing Dedupe Stages
 -- display: bar
--- description: Row counts at each dedupe stage in the pricing import (raw → byte-identical → multi-instructor → most-recent snapshot → final)
+-- description: Raw pricing rows through successive deduplication stages. Row counts at each dedupe stage in the pricing import (raw → byte-identical → multi-instructor → most-recent snapshot → final)
 
 SELECT metric_name, metric_value
 FROM __data_quality_metrics

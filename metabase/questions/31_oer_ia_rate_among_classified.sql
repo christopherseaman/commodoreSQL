@@ -1,6 +1,6 @@
 -- name: OER/IA Rate Among Classified Materials (2024+)
 -- display: line
--- description: OER/IA as a share of canonical Use materials that HAVE a FormatType classification (denominator excludes unclassified).
+-- description: Canonical Use items with FormatType; unclassified items excluded. OER/IA as a share of canonical Use materials that HAVE a FormatType classification (denominator excludes unclassified).
 
 SELECT
     period_date,

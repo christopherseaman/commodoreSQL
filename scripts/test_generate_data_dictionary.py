@@ -512,6 +512,12 @@ class DataDictionaryTest(unittest.TestCase):
             untouched = docs / "ipeds_data.md"
             self.assertFalse(untouched.read_text(encoding="utf-8").startswith("---"))
 
+    def test_notion_cells_do_not_contain_pipe_separators(self) -> None:
+        # Notion splits even escaped pipes into extra table cells.
+        for relation, body in self.docs.items():
+            with self.subTest(relation=relation):
+                self.assertNotIn(r"\|", body)
+
     def test_unrecognized_stale_markdown_is_not_deleted(self) -> None:
         with tempfile.TemporaryDirectory() as temporary_directory:
             root = Path(temporary_directory)

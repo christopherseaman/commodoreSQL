@@ -1,6 +1,6 @@
 -- name: Fall 2025 — OER/IA Adoption & Material Coverage by Control x Level x Set
 -- display: table
--- description: Per-section tally over material-bearing Master Section rows in the Fall-2025 BMG scope, showing OER/IA adoption, material load, and ISBN/FormatType coverage by institution control × level × A/B set. Rates are unweighted retained-section shares and *_count_avg columns are unweighted item counts per retained section. Set B is optional-only by definition; all rows carry at least one canonical material_costs item. Treat small institution-class cells as statistically noisy.
+-- description: Fall-2025 BMG-scope material-bearing sections; unweighted section shares/item counts. Per-section tally over material-bearing Master Section rows in the Fall-2025 BMG scope, showing OER/IA adoption, material load, and ISBN/FormatType coverage by institution control × level × A/B set. Rates are unweighted retained-section shares and *_count_avg columns are unweighted item counts per retained section. Set B is optional-only by definition; all rows carry at least one canonical material_costs item. Treat small institution-class cells as statistically noisy.
 WITH scope AS (
   SELECT * FROM master_section
   WHERE period_sortable = '2025-4'

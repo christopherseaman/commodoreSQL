@@ -1,6 +1,6 @@
 -- name: FormatType Classification Coverage Over Time (2024+)
 -- display: line
--- description: Share of canonical deduplicated material_costs items that carry a FormatType (and are thus OER/IA-classifiable). Pair with "OER/IA Rate Among Classified Materials".
+-- description: All canonical material_costs items; fraction with FormatType. Share of canonical deduplicated material_costs items that carry a FormatType (and are thus OER/IA-classifiable). Pair with "OER/IA Rate Among Classified Materials".
 
 SELECT
     period_date,

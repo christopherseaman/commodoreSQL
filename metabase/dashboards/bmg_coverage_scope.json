@@ -2,7 +2,7 @@
   {
     "__meta__": {
       "name": "BMG Coverage & Scope",
-      "description": "Current snapshot coverage map from BMG source observations through canonical Course Materials, enrollment, pricing, and release populations. The Term filter defaults to the current snapshot term (2025-4) and applies to all 14 cards; card descriptions identify each source or canonical grain and denominator.",
+      "description": "Current snapshot: raw source, canonical-item, full-section, and retained-release denominators. Current snapshot coverage map from BMG source observations through canonical Course Materials, enrollment, pricing, and release populations. The Term filter defaults to the current snapshot term (2025-4) and applies to all 14 cards; card descriptions identify each source or canonical grain and denominator.",
       "parameters": [
         { "name": "Term", "slug": "period_sortable", "default": "2025-4" }
       ]

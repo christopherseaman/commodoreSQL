@@ -1,7 +1,7 @@
 [
   { "__meta__": {
       "name": "Data Lineage — by School",
-      "description": "Walk one school's records through the selected teaching path: raw catalog, merged catalog, all raw pricing, pricing wide, section cost, Master Section, and Master Course. This dashboard is not the complete executable lineage: it omits the Course Materials Use/NoUse views, section_enrollment, material_costs, mailing/DQ branches, other master rollups, and file exports. The canonical execution and export diagrams are in repository SCHEMA.md. Set the School (unit_id) filter. Examples: 100937 Birmingham-Southern, 110404 Caltech, 112251 Claremont Graduate, 114433 Feather River CC, 115409 Harvey Mudd.",
+      "description": "Selected-school teaching path; not complete executable lineage. Walk one school's records through the selected teaching path: raw catalog, merged catalog, all raw pricing, pricing wide, section cost, Master Section, and Master Course. This dashboard is not the complete executable lineage: it omits the Course Materials Use/NoUse views, section_enrollment, material_costs, mailing/DQ branches, other master rollups, and file exports. The canonical execution and export diagrams are in repository SCHEMA.md. Set the School (unit_id) filter. Examples: 100937 Birmingham-Southern, 110404 Caltech, 112251 Claremont Graduate, 114433 Feather River CC, 115409 Harvey Mudd.",
       "parameters": [
         { "name": "School (unit_id)", "slug": "unit_id", "type": "string/=", "default": "115409" }
       ]

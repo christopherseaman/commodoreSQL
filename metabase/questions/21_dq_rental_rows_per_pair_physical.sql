@@ -1,6 +1,6 @@
 -- name: DQ — Raw Physical Rental Rows per (Section × Item)
 -- display: bar
--- description: Histogram of raw vendor physical rental rows per (section, isbn) pair across all pricing data. X = rows per pair; Y = number of pairs. No catalog-derived inferred-required or canonical-Use filter is applied.
+-- description: All raw physical rentals, counting rows per section/ISBN pair. Histogram of raw vendor physical rental rows per (section, isbn) pair across all pricing data. X = rows per pair; Y = number of pairs. No catalog-derived inferred-required or canonical-Use filter is applied.
 
 WITH counts_per_pair AS (
     SELECT section_id, isbn13,

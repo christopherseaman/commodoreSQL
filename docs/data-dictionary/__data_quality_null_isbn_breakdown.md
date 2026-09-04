@@ -15,7 +15,7 @@ notion-sync: push
 
 | Column | Type | Example / structure | Direct upstream source / derivation | Description |
 |---|---|---|---|---|
-| `school` | `varchar` | Institution-name text; source spelling and casing retained | Group key from `comprehensive_data.school` in `2d_data_quality.sql`. | Institution or school name attached to the course. |
+| `school` | `varchar` | Institution name; source spelling/casing retained | Group key from `comprehensive_data.school` in `2d_data_quality.sql`. | Institution or school name attached to the course. |
 | `no_book_details` | `bigint` | Title = "*No Book Details*" — non-classroom (research, dissertation, independent study) | `COUNT(*) FILTER (WHERE comprehensive_data.Title='*No Book Details*')` in `2d_data_quality.sql`. | NULL-ISBN rows carrying the No Book Details marker. |
 | `no_books_required` | `bigint` | Title = "*No Books Required*" — explicit "no textbook required" marker | `COUNT(*) FILTER (WHERE comprehensive_data.Title='*No Books Required*')` in `2d_data_quality.sql`. | NULL-ISBN rows carrying the No Books Required marker. |
 | `bad_course` | `bigint` | Title = "*Bad Course*" — explicit DQ flag from source | `COUNT(*) FILTER (WHERE comprehensive_data.Title='*Bad Course*')` in `2d_data_quality.sql`. | NULL-ISBN rows carrying the Bad Course marker. |

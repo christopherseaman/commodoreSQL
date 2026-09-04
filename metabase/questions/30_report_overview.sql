@@ -1,6 +1,6 @@
 -- name: Report — Section / OER / IA Overview
 -- display: table
--- description: Material-bearing sections and institutions, with canonical-Use OER/IA adoption, over the selected filters. Material status optionally restricts to sections carrying a matching material_costs item. Filters live on the dashboard.
+-- description: Material-bearing sections/institutions under selected report filters. Material-bearing sections and institutions, with canonical-Use OER/IA adoption, over the selected filters. Material status optionally restricts to sections carrying a matching material_costs item. Filters live on the dashboard.
 
 SELECT
     COUNT(*) AS sections,

@@ -1,41 +1,26 @@
 # HANDOFF — CommodoreSQL
 
-Pickup state as of **2026-09-01**; GitHub Issues and Project 2 are the backlog of record.
+State: 2026-09-01. Backlog: GitHub Issues / Project 2.
 
 ## Repository state
 
 - Branch: **`cmm-spring-2026`**
-- PR: **[#62](https://github.com/christopherseaman/commodoreSQL/pull/62)** is open, non-draft, and mergeable.
-- Executable SQL and the database baseline were audited at **`62479bf`**; later commits on this branch may be documentation-only.
-- Local inputs and `duckdb/commodore.duckdb` end at **Fall 2025 (`2025-4`)**.
-- Current-input implementation is complete; no Spring 2026 data or pending lookup has landed.
+- PR: [#62](https://github.com/christopherseaman/commodoreSQL/pull/62), open/non-draft.
+- SQL/database audited at `62479bf`; later documentation edits do not validate new data.
+- Inputs and `duckdb/commodore.duckdb` end at Fall 2025 (`2025-4`).
+- Current-input implementation complete. Spring 2026 and pending lookups remain absent.
 
 ## Current implementation
 
-The repository now has one canonical course-material flow:
+- `material_costs`: canonical Use items LEFT-enriched by exact section × ISBN pricing.
+- `section_enrollment`: complete section population and assigned enrollment.
+- `current_mailing`: latest contacts, 12-term window, history, minus opt-outs.
 
-```text
-comprehensive_data
-  -> course_materials + section_enrollment
-  -> material_costs <- pricing_wide
-  -> section_cost
-  -> master_section / master_institution / master_isbn
-```
-
-`course_materials` is the canonical catalog item spine; `material_costs` is its Use
-population with LEFT exact section×ISBN pricing enrichment. Pricing remains source-owned;
-`section_enrollment` owns the complete section population and assigned enrollment.
-
-Mailing routes from normalized inputs to `master_mailing`; `current_mailing` applies history,
-the 12-period window, and opt-outs. See [`MAILING-FLOW.md`](MAILING-FLOW.md).
-
-Detailed contracts: [`COURSE-MATERIAL-POPULATIONS.md`](COURSE-MATERIAL-POPULATIONS.md),
-[`PRICING-CATALOG-MATCHING.md`](PRICING-CATALOG-MATCHING.md), [`SCHEMA.md`](SCHEMA.md),
-[`CMM-ETL.md`](CMM-ETL.md), and [`DATA-DICTIONARY.md`](DATA-DICTIONARY.md).
+[Flow](CMM-DATA-FLOW.md) · [ETL rules](CMM-ETL.md) · [Dictionary](DATA-DICTIONARY.md)
 
 ## Validation baseline
 
-The current database passed the implemented raw→canonical→release reconciliation:
+Raw → canonical → release reconciliation passed:
 
 - `comprehensive_data`: **102,885,609** enriched source rows
 - `course_materials`: **96,663,781** canonical groups/audit rows
@@ -45,28 +30,22 @@ The current database passed the implemented raw→canonical→release reconcilia
   **2,216** Master Institution, and **335,157** Master ISBN rows
 - Raw conservation, release/key-set, price-cell, mailing, and partition checks passed.
 
-These values validate only the current inputs through `2025-4`.
+## Next release
 
-## Immediate merge and release actions
+1. Human review/merge PR #62 and Review → Done transition.
+2. Obtain pending inputs; validate schemas/terms; update `scripts/dot.env`.
+3. Stop Metabase, rebuild with bounded resources, validate, restart.
+4. Regenerate exports; verify keys/counts before delivery.
 
-1. Review and merge PR #62; the human owns the project’s Review → Done transition.
-2. Obtain and inventory the external inputs below before a Spring 2026 rebuild.
-3. Update `CSV_DATE` and paths in `scripts/dot.env`; validate source schemas and periods.
-4. Stop Metabase, run with bounded memory/temp space, validate, then restart it.
-5. Regenerate release files and verify their keys/counts before delivery.
-
-**Do not release the ignored `output/` artifacts.** They date from 2026-08-27, predate
-the current canonical rebuild, and are not validation evidence. Regenerate them.
+**Do not release `output/`: its 2026-08-27 artifacts predate the validated rebuild.**
 
 ## Open work
 
 ### Actionable now: #21
 
-[#21](https://github.com/christopherseaman/commodoreSQL/issues/21) must define a source-aware
-catalog/pricing section crosswalk while preserving `Section`, `Section Code`, and `CRN`.
-Promote only unambiguous matches; retain/count collisions and never globally strip padding.
-Then update match evidence, required inference, DQ, impacts, and documentation. Current
-behavior remains exact section×ISBN; see [`PRICING-CATALOG-MATCHING.md`](PRICING-CATALOG-MATCHING.md).
+[#21](https://github.com/christopherseaman/commodoreSQL/issues/21): define the source-aware
+section crosswalk; preserve raw identifiers, reject ambiguous matches, and measure impacts.
+Exact matching remains active. [Evidence and constraints](PRICING-CATALOG-MATCHING.md).
 
 ### External blockers
 
@@ -81,12 +60,12 @@ behavior remains exact section×ISBN; see [`PRICING-CATALOG-MATCHING.md`](PRICIN
 
 ### Held decision: #26
 
-[#26](https://github.com/christopherseaman/commodoreSQL/issues/26) requires a PI decision:
-all required materials or the current buy-priced subset, plus approved labels. Do not change it.
+[#26](https://github.com/christopherseaman/commodoreSQL/issues/26): PI must choose all required
+materials or the current buy-priced subset and labels. Do not change it.
 
 ## Essential commands
 
-Read-only query with bounded resources:
+Read-only query:
 
 ```bash
 duckdb -readonly duckdb/commodore.duckdb <<'SQL'
@@ -104,8 +83,7 @@ scripts/export_cmm_masters.sh 2025-4
 scripts/export_course_materials.sh 20260901 2025-4
 ```
 
-Metabase holds the database write lock. Stop it before DB writes and restart it
-afterward:
+Stop Metabase before database writes; restart afterward:
 
 ```bash
 docker stop metabase
@@ -113,5 +91,4 @@ MEM_LIMIT=16GB NUM_THREADS=1 scripts/run_sql.sh
 docker start metabase
 ```
 
-Preview Metabase config with `python3 metabase/sync.py --dry-run`. For detail, use
-`SCHEMA.md`, `CMM-ETL.md`, `DATA-DICTIONARY.md`, and `DASHBOARDS-REPORTS.md`.
+Metabase preview: `python3 metabase/sync.py --dry-run`.

@@ -1,6 +1,6 @@
 -- name: DQ — Critical Metrics (should be 0)
 -- display: table
--- description: Headline indicators that must remain at 0. Non-zero values here mean a regression in dedupe, pivot, or classification logic.
+-- description: Pricing grain/pivot/price-bound and catalog classification regression checks. Headline indicators that must remain at 0. Non-zero values here mean a regression in dedupe, pivot, or classification logic.
 
 SELECT category, check_id, metric_name, metric_value
 FROM __data_quality_metrics

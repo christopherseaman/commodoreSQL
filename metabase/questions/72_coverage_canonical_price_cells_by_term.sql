@@ -1,6 +1,6 @@
 -- name: Coverage & Scope — Canonical Price Cells by Term
 -- display: table
--- description: Current-snapshot price-cell coverage from canonical master_isbn term × ISBN rows. The 18 option × condition × format section-count cells are summed once per term and then normalized; canonical_section_item_occurrences = SUM(section_id_count) is the denominator, isbn_count is the number of canonical ISBN rows, and price_cell_occurrence_count can overlap across cells for the same section × ISBN. This is a canonical retained Use population, not raw pricing_historical observations.
+-- description: Canonical term/ISBN rollups; section-item occurrences denominator, overlapping price cells. Current-snapshot price-cell coverage from canonical master_isbn term × ISBN rows. The 18 option × condition × format section-count cells are summed once per term and then normalized; canonical_section_item_occurrences = SUM(section_id_count) is the denominator, isbn_count is the number of canonical ISBN rows, and price_cell_occurrence_count can overlap across cells for the same section × ISBN. This is a canonical retained Use population, not raw pricing_historical observations.
 
 WITH term_totals AS (
     SELECT

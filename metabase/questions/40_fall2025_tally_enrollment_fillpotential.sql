@@ -1,6 +1,6 @@
 -- name: Fall 2025 — Enrollment Missingness & Fill-Potential by Control × Level × Set
 -- display: table
--- description: Per-section tally over the material-bearing Fall-2025 Master Section BMG scope, showing enrollment coverage and fill-potential by institution control × level × A/B set (A = >=1 required item, B = optional-only). Enrollment signals originate from the complete section_enrollment population, but this card's section denominator is narrowed to retained material-bearing sections. The three fill signals overlap, so missing_w_* do not sum to missing; unfillable is missing minus their union.
+-- description: Fall-2025 BMG-scope material-bearing sections; overlapping enrollment-fill signals. Per-section tally over the material-bearing Fall-2025 Master Section BMG scope, showing enrollment coverage and fill-potential by institution control × level × A/B set (A = >=1 required item, B = optional-only). Enrollment signals originate from the complete section_enrollment population, but this card's section denominator is narrowed to retained material-bearing sections. The three fill signals overlap, so missing_w_* do not sum to missing; unfillable is missing minus their union.
 WITH scope AS (
   SELECT * FROM master_section
   WHERE period_sortable = '2025-4'

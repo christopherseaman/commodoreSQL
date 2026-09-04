@@ -1,6 +1,6 @@
 -- name: Fall 2025 — UNITID × Bookstore URL Mapping
 -- display: table
--- description: One row per distinct nonblank UNITID/bookstore URL pair from all imported Fall 2025 BMG pricing rows. No required or inferred-required filter is applied. Multiple bookstore URLs for one UNITID remain separate; values are trimmed but otherwise source-preserved.
+-- description: All raw Fall-2025 pricing; distinct nonblank institution/bookstore-URL pairs. One row per distinct nonblank UNITID/bookstore URL pair from all imported Fall 2025 BMG pricing rows. No required or inferred-required filter is applied. Multiple bookstore URLs for one UNITID remain separate; values are trimmed but otherwise source-preserved.
 
 SELECT DISTINCT
     unit_id,

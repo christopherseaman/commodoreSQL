@@ -15,6 +15,6 @@ notion-sync: push
 
 | Column | Type | Example / structure | Direct upstream source / derivation | Description |
 |---|---|---|---|---|
-| `school` | `varchar` | Institution-name text; source spelling and casing retained | Group key from `comprehensive_data.school` in `2d_data_quality.sql`. | Institution or school name attached to the course. |
+| `school` | `varchar` | Institution name; source spelling/casing retained | Group key from `comprehensive_data.school` in `2d_data_quality.sql`. | Institution or school name attached to the course. |
 | `unit_id` | `bigint` | IPEDS institution identifier | Group key from `comprehensive_data.unit_id` in `2d_data_quality.sql`. | IPEDS institution identifier used throughout the pipeline. |
 | `catalog_rows` | `bigint` | Non-negative whole-number count | `COUNT(*)` of filtered `comprehensive_data` rows in `2d_data_quality.sql`. | Catalog rows included in the unmatched-school diagnostic. |

@@ -1,23 +1,18 @@
 # CommodoreSQL
 
-CommodoreSQL is a DuckDB pipeline for course-material analysis and mailing-list production.
-It combines BMG and BVA inputs with IPEDS metadata and a Metabase reporting layer.
+DuckDB pipeline for course materials, pricing, mailing, and Metabase reports.
 
 ## Documentation
 
-- [`HANDOFF.md`](HANDOFF.md) — current branch, release state, blockers, and pickup steps
-- [`SCHEMA.md`](SCHEMA.md) — execution order, relations, and data lineage
-- [`CMM-ETL.md`](CMM-ETL.md) — release-facing processing contract
-- [`DATA-DICTIONARY.md`](DATA-DICTIONARY.md) — authoritative relation and column dictionary
-- [`schema.dbml`](schema.dbml) — canonical machine-readable schema
-- [`DASHBOARDS-REPORTS.md`](DASHBOARDS-REPORTS.md) — Metabase inventory
-- [`COURSE-MATERIAL-POPULATIONS.md`](COURSE-MATERIAL-POPULATIONS.md) — population and denominator guide
-- [`MAILING-FLOW.md`](MAILING-FLOW.md) — mailing Master, Working, and export flow
-- [`PRICING-CATALOG-MATCHING.md`](PRICING-CATALOG-MATCHING.md) — pricing/catalog identity limitation
+- [Data flow](CMM-DATA-FLOW.md)
+- [ETL rules](CMM-ETL.md) · [Schema](SCHEMA.md) · [DBML](schema.dbml)
+- [Data dictionary](DATA-DICTIONARY.md) · [Reports](DASHBOARDS-REPORTS.md)
+- [Material populations](COURSE-MATERIAL-POPULATIONS.md) · [Mailing](MAILING-FLOW.md) · [Pricing mismatch](PRICING-CATALOG-MATCHING.md)
+- [Status and next steps](HANDOFF.md)
 
 ## Inputs and configuration
 
-Source files live under `data/<date>/`; configure paths and runtime settings in `scripts/dot.env`.
+Files: `data/<date>/`. Configuration: `scripts/dot.env`.
 
 | Owner | Input | Imported relation |
 |---|---|---|
@@ -34,31 +29,12 @@ Source files live under `data/<date>/`; configure paths and runtime settings in 
 scripts/run_sql.sh
 ```
 
-The runner loads `scripts/dot.env`, applies `envsubst` to SQL, and runs IMPORT, EDA/model,
-and EXPORT against `MAIN_DB`. Set `NO_IMPORT=1`, `NO_EDA=1`, or `NO_EXPORT=1` to
-skip a stage. The pipeline drops and recreates managed relations, so it is re-runnable.
+Loads `scripts/dot.env`, templates SQL, and rebuilds managed relations in `MAIN_DB`.
+Skip stages with `NO_IMPORT=1`, `NO_EDA=1`, or `NO_EXPORT=1`.
 
 ```bash
 NO_IMPORT=1 NO_EXPORT=1 scripts/run_sql.sh  # run EDA + models from existing import state
 ```
-
-## Relation flow
-
-```text
-source CSVs
-  -> comprehensive_data
-  -> course_materials + section_enrollment
-  -> course_materials_use -> material_costs
-  -> pricing_historical -> pricing_wide -> material_costs
-  -> section_cost
-  -> master_section / master_institution / master_isbn
-
-course-material source -> master_mailing -> current_mailing -> geographic exports
-```
-
-`course_materials` is the canonical catalog item spine; `material_costs` left-enriches its
-Use items with exact section×ISBN pricing. `section_enrollment` owns the complete section
-population, while the three master relations are material-bearing release rollups.
 
 ## Release exports
 
@@ -69,10 +45,10 @@ scripts/export_course_materials.sh 20260901
 scripts/export_course_materials.sh 20260901 2025-4
 ```
 
-CMM files go under `output/cmm/`; Course Materials files go under `output/course_materials/`.
-Both are configurable, and the Course Materials exporter refuses to overwrite files.
+Default destinations: `output/cmm/` and `output/course_materials/`.
+Course Materials exports refuse overwrites.
 
 ## Metabase
 
-Questions, models, dashboards, and IDs live under `metabase/`. Preview with
-`python3 metabase/sync.py --dry-run`; `./metabase.sh` recreates the read-only service.
+Config: `metabase/`. Preview: `python3 metabase/sync.py --dry-run`.
+`./metabase.sh` recreates the read-only service.

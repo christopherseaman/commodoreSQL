@@ -4,16 +4,13 @@ notion-url: https://app.notion.com/p/Pricing-to-catalog-matching-3ced9fdd1a1a818
 notion-sync: push
 ---
 
-# Pricing-to-catalog matching (issue #21)
+# Pricing mismatch
 
-Status: **open and unimplemented**. The executable join remains exact. See
-[#21: reconcile pricing and catalog section identity](https://github.com/christopherseaman/commodoreSQL/issues/21).
+[Issue #21](https://github.com/christopherseaman/commodoreSQL/issues/21) is unimplemented. Matching remains exact.
 
 ## Current contract
 
-`course_materials_use` owns the canonical item population at
-`(period_sortable, section_id, isbn13)`. `pricing_wide` is source-owned at
-`(section_id, isbn13)`. `material_costs` preserves every canonical Use item and only LEFT-enriches:
+`material_costs` retains every `course_materials_use` item and LEFT-enriches:
 
 ```sql
 LEFT JOIN pricing_wide pw
@@ -21,89 +18,53 @@ LEFT JOIN pricing_wide pw
  AND CAST(cm.isbn13 AS VARCHAR) = pw.isbn13
 ```
 
-Pricing rows never add or redefine catalog items. `has_pricing_match` means this exact edge exists;
-it does not mean a valid price exists. `2d_data_quality.sql` compares the sources without mutating
-either. No normalization, CRN fallback, or broad-key match is currently used.
+Both sides are unique at section × ISBN; section includes term. Pricing never creates catalog
+items. Match ≠ valid price. `2d_data_quality.sql` compares sources without mutation.
 
-Catalog `section_id` uses catalog `Section`; pricing `section_id` uses pricing `Section Code` and
-ignores the separately retained pricing `CRN`. Although both expressions concatenate UNITID,
-department, course, section, and period, the source fields are not consistently equivalent.
+IDs concatenate UNITID, department, course, section, period. Catalog uses `Section`; pricing uses
+`Section Code`, ignoring retained `CRN`. These fields can identify different things.
 
-## Current evidence from issue #21
+## Evidence
 
-Evidence is scope-labeled because the all-period pricing population and Fall 2025 canonical item
-population answer different questions.
+Recorded diagnostics; recompute after refresh.
 
-### All-period current-database pricing-section evidence
+| Scope | Finding |
+|---|---|
+| All periods | 6,514,282 pricing section IDs; 2,162,695 unmatched. |
+| Case/padding candidates | 908,287 candidates; 906,798 one-to-one, including ~753,205 required-section candidates. |
+| Fall 2025: 602 pairs excluded by the former Lineage 3 predicate | 249,827 unmatched sections; CRN finds 101,172, of which 96,632 agree on normalized UNITID/department/course. |
+| Same 602-pair scope | 122 pricing IDs contain 2–3 CRNs: distinct offerings can collapse. |
+| Fall 2025 Use items | Exact join: 1,837,586 / 2,754,111. |
+| Fall 2025 unit + term + ISBN existence | 2,408,002 matches; 570,416 potential recoveries. Direct joining multiplies rows. |
 
-- 6,514,282 distinct pricing section IDs; 2,162,695 lack an exact catalog section-ID match.
-- Case plus numeric-padding normalization finds 908,287 candidates; 906,798 are one-to-one in
-  both sources, including about 753,205 required-section candidates.
-- Blind zero stripping creates collision keys and is unsafe.
-### Fall 2025 evidence
-
-- Among 602 UNITID/bookstore-locator pairs outside the current Lineage 3 predicate, 249,827
-  pricing sections lack an exact catalog match. CRN locates a catalog section for 101,172; 96,632
-  also agree on normalized UNITID, department, and course.
-- Within that pair scope, 122 current pricing `section_id` values contain two or three distinct
-  CRNs. The present pricing key can therefore collapse distinct source offerings.
-- The exact section × ISBN join matches 1,837,586 of 2,754,111 canonical Use items.
-- A unit + term + ISBN existence test reaches 2,408,002 and identifies 570,416 potential
-  recoveries, but a direct join at that broader key multiplies rows.
-
-These figures diagnose the checked evidence; they are not evergreen baselines and must be
-recomputed for a refreshed source.
-
-## Mismatch modes and examples
+## Causes
 
 | Mode | Example / risk |
 |---|---|
-| Section Code differs from catalog Section but CRN agrees | UC San Diego: pricing `A00`, catalog `912565`; Temple: `001` vs `33701`; Texas Tech: `001` vs `48426`. |
-| Case difference | Department or course codes differ only by case. Safe only when uniqueness is proven. |
-| Numeric padding | Course/section encodings differ by leading zeros. Global stripping can collide. |
-| Institution-specific encoding | Department, course, or section fields represent different source concepts or concatenate components differently. |
-| Multiple CRNs under one pricing section ID | One current key may represent distinct offerings; selecting a CRN without ambiguity handling can merge them. |
-| Missing institution counterpart | No catalog UNITID/section exists, including source-scope differences such as Canada. No normalization can manufacture a counterpart. |
-| Broader-key price multiplicity | Unit + term + ISBN may span bookstore URL, snapshot, option, condition, format, rental term, or multiple sections. A naïve fallback multiplies canonical items. |
+| Section Code vs Section; CRN agrees | UC San Diego: `A00` vs `912565`; Temple: `001` vs `33701`; Texas Tech: `001` vs `48426`. |
+| Case/padding | Normalization may collide; global zero stripping is unsafe. |
+| Institution-specific encoding | Department/course/section components have different meanings or concatenation. |
+| Multiple CRNs per ID | Selecting one can merge offerings. |
+| Missing UNITID/section | No counterpart exists, including scope differences such as Canada. |
+| Broader price key | Multiple bookstores, snapshots, offers, rental terms, or sections can multiply items. |
 
-Required-match analysis must use raw `book_status` or an independent catalog-match classification.
-Using `is_required_inferred` to prove the old join harmless is circular because pricing can receive
-catalog inference only after matching.
+Analyze raw `book_status` or independent classifications. Catalog-derived inference is circular
+as match evidence: obtaining it already requires a match.
 
-## Candidate strategies (none implemented)
+## Options — none implemented
 
-1. **Exact first, then validated section crosswalk.** Normalize only proven case/padding variants
-   and use source-aware Section Code/CRN mappings. Promote one-to-one edges; retain ambiguous,
-   colliding, and missing candidates as explicit DQ states.
-2. **Source-aware price dimension.** Pre-aggregate at `(unit_id, period_sortable, isbn13,
-   bookstore_url, book_option, book_condition, book_format, rental_days)` after defining the latest
-   snapshot rule, then join at a deliberately chosen catalog grain. This improves coverage but
-   requires policy for section attribution and bookstore/snapshot conflicts.
-3. **Conservative broader-key fallback.** Keep exact matches, then use unit + term + ISBN only when
-   the mapping and pre-aggregated price row are unambiguous. Leave all other candidates unmatched.
+1. Section crosswalk: exact first, then proven case/padding/CRN mappings; promote only one-to-one.
+2. Price dimension: aggregate `(unit_id, period_sortable, isbn13, bookstore_url, book_option,
+   book_condition, book_format, rental_days)`; define snapshot and section-attribution policies.
+3. Broader fallback: exact first, then unambiguous, pre-aggregated unit + term + ISBN.
 
-Every strategy must preserve raw catalog `Section`, pricing `Section Code`, pricing `CRN`, source
-and snapshot provenance, and an explicit match method.
+Preserve raw `Section`, `Section Code`, `CRN`, provenance, and match method.
 
-## Decision and validation gates
+## Before implementation
 
-No strategy may enter the executable contract until all gates pass:
-
-1. Define the target canonical section-offering identity and crosswalk key.
-2. Define safe normalization per source/institution; prove it does not merge distinct offerings.
-3. Report exact, normalized, CRN-assisted, ambiguous/colliding, missing-UNITID, and no-counterpart
-   results by period and raw pricing `book_status`, independent of inferred-required status.
-4. Quantify one-to-one, one-to-many, many-to-one, and multi-CRN mappings. Only approved unique
-   matches may be promoted automatically.
-5. For broader matching, define and validate the pre-aggregation grain, latest-snapshot handling,
-   bookstore conflicts, option/condition/format cells, and rental-term retention.
-6. Reconcile exact, recovered, ambiguous, unmatched, matched-but-unpriced, and valid-price counts
-   to the unchanged canonical Use denominator.
-7. Prove no row multiplication and rerun item, section, institution, ISBN, cost, and export DQ.
-8. Retain an exact-only comparison so coverage and cost changes can be attributed to matching,
-   not a changed material population.
-9. Update SQL, schema/lineage, and this contract together only after the decision is implemented.
-
-Until then, unmatched canonical items remain in `material_costs` with
-`has_pricing_match=FALSE`. See [`CMM-ETL.md`](CMM-ETL.md) for cost semantics and
-[`DATA-DICTIONARY.md`](DATA-DICTIONARY.md) for columns.
+- Define identity, crosswalk, and source-specific normalization; prove no offering collisions.
+- Count exact, normalized, CRN, ambiguous, missing-UNITID, and no-counterpart matches by term/raw status.
+- Quantify 1:1, 1:many, many:1, multi-CRN mappings; promote approved unique matches only.
+- Validate aggregation grain, snapshots, bookstore conflicts, offer cells, and rental terms.
+- Reconcile recovered/ambiguous/unmatched/unpriced/valid-price counts to unchanged Use keys; retain exact-only comparison.
+- Prove no multiplication; rerun item/section/institution/ISBN/cost/export checks; update SQL/schema/docs together.

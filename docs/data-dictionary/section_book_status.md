@@ -15,5 +15,5 @@ notion-sync: push
 
 | Column | Type | Example / structure | Direct upstream source / derivation | Description |
 |---|---|---|---|---|
-| `section_id` | `varchar` | `course_id::section-code::period_sortable` composite | Group key from `course_catalog_20251215.section_id`. | Period-specific identifier for the distinct section offering. |
+| `section_id` | `varchar` | `course_id::section-code::period_sortable` composite | `course_catalog_20251215.section_id` group key. | Period-specific identifier for the distinct section offering. |
 | `has_required` | `boolean` | #40 supply-aware: TRUE if section has any required-status NON-SUPPLY material (BOOL_OR(book_status=required AND NOT is_supply)). A supply-only required item no longer forces TRUE, so a co-listed blank-status real textbook keeps the required fallback. | `BOOL_OR(book_status='required' AND NOT is_supply)` over catalog rows. | Whether the section has nonsupply required-status evidence. |

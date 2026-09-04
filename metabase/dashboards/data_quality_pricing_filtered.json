@@ -2,7 +2,7 @@
   {
     "__meta__": {
       "name": "Data Quality — Raw Pricing + Canonical Required Materials",
-      "description": "Raw vendor pricing DQ across the full pricing population, plus a canonical required-material format_count comparison from matched inferred-required material_costs items (Q27). Q27 is not a filtered raw-pricing population."
+      "description": "All raw pricing; matched canonical inferred-required items only for Q27. Raw vendor pricing DQ across the full pricing population, plus a canonical required-material format_count comparison from matched inferred-required material_costs items (Q27). Q27 is not a filtered raw-pricing population."
     }
   },
   { "question": "18_dq_critical_should_be_zero",                   "row":  0, "col":  0, "size_x": 24, "size_y": 4 },

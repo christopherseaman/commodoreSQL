@@ -15,11 +15,11 @@ notion-sync: push
 
 | Column | Type | Example / structure | Direct upstream source / derivation | Description |
 |---|---|---|---|---|
-| `period_sortable` | `varchar` | YYYY-N; part of canonical key | Group key from `material_costs.period_sortable`. | Sortable academic term code used for chronological ordering. |
-| `isbn13` | `bigint` | 13-digit numeric ISBN or numeric source identifier; NULL when absent | Group key from `material_costs.isbn13`. | Book or material identifier used for cross-source matching. |
-| `book_title` | `varchar` | Material title text; source punctuation and casing retained | `ANY_VALUE(material_costs.isbn_book_title)`; term×ISBN metadata is canonical upstream. | Canonical title selected for the grouped ISBN. |
-| `author` | `varchar` | Person or organization name; source punctuation and casing retained | `ANY_VALUE(material_costs.isbn_author)`; term×ISBN metadata is canonical upstream. | Author credited for the adopted course material. |
-| `publisher` | `varchar` | Publisher-name text; original spelling and casing retained | `ANY_VALUE(material_costs.isbn_publisher)`; term×ISBN metadata is canonical upstream. | Publisher credited for the adopted course material. |
+| `period_sortable` | `varchar` | YYYY-N; part of canonical key | `material_costs.period_sortable` group key. | Sortable academic term code used for chronological ordering. |
+| `isbn13` | `bigint` | 13-digit numeric ISBN or numeric source identifier; NULL when absent | `material_costs.isbn13` group key. | Book or material identifier used for cross-source matching. |
+| `book_title` | `varchar` | Material title; source punctuation/casing retained | `ANY_VALUE(material_costs.isbn_book_title)`; term×ISBN metadata is canonical upstream. | Canonical title selected for the grouped ISBN. |
+| `author` | `varchar` | Person/organization name; source punctuation/casing retained | `ANY_VALUE(material_costs.isbn_author)`; term×ISBN metadata is canonical upstream. | Author credited for the adopted course material. |
+| `publisher` | `varchar` | Publisher name; original spelling/casing retained | `ANY_VALUE(material_costs.isbn_publisher)`; term×ISBN metadata is canonical upstream. | Publisher credited for the adopted course material. |
 | `is_oer` | `boolean` | Definitive BOOL_OR across catalog rows | `COALESCE(BOOL_OR(material_costs.is_oer), FALSE)`. | Whether the material is an open educational resource. |
 | `is_ia` | `boolean` | Definitive BOOL_OR across catalog rows | `COALESCE(BOOL_OR(material_costs.is_ia), FALSE)`. | Whether the material uses inclusive access. |
 | `is_supply` | `boolean` | Always false in the canonical Use population | Constant FALSE: supplies are excluded from the canonical Use population. | Whether the material is classified as a course supply. |

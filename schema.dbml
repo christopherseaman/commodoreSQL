@@ -842,7 +842,7 @@ Table section_enrollment {
   has_enrollment_own_seats boolean
   has_enrollment_sibling_seats boolean
   enrollment_assigned integer [note: 'Exact section enrollment after the documented own/seats/sibling/median hierarchy; NULL only when no rung is available']
-  enrollment_source varchar [note: 'own | own_seats | sibling_enroll | sibling_seats | class_median | level_median | none']
+  enrollment_source varchar [note: '`own`, `own_seats`, `sibling_enroll`, `sibling_seats`, `class_median`, `level_median`, or `none`']
 
   Note: 'Created by 2b_course_materials.sql. Materialized one row per valid 2024+ (period_sortable, section_id), currently 23,580,550 rows. Owns the complete section population, authoritative raw enrollment/flags, section-scope dimensions, and assigned-enrollment value/provenance. course_materials and material_costs consume its section fields; master_section joins the retained material-bearing subset.'
 }
@@ -1113,7 +1113,7 @@ Table master_section [note: 'table'] {
   //    is never overwritten; enrollment_assigned is the filled value. Medians per period
   //    over the reference population (4 BMG course levels x 6 teaching sectors). --
   enrollment_assigned integer [note: '#32: filled enrollment. own -> own_seats(<9999) -> sibling_enroll -> sibling_seats -> class_median(control x level) -> level_median. NULL only when enrollment_source=none']
-  enrollment_source varchar [note: '#32: which fill rung supplied enrollment_assigned: own | own_seats | sibling_enroll | sibling_seats | class_median | level_median | none']
+  enrollment_source varchar [note: 'Fill rung for enrollment_assigned: `own`, `own_seats`, `sibling_enroll`, `sibling_seats`, `class_median`, `level_median`, or `none`']
   required_cost_total_min decimal(38,2) [note: 'SUM of per-material price_min over distinct required materials (from section_cost)']
   required_cost_total_max decimal(38,2)
   optional_cost_total_min decimal(38,2)
@@ -1465,7 +1465,7 @@ TableGroup eda_records {
 // ---------------------------------------------------------------------------
 
 Table __data_quality_metrics {
-  category varchar [note: 'catalog | pricing | wide | oer_ia | cross_table']
+  category varchar [note: '`catalog`, `pricing`, `wide`, `oer_ia`, or `cross_table`']
   check_id varchar [note: 'short identifier, e.g., dedupe_stages, price_outliers']
   metric_name varchar
   metric_value bigint

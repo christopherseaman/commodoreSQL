@@ -17,5 +17,5 @@ notion-sync: push
 |---|---|---|---|---|
 | `section_id` | `varchar` | Canonical sampling unit; one selected row per full section_enrollment key | Distinct `section_enrollment.section_id` group key. | Period-specific identifier for the distinct section offering. |
 | `period_sortable` | `varchar` | `YYYY-N`; 1=Winter, 2=Spring, 3=Summer, 4=Fall | `ANY_VALUE(section_enrollment.period_sortable)` for the section. | Sortable academic term code used for chronological ordering. |
-| `section_hash` | `ubigint` | First 64 bits of MD5(section_id), interpreted unsigned | Unsigned integer from `CAST('0x' \|\| LEFT(md5(section_id),16) AS UBIGINT)`. | Stable hash used for deterministic section sampling. |
+| `section_hash` | `ubigint` | First 64 bits of MD5(section_id), interpreted unsigned | Prefix `LEFT(md5(section_id),16)` with `0x`; cast to `UBIGINT`. | Stable hash used for deterministic section sampling. |
 | `sample_bucket` | `utinyint` | section_hash modulo 10; always 0 in this membership table | `section_hash % 10`, cast to UTINYINT. | Deterministic sampling bucket assigned to the section. |

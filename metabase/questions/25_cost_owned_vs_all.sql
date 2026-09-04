@@ -1,6 +1,6 @@
 -- name: Owned vs All-Options Cost by Course Level (2024+)
 -- display: bar
--- description: Required-material cost — all options (incl. rental) vs owned (buy-only) — by course level. Owned reflects only materials that have a buy price.
+-- description: Master Section required costs by level; buy-priced subset for owned. Required-material cost — all options (incl. rental) vs owned (buy-only) — by course level. Owned reflects only materials that have a buy price.
 
 SELECT
     COALESCE(course_level, '(none)')        AS course_level,

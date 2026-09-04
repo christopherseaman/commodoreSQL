@@ -1,6 +1,6 @@
 -- name: Coverage & Scope — Complete Section Enrollment by Term
 -- display: table
--- description: Current-snapshot enrollment coverage over the complete valid 2024+ section_enrollment spine, where section_count is the full section denominator and raw versus assigned enrollment remain distinct. The enrollment_source columns count assignment provenance. canonical_material_bearing_section_count is a separately named comparison to retained master_section rows and is not the full-spine denominator.
+-- description: Complete valid 2024+ section_enrollment spine; raw/assigned enrollment distinguished. Current-snapshot enrollment coverage over the complete valid 2024+ section_enrollment spine, where section_count is the full section denominator and raw versus assigned enrollment remain distinct. The enrollment_source columns count assignment provenance. canonical_material_bearing_section_count is a separately named comparison to retained master_section rows and is not the full-spine denominator.
 
 SELECT
     section_enrollment.period_sortable,

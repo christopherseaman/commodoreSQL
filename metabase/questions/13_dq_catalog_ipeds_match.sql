@@ -1,6 +1,6 @@
 -- name: DQ — Catalog → IPEDS Match
 -- display: bar
--- description: Catalog rows split into IPEDS-matched / no-unit-id (Canadian, by design) / unit-id-not-in-IPEDS (closed/consolidated US schools).
+-- description: Inferred-required 2024+ catalog rows, by IPEDS match status. Catalog rows split into IPEDS-matched / no-unit-id (Canadian, by design) / unit-id-not-in-IPEDS (closed/consolidated US schools).
 
 SELECT metric_name, metric_value
 FROM __data_quality_metrics

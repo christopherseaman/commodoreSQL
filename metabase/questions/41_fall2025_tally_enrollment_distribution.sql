@@ -1,6 +1,6 @@
 -- name: Fall 2025 — Section Enrollment Distribution by Control x Level (present only)
 -- display: table
--- description: Distribution of present raw per-section enrollment among material-bearing Fall-2025 Master Section rows in the BMG grant scope, grouped by institution control × level. sections_n_present excludes NULL enrollment; enrollment_mean is the arithmetic mean and percentiles use quantile_cont. Enrollment values originate from section_enrollment, but no-adoption and NoUse-only sections are outside this card's denominator. Small class cells and the right-skewed tail should be interpreted cautiously.
+-- description: Fall-2025 BMG-scope material-bearing sections with present raw enrollment. Distribution of present raw per-section enrollment among material-bearing Fall-2025 Master Section rows in the BMG grant scope, grouped by institution control × level. sections_n_present excludes NULL enrollment; enrollment_mean is the arithmetic mean and percentiles use quantile_cont. Enrollment values originate from section_enrollment, but no-adoption and NoUse-only sections are outside this card's denominator. Small class cells and the right-skewed tail should be interpreted cautiously.
 WITH scope AS (
   SELECT * FROM master_section
   WHERE period_sortable = '2025-4'

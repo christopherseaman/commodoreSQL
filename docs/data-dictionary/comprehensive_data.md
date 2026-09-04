@@ -15,36 +15,36 @@ notion-sync: push
 
 | Column | Type | Example / structure | Direct upstream source / derivation | Description |
 |---|---|---|---|---|
-| `ISBN13` | `bigint` | 13-digit numeric ISBN or numeric source identifier; NULL when absent | Passthrough from `course_catalog_20251215.ISBN13`. | Book or material identifier used for cross-source matching. |
-| `Title` | `varchar` | Material title text; source punctuation and casing retained | Passthrough from `course_catalog_20251215.Title`. | Title supplied for the adopted course material. |
-| `Author` | `varchar` | Person or organization name; source punctuation and casing retained | Passthrough from `course_catalog_20251215.Author`. | Author credited for the adopted course material. |
-| `Publisher` | `varchar` | Publisher-name text; original spelling and casing retained | Passthrough from `course_catalog_20251215.Publisher`. | Publisher credited for the adopted course material. |
-| `Imprint` | `varchar` | Publishing-imprint text; original spelling and casing retained | Passthrough from `course_catalog_20251215.Imprint`. | Publishing imprint named for the adopted material. |
-| `Format` | `varchar` | Source material format label; original casing retained | Passthrough from `course_catalog_20251215.Format`. | Material format supplied by the catalog source. |
-| `FormatType` | `varchar` | Catalog format classification label; original spelling retained | Passthrough from `course_catalog_20251215.FormatType`. | Catalog classification label for the material format. |
-| `book_status` | `varchar` | lowercase: required, recommended, option, NULL | Passthrough from `course_catalog_20251215.book_status`. | Adoption priority assigned to the course material. |
-| `unit_id` | `bigint` | IPEDS institution identifier | Passthrough from `course_catalog_20251215.unit_id`. | IPEDS institution identifier used throughout the pipeline. |
-| `school` | `varchar` | Institution-name text; source spelling and casing retained | Passthrough from `course_catalog_20251215.school`. | Institution or school name attached to the course. |
-| `state` | `varchar` | Normalized state or province code, such as `CA` or `CAN` | Passthrough from `course_catalog_20251215.state`. | State or province code for the institution. |
-| `dept_code` | `varchar` | Short department code, such as `BIOL` | Passthrough from `course_catalog_20251215.dept_code`. | Short code identifying the academic department. |
-| `department` | `varchar` | Academic department label, such as `Biology` | Passthrough from `course_catalog_20251215.department`. | Academic department responsible for the course. |
-| `dept_description` | `varchar` | Expanded source description of the academic department | Passthrough from `course_catalog_20251215.dept_description`. | Expanded description of the academic department. |
-| `course_number` | `varchar` | Source course number; leading zeros and suffixes retained | Passthrough from `course_catalog_20251215.course_number`. | Catalog number identifying the course within its department. |
-| `section` | `varchar` | Source section code; leading zeros and punctuation retained | Passthrough from `course_catalog_20251215.section`. | Source code distinguishing sections of the same course. |
-| `course_title` | `varchar` | Course title text; source punctuation and casing retained | Passthrough from `course_catalog_20251215.course_title`. | Official title assigned to the course. |
-| `course_level` | `varchar` | Category such as `Introductory or general undergraduate` | Passthrough from `course_catalog_20251215.course_level`. | Instructional level assigned to the course. |
-| `course_subject` | `varchar` | Source subject label, such as `Biology` | Passthrough from `course_catalog_20251215.course_subject`. | Subject area assigned to the course. |
-| `period` | `varchar` | e.g. "Fall 2024" | Passthrough from `course_catalog_20251215.period`. | Human-readable academic term label from the source. |
-| `enrollments` | `integer` | Reported student count; source noise can include negative values | Passthrough from `course_catalog_20251215.enrollments`. | Enrollment reported directly for the course section. |
-| `seats_taken` | `integer` | Reported occupied seats; `9999` is the source sentinel | Passthrough from `course_catalog_20251215.seats_taken`. | Occupied seats reported for the course section. |
-| `instructor` | `varchar` | Instructor-name text; source punctuation and casing retained | Passthrough from `course_catalog_20251215.instructor`. | Instructor name attached to the course section. |
-| `first_name` | `varchar` | Given-name text; source punctuation and casing retained | Passthrough from `course_catalog_20251215.first_name`. | Given name of the course instructor. |
-| `last_name` | `varchar` | Family-name text; source punctuation and casing retained | Passthrough from `course_catalog_20251215.last_name`. | Family name of the course instructor. |
-| `email` | `varchar` | cleaned/normalized from raw E-Mail | Passthrough from `course_catalog_20251215.email`. | Normalized instructor email used for contact and matching. |
-| `course_id` | `varchar` | unit_id::dept_code::course_number | Passthrough from `course_catalog_20251215.course_id`. | Stable identifier for the institution-level course offering. |
-| `section_id` | `varchar` | unit_id::dept_code::course_number::section::period_sortable — includes period so each section-offering is unique | Passthrough from `course_catalog_20251215.section_id`. | Period-specific identifier for the distinct section offering. |
-| `period_sortable` | `varchar` | YYYY-N where 1=Winter 2=Spring 3=Summer 4=Fall | Passthrough from `course_catalog_20251215.period_sortable`. | Sortable academic term code used for chronological ordering. |
-| `period_date` | `date` | canonical: 01-01, 04-01, 07-01, 10-01 | Passthrough from `course_catalog_20251215.period_date`. | Canonical starting date assigned to the academic term. |
+| `ISBN13` | `bigint` | 13-digit numeric ISBN or numeric source identifier; NULL when absent | `course_catalog_20251215.ISBN13` passthrough. | Book or material identifier used for cross-source matching. |
+| `Title` | `varchar` | Material title; source punctuation/casing retained | `course_catalog_20251215.Title` passthrough. | Title supplied for the adopted course material. |
+| `Author` | `varchar` | Person/organization name; source punctuation/casing retained | `course_catalog_20251215.Author` passthrough. | Author credited for the adopted course material. |
+| `Publisher` | `varchar` | Publisher name; original spelling/casing retained | `course_catalog_20251215.Publisher` passthrough. | Publisher credited for the adopted course material. |
+| `Imprint` | `varchar` | Publishing imprint; original spelling/casing retained | `course_catalog_20251215.Imprint` passthrough. | Publishing imprint named for the adopted material. |
+| `Format` | `varchar` | Source material format; original casing retained | `course_catalog_20251215.Format` passthrough. | Material format supplied by the catalog source. |
+| `FormatType` | `varchar` | Catalog FormatType label; original spelling retained | `course_catalog_20251215.FormatType` passthrough. | Catalog classification label for the material format. |
+| `book_status` | `varchar` | lowercase: required, recommended, option, NULL | `course_catalog_20251215.book_status` passthrough. | Adoption priority assigned to the course material. |
+| `unit_id` | `bigint` | IPEDS institution identifier | `course_catalog_20251215.unit_id` passthrough. | IPEDS institution identifier used throughout the pipeline. |
+| `school` | `varchar` | Institution name; source spelling/casing retained | `course_catalog_20251215.school` passthrough. | Institution or school name attached to the course. |
+| `state` | `varchar` | Normalized state or province code, such as `CA` or `CAN` | `course_catalog_20251215.state` passthrough. | State or province code for the institution. |
+| `dept_code` | `varchar` | Department code, such as `BIOL` | `course_catalog_20251215.dept_code` passthrough. | Short code identifying the academic department. |
+| `department` | `varchar` | Academic department, such as `Biology` | `course_catalog_20251215.department` passthrough. | Academic department responsible for the course. |
+| `dept_description` | `varchar` | Expanded source description of the academic department | `course_catalog_20251215.dept_description` passthrough. | Expanded description of the academic department. |
+| `course_number` | `varchar` | Source course number; zeros/suffixes retained | `course_catalog_20251215.course_number` passthrough. | Catalog number identifying the course within its department. |
+| `section` | `varchar` | Source section code; zeros/punctuation retained | `course_catalog_20251215.section` passthrough. | Source code distinguishing sections of the same course. |
+| `course_title` | `varchar` | Course title; source punctuation/casing retained | `course_catalog_20251215.course_title` passthrough. | Official title assigned to the course. |
+| `course_level` | `varchar` | Category such as `Introductory or general undergraduate` | `course_catalog_20251215.course_level` passthrough. | Instructional level assigned to the course. |
+| `course_subject` | `varchar` | Source subject, such as `Biology` | `course_catalog_20251215.course_subject` passthrough. | Subject area assigned to the course. |
+| `period` | `varchar` | e.g. "Fall 2024" | `course_catalog_20251215.period` passthrough. | Human-readable academic term label from the source. |
+| `enrollments` | `integer` | Reported student count; source noise can include negative values | `course_catalog_20251215.enrollments` passthrough. | Enrollment reported directly for the course section. |
+| `seats_taken` | `integer` | Reported occupied seats; `9999` is the source sentinel | `course_catalog_20251215.seats_taken` passthrough. | Occupied seats reported for the course section. |
+| `instructor` | `varchar` | Instructor name; source punctuation/casing retained | `course_catalog_20251215.instructor` passthrough. | Instructor name attached to the course section. |
+| `first_name` | `varchar` | Given name; source punctuation/casing retained | `course_catalog_20251215.first_name` passthrough. | Given name of the course instructor. |
+| `last_name` | `varchar` | Family name; source punctuation/casing retained | `course_catalog_20251215.last_name` passthrough. | Family name of the course instructor. |
+| `email` | `varchar` | cleaned/normalized from raw E-Mail | `course_catalog_20251215.email` passthrough. | Normalized instructor email used for contact and matching. |
+| `course_id` | `varchar` | unit_id::dept_code::course_number | `course_catalog_20251215.course_id` passthrough. | Stable identifier for the institution-level course offering. |
+| `section_id` | `varchar` | unit_id::dept_code::course_number::section::period_sortable — includes period so each section-offering is unique | `course_catalog_20251215.section_id` passthrough. | Period-specific identifier for the distinct section offering. |
+| `period_sortable` | `varchar` | YYYY-N where 1=Winter 2=Spring 3=Summer 4=Fall | `course_catalog_20251215.period_sortable` passthrough. | Sortable academic term code used for chronological ordering. |
+| `period_date` | `date` | canonical: 01-01, 04-01, 07-01, 10-01 | `course_catalog_20251215.period_date` passthrough. | Canonical starting date assigned to the academic term. |
 | `is_oer` | `boolean` | TRUE or FALSE | `format_type_classification.is_oer` joined on exact `FormatType`. | Whether the material is an open educational resource. |
 | `oer_category` | `varchar` | Category such as `book_oer`, `pure_oer`, or `non_oer` | `format_type_classification.oer_category`, coalesced to `unknown`. | Open-resource category assigned to the material format. |
 | `is_ia` | `boolean` | TRUE or FALSE | `format_type_classification.is_ia` joined on exact `FormatType`. | Whether the material uses inclusive access. |

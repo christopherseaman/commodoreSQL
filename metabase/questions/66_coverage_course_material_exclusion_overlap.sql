@@ -1,6 +1,6 @@
 -- name: Coverage & Scope — Course Material Exclusion Overlap
 -- display: table
--- description: Current-snapshot overlap audit at the canonical course_materials_post_2024 item-group grain (one period × section × ISBN audit group). Each row is an exact combination of independent Canada, supply, no-details, no-materials, and missing-ISBN flags; no mutually exclusive primary reason is imposed. included (no exclusions) is the zero-exclusion combination, while canonical_disposition exposes the canonical Use/NoUse result and population_classification_conflict separately exposes disagreement among source rows. reconstructed_source_rows returns to the enriched BMG source-row grain, while pct_of_term_item_groups uses canonical post-2024 item groups.
+-- description: Post-2024 canonical item groups; overlapping exclusion flags, not source rows. Current-snapshot overlap audit at the canonical course_materials_post_2024 item-group grain (one period × section × ISBN audit group). Each row is an exact combination of independent Canada, supply, no-details, no-materials, and missing-ISBN flags; no mutually exclusive primary reason is imposed. included (no exclusions) is the zero-exclusion combination, while canonical_disposition exposes the canonical Use/NoUse result and population_classification_conflict separately exposes disagreement among source rows. reconstructed_source_rows returns to the enriched BMG source-row grain, while pct_of_term_item_groups uses canonical post-2024 item groups.
 
 WITH flagged AS (
     SELECT

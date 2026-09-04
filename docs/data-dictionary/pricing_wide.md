@@ -15,15 +15,15 @@ notion-sync: push
 
 | Column | Type | Example / structure | Direct upstream source / derivation | Description |
 |---|---|---|---|---|
-| `section_id` | `varchar` | `course_id::section-code::period_sortable` composite | Group key from `pricing_historical.section_id`. | Period-specific identifier for the distinct section offering. |
-| `isbn13` | `varchar` | 13-digit ISBN or source pseudo-SKU text; NULL when absent | Group key from `pricing_historical.isbn13`. | Book or material identifier used for cross-source matching. |
+| `section_id` | `varchar` | `course_id::section-code::period_sortable` composite | `pricing_historical.section_id` group key. | Period-specific identifier for the distinct section offering. |
+| `isbn13` | `varchar` | 13-digit ISBN or source pseudo-SKU text; NULL when absent | `pricing_historical.isbn13` group key. | Book or material identifier used for cross-source matching. |
 | `unit_id` | `bigint` | source provenance: MAX(unit_id) over the group (constant per source section) | `MAX(pricing_historical.unit_id)` for source provenance/metadata. | IPEDS institution identifier used throughout the pipeline. |
 | `required` | `boolean` | BOOL_OR(source-derived required) over the (section, isbn) group | `BOOL_OR(pricing_historical.required)`. | Whether the pricing observation has required adoption status. |
-| `institute` | `varchar` | Pricing-source institution name; original casing retained | `MAX(pricing_historical.institute)` for source provenance/metadata. | Institution name supplied by the pricing source. |
+| `institute` | `varchar` | Pricing institution name; original casing retained | `MAX(pricing_historical.institute)` for source provenance/metadata. | Institution name supplied by the pricing source. |
 | `bookstore_url` | `varchar` | Absolute `http://` or `https://` bookstore URL | `MAX(pricing_historical.bookstore_url)` for source provenance/metadata. | Bookstore page providing the observed material prices. |
-| `title` | `varchar` | Material title text; source punctuation and casing retained | `MAX(pricing_historical.title)` for source provenance/metadata. | Title supplied for the adopted course material. |
-| `author` | `varchar` | Person or organization name; source punctuation and casing retained | `MAX(pricing_historical.author)` for source provenance/metadata. | Author credited for the adopted course material. |
-| `publisher` | `varchar` | Publisher-name text; original spelling and casing retained | `MAX(pricing_historical.publisher)` for source provenance/metadata. | Publisher credited for the adopted course material. |
+| `title` | `varchar` | Material title; source punctuation/casing retained | `MAX(pricing_historical.title)` for source provenance/metadata. | Title supplied for the adopted course material. |
+| `author` | `varchar` | Person/organization name; source punctuation/casing retained | `MAX(pricing_historical.author)` for source provenance/metadata. | Author credited for the adopted course material. |
+| `publisher` | `varchar` | Publisher name; original spelling/casing retained | `MAX(pricing_historical.publisher)` for source provenance/metadata. | Publisher credited for the adopted course material. |
 | `edition` | `varchar` | Edition text, such as `3rd` or `Revised` | `MAX(pricing_historical.edition)` for source provenance/metadata. | Edition statement for the priced course material. |
 | `price_buy_new_physical` | `decimal(10,2)` | USD amount such as `123.45`; stored as `DECIMAL(10,2)` | `MAX(price)` where `book_option = 'buy'`, `book_condition = 'new'`, and `book_format = 'physical'` after prices >=9999 are normalized to NULL. | Price for new physical purchase offerings. |
 | `price_buy_new_digital` | `decimal(10,2)` | USD amount such as `123.45`; stored as `DECIMAL(10,2)` | `MAX(price)` where `book_option = 'buy'`, `book_condition = 'new'`, and `book_format = 'digital'` after prices >=9999 are normalized to NULL. | Price for new digital purchase offerings. |

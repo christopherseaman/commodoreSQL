@@ -1,6 +1,6 @@
 -- name: Report — Materials Cost Summary
 -- display: table
--- description: Canonical-Use required/optional materials cost over material-bearing sections (per-section, 2024+). Material status optionally restricts to sections carrying a matching material_costs item. Same dashboard filters as the overview.
+-- description: Material-bearing sections under report filters; canonical required/optional costs. Canonical-Use required/optional materials cost over material-bearing sections (per-section, 2024+). Material status optionally restricts to sections carrying a matching material_costs item. Same dashboard filters as the overview.
 
 SELECT
     COUNT(*) AS sections,

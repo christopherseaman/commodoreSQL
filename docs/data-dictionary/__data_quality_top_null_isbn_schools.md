@@ -15,7 +15,7 @@ notion-sync: push
 
 | Column | Type | Example / structure | Direct upstream source / derivation | Description |
 |---|---|---|---|---|
-| `school` | `varchar` | Institution-name text; source spelling and casing retained | Group key from `comprehensive_data.school` in `2d_data_quality.sql`. | Institution or school name attached to the course. |
+| `school` | `varchar` | Institution name; source spelling/casing retained | Group key from `comprehensive_data.school` in `2d_data_quality.sql`. | Institution or school name attached to the course. |
 | `null_isbn_rows` | `bigint` | Non-negative whole-number count | `COUNT(*) FILTER (WHERE comprehensive_data.ISBN13 IS NULL)` in `2d_data_quality.sql`. | Catalog rows lacking a non-NULL ISBN. |
 | `non_null_isbn_rows` | `bigint` | Non-negative whole-number count | `COUNT(*) FILTER (WHERE comprehensive_data.ISBN13 IS NOT NULL)` in `2d_data_quality.sql`. | Catalog rows containing a non-NULL ISBN. |
 | `total_rows` | `bigint` | Non-negative whole-number count | `COUNT(*)` of filtered `comprehensive_data` rows in `2d_data_quality.sql`. | Catalog rows included in the school diagnostic. |

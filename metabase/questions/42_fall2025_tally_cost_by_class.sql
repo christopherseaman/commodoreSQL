@@ -1,6 +1,6 @@
 -- name: Fall 2025 — Course-material cost by institution class (control x level x set)
 -- display: table
--- description: Per-section course-material cost summaries for material-bearing Fall-2025 Master Section rows in the BMG scope, broken out by institution control × level × A/B set. All medians are section-weighted, not enrollment-weighted, and use the project (min+max)/2 summaries rather than arithmetic means. Set B is optional-only, so required-cost medians are NULL by construction; sections_priced_required counts retained sections with required_priced_count > 0. Treat small cells cautiously.
+-- description: Fall-2025 BMG-scope material-bearing sections; section-weighted cost midpoints, not means. Per-section course-material cost summaries for material-bearing Fall-2025 Master Section rows in the BMG scope, broken out by institution control × level × A/B set. All medians are section-weighted, not enrollment-weighted, and use the project (min+max)/2 summaries rather than arithmetic means. Set B is optional-only, so required-cost medians are NULL by construction; sections_priced_required counts retained sections with required_priced_count > 0. Treat small cells cautiously.
 WITH scope AS (
   SELECT * FROM master_section
   WHERE period_sortable = '2025-4'

@@ -1,6 +1,6 @@
 -- name: Coverage & Scope — Course Material Population by Term
 -- display: table
--- description: Current-snapshot coverage from the canonical course_materials item-group spine (one period × section × ISBN, including one NULL-ISBN audit group per section), while reconstructed_source_rows sums source_row_count back to the enriched BMG source-row grain. All percentages named pct_*_of_item_groups use canonical item groups, not reconstructed source rows; Use-specific counts use the canonical retained Use population.
+-- description: Canonical course_materials term/section/ISBN groups, including NULL-ISBN audits. Current-snapshot coverage from the canonical course_materials item-group spine (one period × section × ISBN, including one NULL-ISBN audit group per section), while reconstructed_source_rows sums source_row_count back to the enriched BMG source-row grain. All percentages named pct_*_of_item_groups use canonical item groups, not reconstructed source rows; Use-specific counts use the canonical retained Use population.
 
 SELECT
     period_sortable,
