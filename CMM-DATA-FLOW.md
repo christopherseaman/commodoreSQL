@@ -35,7 +35,7 @@ flowchart LR
         direction TB
         panel_email("panel_email")
         section_status("section_book_status")
-        recent_periods("recent_periods")
+        recent_periods{{"recent_periods"}}
     end
 
     subgraph catalog_flow["Materials"]
@@ -43,10 +43,10 @@ flowchart LR
         comprehensive("comprehensive_data")
         section_enrollment("section_enrollment")
         course_materials("course_materials")
-        materials_post("course_materials_post_2024")
-        materials_use("course_materials_use")
-        materials_nouse("course_materials_no_use")
-        materials_canada("course_materials_canada")
+        materials_post{{"course_materials_post_2024"}}
+        materials_use{{"course_materials_use"}}
+        materials_nouse{{"course_materials_no_use"}}
+        materials_canada{{"course_materials_canada"}}
     end
 
     subgraph pricing_flow["Pricing"]
@@ -59,18 +59,30 @@ flowchart LR
         material_costs("material_costs")
         section_cost("section_cost")
         master_section("master_section")
-        master_course("master_course")
-        master_course_material("master_course_material")
         master_institution("master_institution")
         master_isbn("master_isbn")
+        fall_scope{{"master_section_us_intro_fall2025"}}
+    end
+
+    subgraph course_summaries["Course summaries"]
+        direction TB
+        master_course{{"master_course"}}
+        master_course_material{{"master_course_material"}}
+    end
+
+    subgraph samples["Samples"]
+        direction TB
         sample10("sample10_section_ids")
-        fall_scope("master_section_us_intro_fall2025")
+        sample10_materials("sample10pct_materials")
+        sample25_ids("sample25_unit_ids")
+        sample25_material("sample25id_material_cost")
+        sample25_section("sample25id_section_cost")
     end
 
     subgraph mailing["Mailing"]
         direction TB
         master_mailing("master_mailing")
-        current_mailing("current_mailing")
+        current_mailing{{"current_mailing"}}
     end
 
     panel --> panel_email
@@ -93,6 +105,14 @@ flowchart LR
     course_materials --> materials_nouse
     course_materials --> materials_canada
 
+    catalog -. "#80" .-> section_enrollment
+    ipeds -.-> section_enrollment
+    supply -.-> section_enrollment
+    section_enrollment -.-> comprehensive
+    materials_post -.-> materials_use
+    materials_post -.-> materials_nouse
+    materials_post -.-> materials_canada
+
     pricing_historical --> pricing_wide
     materials_use --> material_costs
     pricing_wide --> material_costs
@@ -109,6 +129,8 @@ flowchart LR
     pricing_wide --> master_institution
     material_costs --> master_isbn
     section_enrollment --> sample10
+    sample10 -.-> sample10_materials
+    material_costs -.-> sample10_materials
     master_section --> fall_scope
 
     catalog --> master_mailing
@@ -120,10 +142,18 @@ flowchart LR
 
     cmm_discipline_source -.-> comprehensive
     cmm_ia_source -.-> comprehensive
-    brand_source -.-> material_costs
+    external_pricing_source -.-> pricing_wide
+    brand_source -.-> pricing_wide
+    review25_source -.-> sample25_ids
+    sample25_ids -.-> sample25_material
+    material_costs -.-> sample25_material
+    section_cost -.-> sample25_section
+    sample25_material -.-> sample25_section
 
+    classDef imported fill:#d9ead3,stroke:#38761d,stroke-width:2px,color:#274e13;
     classDef expected fill:#f3f3f3,stroke:#777,stroke-width:2px,stroke-dasharray:6 4,color:#444;
-    class cmm_discipline_source,cmm_ia_source,external_pricing_source,brand_source,review25_source expected;
+    class catalog,pricing_historical,ipeds,optout,panel,format_lookup,supply imported;
+    class cmm_discipline_source,cmm_ia_source,external_pricing_source,brand_source,review25_source,sample10_materials,sample25_ids,sample25_material,sample25_section expected;
     style expected_sources fill:#fafafa,stroke:#777,stroke-width:2px,stroke-dasharray:8 4
 ```
 
@@ -134,10 +164,10 @@ flowchart TB
     subgraph course_exports["Materials"]
         direction LR
         course_materials("course_materials")
-        materials_post("course_materials_post_2024")
-        materials_use("course_materials_use")
-        materials_nouse("course_materials_no_use")
-        materials_canada("course_materials_canada")
+        materials_post{{"course_materials_post_2024"}}
+        materials_use{{"course_materials_use"}}
+        materials_nouse{{"course_materials_no_use"}}
+        materials_canada{{"course_materials_canada"}}
         course_file["course_materials[_&lt;YYYY_N&gt;]_&lt;YYYYMMDD&gt;.csv"]
         post_file["course_materials_post_2024[_&lt;YYYY_N&gt;]_&lt;YYYYMMDD&gt;.csv"]
         use_file["course_materials_use_post_2024[_&lt;YYYY_N&gt;]_&lt;YYYYMMDD&gt;.csv"]
@@ -154,28 +184,32 @@ flowchart TB
         direction LR
         material_costs("material_costs")
         master_section("master_section")
-        master_course("master_course")
-        master_course_material("master_course_material")
         master_institution("master_institution")
         master_isbn("master_isbn")
         cost_files["40_material_costs_by_term.csv<br/>material_costs_&lt;YYYY_N&gt;_&lt;YYYYMMDD&gt;.csv"]
         section_files["31_master_section.csv<br/>master_section_&lt;YYYY_N&gt;_&lt;YYYYMMDD&gt;.csv"]
-        course_files["32_master_course.csv"]
-        distribution_files["33_master_course_material.csv"]
         institution_files["35_master_institution_by_term.csv<br/>master_institution_&lt;YYYY_N&gt;_&lt;YYYYMMDD&gt;.csv"]
         isbn_files["36_master_isbn_by_term.csv<br/>master_isbn_&lt;YYYY_N&gt;_&lt;YYYYMMDD&gt;.csv"]
         material_costs --> cost_files
         master_section --> section_files
-        master_course --> course_files
-        master_course_material --> distribution_files
         master_institution --> institution_files
         master_isbn --> isbn_files
+    end
+
+    subgraph course_summary_exports["Course summaries"]
+        direction LR
+        master_course{{"master_course"}}
+        master_course_material{{"master_course_material"}}
+        course_files["32_master_course.csv"]
+        distribution_files["33_master_course_material.csv"]
+        master_course --> course_files
+        master_course_material --> distribution_files
     end
 
     subgraph mailing_exports["Mailing"]
         direction LR
         master_mailing("master_mailing")
-        current_mailing("current_mailing")
+        current_mailing{{"current_mailing"}}
         master_file["10_master_mailing.csv"]
         mailing_files["11_current_mailing.csv<br/>11_recent_mailing.csv"]
         geography_files["20_california_mailing.csv<br/>21_texas_mailing.csv<br/>22_florida_mailing.csv<br/>23_newyork_mailing.csv<br/>24_texas_fall_series.csv<br/>25_pennsylvania_mailing.csv<br/>26_canada_mailing.csv<br/>27_other_mailing.csv"]
@@ -200,8 +234,31 @@ flowchart TB
         master_section_analysis --> subset_files
     end
 
+    subgraph pending_sample_exports["Pending samples"]
+        direction LR
+        section_cost("section_cost")
+        sample10_materials("sample10pct_materials")
+        sample25_ids("sample25_unit_ids")
+        sample25_material("sample25id_material_cost")
+        sample25_section("sample25id_section_cost")
+        sample10_future_files["34_sample10pct_materials.csv<br/>sample10pct_materials.parquet"]
+        sample25_material_file["sample25id_material_cost.csv"]
+        sample25_section_file["sample25id_section_cost.csv"]
+        material_costs -.-> sample10_materials
+        sample10 -.-> sample10_materials
+        sample10_materials -.-> sample10_future_files
+        material_costs -.-> sample25_material
+        sample25_ids -.-> sample25_material
+        section_cost -.-> sample25_section
+        sample25_material -.-> sample25_section
+        sample25_section -.-> sample25_section_file
+        sample25_material -.-> sample25_material_file
+    end
+
     classDef file fill:#fff2cc,stroke:#9c7227,color:#222;
     class course_file,post_file,use_file,nouse_file,canada_file,cost_files,section_files,course_files,distribution_files,institution_files,isbn_files,master_file,mailing_files,geography_files,random_file,faculty_file,sample_file,subset_files file;
+    classDef expected fill:#f3f3f3,stroke:#777,stroke-width:2px,stroke-dasharray:6 4,color:#444;
+    class sample10_materials,sample25_ids,sample25_material,sample25_section,sample10_future_files,sample25_material_file,sample25_section_file expected;
 ```
 
 `YYYY_N` is the term; `YYYYMMDD` is the export date. Brackets mark an optional term suffix.
@@ -224,7 +281,7 @@ Arrows above identify inputs. “Section” includes term; grain means one row p
 | `comprehensive_data` | Source row | Add institution, contact, classification, required-inference, population fields. |
 | `section_enrollment` | Section | From `comprehensive_data`; assign enrollment from own values, seats, then medians. |
 | `course_materials` | Section × ISBN | Deterministic representative; retain conflicts/counts and one NULL-ISBN row per section. |
-| `course_materials_post_2024` | Section × ISBN | 2024+. |
+| `course_materials_post_2024` | Section × ISBN | 2024+ export/report boundary. |
 | `course_materials_use` | Section × ISBN | Use filter below. |
 | `course_materials_no_use` | Section × ISBN | Remaining 2024+ rows. |
 | `course_materials_canada` | Section × ISBN | NoUse with state `CAN`. |
@@ -233,11 +290,11 @@ Arrows above identify inputs. “Section” includes term; grain means one row p
 | `material_costs` | Use section × ISBN | Exact LEFT join; retain unmatched/unpriced items. |
 | `section_cost` | Material-bearing section | Sum required/optional and buy-only price bounds. |
 | `master_section` | Material-bearing section | Combine items, costs, assigned enrollment, excluded-row counts. |
-| `master_course` | Course × term | Roll up sections and costs. |
-| `master_course_material` | Course × term × publisher × status | Material distribution. |
+| `master_course` | Course × term | Auxiliary section/cost summary. |
+| `master_course_material` | Course × term × publisher × status | Auxiliary publisher/status distribution. |
 | `master_institution` | Institution × term | Roll up sections; same-term bookstore URL; retain unknown institution. |
 | `master_isbn` | ISBN × term | Roll up material rows. |
-| `sample10_section_ids` | Section | Fixed 10% hash bucket. |
+| `sample10_section_ids` | Section | Internal fixed 10% hash membership. |
 | `master_section_us_intro_fall2025` | Section | Fall 2025; required-bearing; introductory/intermediate; nonblank, non-Canada state. |
 | `master_mailing` | Email | Nonblank; newest term, largest enrollment, stable tie-breakers. |
 | `recent_periods` | Term | Newest 12 terms represented after `master_mailing` selection. |
@@ -268,13 +325,16 @@ Geographic reports join `state_region` at query time.
 
 ## Pending
 
-| Source | Integration boundary |
+| Item | Boundary |
 |---|---|
 | CMM Discipline | Department mapping; keys/normalization await lookup. |
 | CMM IA | Campus availability, distinct from FormatType IA; grain/dates/precedence unresolved. |
-| CMM external pricing | Historical seller comparisons; separate from bookstore costs. |
-| Bookstore-brand lookup | Enrich `material_costs`; keys/release-file scope await lookup. |
-| 25 institution list | Institution subset/extracts, separate from production and 10% sample. |
+| CMM external pricing | Feed the pricing-wide stage; fields/grain await source. |
+| Bookstore-brand lookup | Enrich `pricing_wide`; key and file scope await lookup. |
+| Section flow | #80: move `section_enrollment` upstream; replace `section_book_status` with `is_required_direct`; retain `is_required_inferred`. |
+| `sample10pct_materials` | Material Costs section-cluster sample; #81. |
+| 25 institution list | Feed `sample25id_material_cost` and `sample25id_section_cost`; #60. |
+| Course summaries | #24: retain, rename, or retire; publisher/status seats are non-additive and blank publishers are excluded. |
 
 Refreshes reuse existing source boxes. Missing arrows mean destination undecided.
 “Keep History” is a pending retention decision, not a source.

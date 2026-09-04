@@ -69,6 +69,15 @@ When deriving a boolean from grouped data via `BOOL_OR` and `BOOL_AND`:
 - Compare against `BOOL_AND` only as a data-quality check, **logged to console**, not stored.
 - TODO: better DQ logging — currently console-only.
 
+### Requiredness booleans
+
+- Name derived requiredness booleans `is_required_<method>`.
+- Use `is_required_direct` for explicit source evidence and
+  `is_required_inferred` for fallback classification.
+- State the grain: at section grain, direct means any qualifying material; at item grain,
+  it applies only to that item.
+- Preserve source-owned fields such as `book_status` and `pricing_historical.required`.
+
 ## Pipeline conventions
 
 - All SQL files in `scripts/sql/` are envsubst-templated; reference env vars as `${VAR}`.

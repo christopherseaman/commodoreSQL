@@ -41,7 +41,13 @@ Raw → canonical → release reconciliation passed:
 
 ## Open work
 
-### Actionable now: #21
+### Flow changes
+
+- [#80](https://github.com/christopherseaman/commodoreSQL/issues/80) — upstream section helper; remove `section_book_status`
+- [#81](https://github.com/christopherseaman/commodoreSQL/issues/81) — `sample10pct_materials` from `material_costs`
+- [#24](https://github.com/christopherseaman/commodoreSQL/issues/24) — rationalize course summary views
+
+### Pricing identity: #21
 
 [#21](https://github.com/christopherseaman/commodoreSQL/issues/21): define the source-aware
 section crosswalk; preserve raw identifiers, reject ambiguous matches, and measure impacts.

@@ -19,7 +19,7 @@ Files: `data/<date>/`. Configuration: `scripts/dot.env`.
 | BMG | `DiscoveryExtract.*.csv` | `course_catalog_<date>` |
 | BMG | `BookPricing.Historical_*.csv` | `pricing_historical` |
 | BVA | `OptOut_*.csv` | `opt_out` |
-| BVA | `panel_*.csv` | `panel` / `panel_email` |
+| BVA | `panel_*.csv` | `panel` |
 | IPEDS | `IPEDS_2024.csv` | `ipeds_data` |
 | Internal | `format_type_lookup.tsv` | `format_type_classification` |
 

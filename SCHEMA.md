@@ -16,7 +16,7 @@ Paths are configured in `scripts/dot.env`.
 | BMG | `BookPricing.Historical_*.csv` | `pricing_historical` |
 | IPEDS | `IPEDS_2024.csv` | `ipeds_data` |
 | BVA | `OptOut_*.csv` | `opt_out` |
-| BVA | `panel_*.csv` | `panel`, `panel_email` |
+| BVA | `panel_*.csv` | `panel` → `panel_email` |
 | Internal | `format_type_lookup.tsv` | `format_type_classification` |
 | CMM | `scripts/sql/lookups/supply_keywords.tsv` | supply classification/audit |
 

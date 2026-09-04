@@ -1422,12 +1422,12 @@ TableGroup import_sources {
   ipeds_data
   opt_out
   panel
-  panel_email
   format_type_classification
   pricing_historical
 }
 
 TableGroup import_derived {
+  panel_email
   supply_isbn_classification
   section_book_status
   state_region
