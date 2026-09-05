@@ -10,6 +10,53 @@ State: 2026-09-04. Backlog: GitHub Issues / Project 2.
 - Inputs and `duckdb/commodore.duckdb` end at Fall 2025 (`2025-4`).
 - Spring 2026 and pending lookups remain absent.
 
+## Resume here: #86 consolidation
+
+Validated implementation checkpoint: `43e2f8e`; pushed on the branch above.
+No consolidation code is started. Clean-context subagents completed read-only
+build/consumer audits; their findings are captured below. Safe to resume without chat history.
+
+**Target:** one persisted `course_material`; temporary enrichment followed by the
+existing canonical grouping. Keep the imported catalog for source-row consumers.
+Do not replace `comprehensive_data` with another permanent enriched view or macro.
+Both existing relations retain NoUse/Canada/supplies/placeholders; their distinction
+is source-row versus item grain, not those populations.
+
+| Work owner | Boundaries / acceptance |
+|---|---|
+| Build | Combine `scripts/sql/2_oer_classification.sql` and `2b_course_material.sql` into one connection/stage; each runner entry currently opens a separate connection. Update `run_sql.sh`, retired-relation cleanup, and actual-SQL fixtures. Preserve canonical keys, NULL-ISBN groups, counts/conflicts, assignment, and repeated section audits. |
+| Consumers | Reroute `2d_data_quality.sql`, the full-population diagnostic in `4_merged_records.sql`, exports `01/30/37/41`, and `scripts/classify_supplies.sh`. Audit Metabase questions `01/03/46/51/57/58/61/62/68` and field bindings `57/68`; preserve report IDs and source-row denominators. |
+| Metadata | After SQL contracts settle, update `schema.dbml`, generators/dictionaries, ETL/flow/report docs, manifest, and Notion. Preserve surviving page IDs; verify external field tables. |
+| Reviewer | Independently challenge grain, duplicate/contact conservation, mixed requiredness, complete-section coverage, and replay before declaring staged implementation complete. |
+
+Critical distinctions:
+
+- Canonical `BOOL_OR` flags cannot replace source-row requiredness on mixed keys.
+  Recompute narrow source predicates where needed; avoid duplicating full enrichment.
+- Faculty export `30` needs raw catalog fields only. ISBN variability `61/62` also
+  needs source detail; representative item metadata cannot reconstruct it.
+- Complete-section reports can use deduplicated **all** `course_material` sections,
+  including NULL-ISBN/NoUse groups, with inherited enrollment context. Prove key and
+  value parity; do not filter to Use or put IPEDS assignment back into the helper.
+- Keep invalid-key DQ on raw catalog; use NULL-safe ISBN equality where required.
+- Keep exact pricing joins, the shared newest-12-term window, and provisional master
+  definitions unchanged. No new source assumptions or contact-filter changes.
+
+Execution limits: no full/live rebuild, live Metabase publication, or release of stale
+`output/`. Use isolated fixtures; no new branch, source-capture edits, or descendant agents.
+Delegate with `fork_turns: "none"`, explicit owned paths, allowed actions, stop conditions,
+and expected results. Parent owns integration, ticket updates, and publication.
+
+Validation: `python3 -m unittest discover -s scripts -p 'test_*.py'`; standalone
+`test_legacy_cleanup.py` / `test_mailing_periods.py`; both document generators' `--check`;
+diagram renders; Metabase `--dry-run` with configured environment. Add a real DQ fixture
+and assert no persisted `comprehensive_data` after build/replay. Current 64-test evidence
+does not validate the future consolidation or establish full-data parity.
+
+Notion checkpoint: 40 pages synced; 32 five-column relation tables / 1,231 fields
+externally verified. `panel` dictionary is recoverably trashed. Use `NOTION_KEYRING=0`
+and manifest preflight before applying changes; `HANDOFF.md` itself is repo-only.
+
 ## Current implementation
 
 - `master_material`: canonical Use items LEFT-enriched by exact section × ISBN pricing.
@@ -97,6 +144,7 @@ Exact matching remains active. [Evidence and constraints](PRICING-CATALOG-MATCHI
 
 ### External blockers
 
+- [#23](https://github.com/christopherseaman/commodoreSQL/issues/23) — external pricing inputs and integration
 - [#51](https://github.com/christopherseaman/commodoreSQL/issues/51) — Spring 2026 source drops
 - [#52](https://github.com/christopherseaman/commodoreSQL/issues/52) — `cmm_discipline`
 - [#56](https://github.com/christopherseaman/commodoreSQL/issues/56) — updated BVA mailing history
@@ -109,6 +157,11 @@ Exact matching remains active. [Evidence and constraints](PRICING-CATALOG-MATCHI
 
 [#26](https://github.com/christopherseaman/commodoreSQL/issues/26): PI must choose all required
 materials or the current buy-priced subset and labels. Do not change it.
+
+### Separate older backlog
+
+Persistent DQ logging #19; Metabase organization #30; cost-driver/OER modeling #43;
+advanced reporting #47; parked program/course ideas #48. All are ticketed; none blocks #86.
 
 ## Essential commands
 
