@@ -1,4 +1,5 @@
 #!/bin/bash
+set -euo pipefail
 
 # Detect repo root and script directory
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
@@ -11,6 +12,7 @@ cd "$SCRIPT_DIR"
 set -o allexport
 source dot.env
 set +o allexport
+DUCKDB="${DUCKDB:-duckdb}"
 
 # Override directories to use repo root
 TMP_EXPORTS_DIR="${REPO_ROOT}/tmp/exports"
@@ -36,7 +38,7 @@ process_export() {
     local export_name=$(basename "$input_file" .sql)
     
     # Increment counter
-    ((current_export++))
+    current_export=$((current_export + 1))
     
     echo "===== Processing $export_name ($current_export/$total_exports) ====="
 
@@ -60,7 +62,7 @@ DROP TABLE IF EXISTS export_table;
 EOF
     
     # Process the export
-    nice -n 19 duckdb "${MAIN_DB}" < "${TMP_EXPORTS_DIR}/$export_name.sql"
+    nice -n 19 $DUCKDB -bail -readonly "${MAIN_DB}" < "${TMP_EXPORTS_DIR}/$export_name.sql"
 }
 
 # Process each export file

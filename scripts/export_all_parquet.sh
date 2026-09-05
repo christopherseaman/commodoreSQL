@@ -10,6 +10,7 @@ cd "$SCRIPT_DIR"
 set -o allexport
 source "$SCRIPT_DIR/dot.env"
 set +o allexport
+DUCKDB="${DUCKDB:-duckdb}"
 
 PARQUET_TMP_DIR="$REPO_ROOT/tmp/parquet_exports"
 PARQUET_OUTPUT_DIR="${OUTPUT_DIR:-$REPO_ROOT/output}"
@@ -74,12 +75,13 @@ EOF
     fi
 
     # Execute export and track results
-    if ${DUCKDB} "${MAIN_DB}" < "$export_sql"; then
+    if ${DUCKDB} -bail -readonly "${MAIN_DB}" < "$export_sql"; then
         echo "✓ Successfully exported ${export_name} to parquet"
         successful_exports=$((successful_exports + 1))
     else
         echo "✗ Failed to export ${export_name}"
         failed_exports=$((failed_exports + 1))
+        exit 1
     fi
     
     echo ""

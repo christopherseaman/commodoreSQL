@@ -18,7 +18,7 @@ OUT="$REPO_ROOT/output/fall2025_supply_isbns.parquet"
 mkdir -p "$REPO_ROOT/output"
 
 echo "[1/2] Classifying supply ISBNs (Fall 2025) -> output/fall2025_supply_isbns.parquet"
-$DUCKDB -readonly "$DB" <<SQL
+$DUCKDB -bail -readonly "$DB" <<SQL
 SET memory_limit='12GB'; SET threads=6;
 COPY (
   WITH
@@ -72,7 +72,7 @@ SQL
 
 echo ""
 echo "[2/2] Prevalence, category mix, precision sample, and cost impact"
-$DUCKDB -readonly "$DB" <<SQL
+$DUCKDB -bail -readonly "$DB" <<SQL
 SET memory_limit='12GB'; SET threads=6;
 .mode box
 -- Prevalence vs all Fall-2025 priced/scoped materials

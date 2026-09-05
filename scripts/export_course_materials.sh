@@ -34,7 +34,7 @@ DUCKDB="${DUCKDB:-duckdb}"
 OUT_DIR="${COURSE_MATERIALS_OUTPUT_DIR:-${CMM_OUTPUT_DIR:-$REPO_ROOT/output/course_materials}}"
 EXPORT_DATE="${CMM_EXPORT_DATE:-$(date +%Y%m%d)}"
 TERM=""
-# dot.env may include trusted DuckDB flags (for example, `duckdb -bail`).
+# dot.env may include trusted DuckDB flags.
 # Split that configured command into argv before appending this script's flags;
 # invoking the whole string as one executable would fail with command-not-found.
 read -r -a DUCKDB_ARGS <<< "$DUCKDB"
@@ -124,7 +124,7 @@ for export_spec in "${EXPORTS[@]}"; do
     staged_path="$STAGING_DIR/$filename"
     output_path_sql=$(copy_path_sql "$staged_path")
     echo "[EXPORT] ${relation}${TERM:+ (${TERM})} -> ${output_path#$REPO_ROOT/}"
-    "${DUCKDB_ARGS[@]}" -readonly "$DB" <<SQL
+    "${DUCKDB_ARGS[@]}" -bail -readonly "$DB" <<SQL
 COPY (
     SELECT * FROM ${relation}${term_predicate}
     ORDER BY ${ordering}

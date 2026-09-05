@@ -28,8 +28,8 @@ fi
 if [ "$#" -gt 0 ]; then
     TERMS=("$@")
 else
-    mapfile -t TERMS < <(
-        $DUCKDB -readonly -list -noheader "$DB" -c "
+    terms_output=$(
+        $DUCKDB -bail -readonly -list -noheader "$DB" -c "
             SELECT DISTINCT period_sortable
             FROM material_costs
             WHERE period_sortable IS NOT NULL
@@ -37,6 +37,10 @@ else
             ORDER BY period_sortable;
         "
     )
+    TERMS=()
+    if [ -n "$terms_output" ]; then
+        mapfile -t TERMS <<< "$terms_output"
+    fi
 fi
 
 if [ "${#TERMS[@]}" -eq 0 ]; then
@@ -65,7 +69,7 @@ for term in "${TERMS[@]}"; do
     material_costs_file_sql=${material_costs_file//\'/\'\'}
 
     model_counts=$(
-        $DUCKDB -readonly -list -noheader -separator ' ' "$DB" -c "
+        $DUCKDB -bail -readonly -list -noheader -separator ' ' "$DB" -c "
             SELECT
                 (SELECT COUNT(*) FROM master_section WHERE period_sortable = '${term}'),
                 (SELECT COUNT(*) FROM master_institution WHERE period_sortable = '${term}'),
@@ -84,7 +88,7 @@ for term in "${TERMS[@]}"; do
     echo "[EXPORT] Master Institution ${term} -> ${institution_file#$REPO_ROOT/} (${institution_rows} rows)"
     echo "[EXPORT] Master ISBN ${term} -> ${isbn_file#$REPO_ROOT/} (${isbn_rows} rows)"
     echo "[EXPORT] Material Costs ${term} -> ${material_costs_file#$REPO_ROOT/} (${material_costs_rows} rows)"
-    $DUCKDB -readonly "$DB" <<SQL
+    $DUCKDB -bail -readonly "$DB" <<SQL
 SET memory_limit='8GB';
 SET threads=4;
 

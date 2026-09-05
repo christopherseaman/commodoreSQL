@@ -52,7 +52,7 @@ Raw → canonical → release reconciliation passed:
 
 ### Reliability
 
-- [#82](https://github.com/christopherseaman/commodoreSQL/issues/82) — make DuckDB runners fail on the first SQL error
+- [#82](https://github.com/christopherseaman/commodoreSQL/issues/82) — implemented: all supported CLI paths force `-bail`; regression tests cover stdin, `-c`, and read-only calls
 
 ### Pricing identity: #21
 
@@ -80,7 +80,7 @@ materials or the current buy-priced subset and labels. Do not change it.
 Read-only query:
 
 ```bash
-duckdb -readonly duckdb/commodore.duckdb <<'SQL'
+duckdb -bail -readonly duckdb/commodore.duckdb <<'SQL'
 SET memory_limit='8GB'; SET threads=4;
 SELECT ...;
 SQL

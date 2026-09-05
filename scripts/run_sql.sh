@@ -220,7 +220,7 @@ DROP TABLE IF EXISTS export_table;
 EOF
 
     # Execute with lower priority
-    time nice -n 19 ${DUCKDB} "${MAIN_DB}" < "${TMP_DIR}/${export_name}.sql"
+    time nice -n 19 ${DUCKDB} -bail "${MAIN_DB}" < "${TMP_DIR}/${export_name}.sql"
 }
 
 process_model() {
@@ -240,7 +240,7 @@ process_model() {
         envsubst < "sql/${sql_file}"
     } > "${TMP_DIR}/${model_name}.sql"
 
-    time nice -n 19 ${DUCKDB} "${MAIN_DB}" < "${TMP_DIR}/${model_name}.sql"
+    time nice -n 19 ${DUCKDB} -bail "${MAIN_DB}" < "${TMP_DIR}/${model_name}.sql"
 }
 
 # Process and run SQL files
@@ -267,7 +267,7 @@ for sql_file in "${SQL_FILES[@]}"; do
     # object once before the new idempotent table refresh executes.
     if [ "$sql_file" = "3_mailing_lists.sql" ]; then
         master_mailing_type=$(
-            ${DUCKDB} "${MAIN_DB}" -csv -noheader -c "
+            ${DUCKDB} -bail -csv -noheader "${MAIN_DB}" -c "
                 SELECT table_type
                 FROM information_schema.tables
                 WHERE table_schema = 'main' AND table_name = 'master_mailing';
@@ -275,25 +275,25 @@ for sql_file in "${SQL_FILES[@]}"; do
         )
         if [ "$master_mailing_type" = "VIEW" ]; then
             echo "[MIGRATION] Dropping legacy master_mailing view..."
-            ${DUCKDB} "${MAIN_DB}" -c "DROP VIEW master_mailing;"
+            ${DUCKDB} -bail "${MAIN_DB}" -c "DROP VIEW master_mailing;"
         fi
     fi
 
     envsubst < "sql/${sql_file}" > "${TMP_DIR}/${sql_file}"
 
     # Execute with error handling
-    time ${DUCKDB} "${MAIN_DB}" < "${TMP_DIR}/${sql_file}"
+    time ${DUCKDB} -bail "${MAIN_DB}" < "${TMP_DIR}/${sql_file}"
 
     # Debug: Check views after setup.sql
     if [ "$sql_file" = "0_setup.sql" ]; then
         echo "Checking tables after setup..."
-        ${DUCKDB} "${MAIN_DB}" -c "SELECT name FROM sqlite_master WHERE type='table';"
+        ${DUCKDB} -bail "${MAIN_DB}" -c "SELECT name FROM sqlite_master WHERE type='table';"
     fi
 done
 
 # Verify critical tables exist before proceeding
 echo "Verifying critical tables exist..."
-${DUCKDB} "${MAIN_DB}" -c "
+${DUCKDB} -bail "${MAIN_DB}" -c "
     SELECT name FROM sqlite_master 
     WHERE type='table' 
     AND name IN ('comprehensive_data', 'master_mailing', 'master_section', 'master_course');
