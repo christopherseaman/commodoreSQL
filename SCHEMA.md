@@ -53,7 +53,7 @@ flowchart TD
 | `ipeds_data` | Institution lookup. |
 | `opt_out` | Normalized-email BVA rows; duplicates allowed. |
 | `panel_email` | BVA response history grouped to one row/email. |
-| `state_region` | State/province-to-region lookup. |
+| `state_region` | Catalog-state-code-to-region lookup. |
 | `format_type_classification` | FormatType-to-OER/IA lookup. |
 | `supply_isbn_classification` | One classified recent-term ISBN row. |
 | `comprehensive_data` | One enriched normalized catalog row; refresh DQ proves lookup uniqueness/count preservation. |

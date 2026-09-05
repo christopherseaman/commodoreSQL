@@ -10,8 +10,23 @@ ROOT = Path(__file__).resolve().parent.parent
 
 class FlowDiagramTest(unittest.TestCase):
     def setUp(self):
-        document = (ROOT / "CMM-DATA-FLOW.md").read_text()
-        self.chart = re.findall(r"```mermaid\n(.*?)```", document, re.S)[0]
+        self.document = (ROOT / "CMM-DATA-FLOW.md").read_text()
+        self.chart = re.findall(r"```mermaid\n(.*?)```", self.document, re.S)[0]
+
+    def test_walkthrough_structure_and_retained_grains(self):
+        self.assertEqual(
+            re.findall(r"^## (.+)$", self.document, re.M),
+            ["Sources", "Logic", "Samples & exports"],
+        )
+        logic = self.document.split("## Logic\n", 1)[1].split("## Samples & exports", 1)[0]
+        self.assertEqual(
+            re.findall(r"^### (.+)$", logic, re.M),
+            ["Materials", "Pricing", "Mailing", "Release"],
+        )
+        self.assertIn('comprehensive("comprehensive_data")', self.chart)
+        self.assertIn('course_material("course_material")', self.chart)
+        self.assertIn("comprehensive --> course_material", self.chart)
+        self.assertNotIn("## Table logic", self.document)
 
     def group(self, name):
         match = re.search(rf"subgraph {name}\[.*?\n(.*?)\n    end", self.chart, re.S)

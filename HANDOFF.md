@@ -10,52 +10,34 @@ State: 2026-09-04. Backlog: GitHub Issues / Project 2.
 - Inputs and `duckdb/commodore.duckdb` end at Fall 2025 (`2025-4`).
 - Spring 2026 and pending lookups remain absent.
 
-## Resume here: #86 consolidation
+## Latest decision and resume point
 
-Validated implementation checkpoint: `43e2f8e`; pushed on the branch above.
-No consolidation code is started. Clean-context subagents completed read-only
-build/consumer audits; their findings are captured below. Safe to resume without chat history.
+**Keep both tables. #86 is canceled and closed as not planned.**
+`comprehensive_data` retains enriched source rows; `course_material` groups valid
+term × section × ISBN keys and retains counts/conflicts plus NULL-ISBN audit groups.
+Both retain NoUse/Canada/supplies and older terms. Their different grains are intentional.
+All unfinished consolidation changes were reverted; SQL and report queries remain at
+the validated `43e2f8e` implementation checkpoint. Do not resume the former consolidation plan.
 
-**Target:** one persisted `course_material`; temporary enrichment followed by the
-existing canonical grouping. Keep the imported catalog for source-row consumers.
-Do not replace `comprehensive_data` with another permanent enriched view or macro.
-Both existing relations retain NoUse/Canada/supplies/placeholders; their distinction
-is source-row versus item grain, not those populations.
+[#89](https://github.com/christopherseaman/commodoreSQL/issues/89) checks actual staged
+table dependencies against the diagram and replaces the flow explanation with Sources,
+Logic (Materials, Pricing, Mailing, Release), and Samples & exports. Independent audit
+found no implemented dependency mismatch; the former #86 note was stale. The rewrite
+also corrects Master ISBN price-cell availability wording and the geographic lookup
+description. The revised flow/schema pages are synced with verified Notion readback.
 
-| Work owner | Boundaries / acceptance |
-|---|---|
-| Build | Combine `scripts/sql/2_oer_classification.sql` and `2b_course_material.sql` into one connection/stage; each runner entry currently opens a separate connection. Update `run_sql.sh`, retired-relation cleanup, and actual-SQL fixtures. Preserve canonical keys, NULL-ISBN groups, counts/conflicts, assignment, and repeated section audits. |
-| Consumers | Reroute `2d_data_quality.sql`, the full-population diagnostic in `4_merged_records.sql`, exports `01/30/37/41`, and `scripts/classify_supplies.sh`. Audit Metabase questions `01/03/46/51/57/58/61/62/68` and field bindings `57/68`; preserve report IDs and source-row denominators. |
-| Metadata | After SQL contracts settle, update `schema.dbml`, generators/dictionaries, ETL/flow/report docs, manifest, and Notion. Preserve surviving page IDs; verify external field tables. |
-| Reviewer | Independently challenge grain, duplicate/contact conservation, mixed requiredness, complete-section coverage, and replay before declaring staged implementation complete. |
+Remaining flow tickets #80/#81/#83/#84/#85/#88 have staged implementations and await
+the held rebuild/live validation. #87 still needs final Master Course/Institution
+definitions. Missing sources and other decisions are listed below. No further flow
+refactor is implicitly authorized by the documentation rewrite.
 
-Critical distinctions:
+No full/live rebuild, live Metabase publication, or stale `output/` release.
+Use isolated fixtures. Delegate with `fork_turns: "none"` and explicit bounded context;
+no descendant agents, new branch, or source-capture edits.
 
-- Canonical `BOOL_OR` flags cannot replace source-row requiredness on mixed keys.
-  Recompute narrow source predicates where needed; avoid duplicating full enrichment.
-- Faculty export `30` needs raw catalog fields only. ISBN variability `61/62` also
-  needs source detail; representative item metadata cannot reconstruct it.
-- Complete-section reports can use deduplicated **all** `course_material` sections,
-  including NULL-ISBN/NoUse groups, with inherited enrollment context. Prove key and
-  value parity; do not filter to Use or put IPEDS assignment back into the helper.
-- Keep invalid-key DQ on raw catalog; use NULL-safe ISBN equality where required.
-- Keep exact pricing joins, the shared newest-12-term window, and provisional master
-  definitions unchanged. No new source assumptions or contact-filter changes.
-
-Execution limits: no full/live rebuild, live Metabase publication, or release of stale
-`output/`. Use isolated fixtures; no new branch, source-capture edits, or descendant agents.
-Delegate with `fork_turns: "none"`, explicit owned paths, allowed actions, stop conditions,
-and expected results. Parent owns integration, ticket updates, and publication.
-
-Validation: `python3 -m unittest discover -s scripts -p 'test_*.py'`; standalone
-`test_legacy_cleanup.py` / `test_mailing_periods.py`; both document generators' `--check`;
-diagram renders; Metabase `--dry-run` with configured environment. Add a real DQ fixture
-and assert no persisted `comprehensive_data` after build/replay. Current 64-test evidence
-does not validate the future consolidation or establish full-data parity.
-
-Notion checkpoint: 40 pages synced; 32 five-column relation tables / 1,231 fields
-externally verified. `panel` dictionary is recoverably trashed. Use `NOTION_KEYRING=0`
-and manifest preflight before applying changes; `HANDOFF.md` itself is repo-only.
+Notion: 40 manifest pages, 32 relation dictionaries / 1,231 fields. Surviving page IDs
+are unchanged; the `comprehensive_data` dictionary is retained. Use `NOTION_KEYRING=0`
+and manifest preflight before publication; `HANDOFF.md` is repo-only.
 
 ## Current implementation
 
@@ -70,7 +52,7 @@ and manifest preflight before applying changes; `HANDOFF.md` itself is repo-only
 
 [Flow](CMM-DATA-FLOW.md) · [ETL rules](CMM-ETL.md) · [Dictionary](DATA-DICTIONARY.md)
 
-Current branch checks: 64 automated tests plus standalone cleanup/mailing checks pass.
+Current branch checks: 65 automated tests plus standalone cleanup/mailing checks pass.
 Isolated actual-SQL fixtures cover enrollment, requiredness, canonical grain, costs,
 master rollups, exact sample membership, release reconciliations, and cleanup/replay.
 They also exercise inherited audit counts, section/institution URL selection,
@@ -125,7 +107,8 @@ Bounded read-only checks of the staged expressions against that snapshot found:
 - [#80](https://github.com/christopherseaman/commodoreSQL/issues/80) — catalog-only helper; IPEDS cohort/median work moved into enrichment; rebuild pending
 - [#81](https://github.com/christopherseaman/commodoreSQL/issues/81) — direct `master_material` hash sample staged; rebuild pending
 - [#85](https://github.com/christopherseaman/commodoreSQL/issues/85) — singular relation/sample naming and direct Canada export staged; live migration held
-- [#86](https://github.com/christopherseaman/commodoreSQL/issues/86) — consolidate into `course_material`, rerouting source-row consumers to the catalog; implementation pending, no user clarification needed
+- [#86](https://github.com/christopherseaman/commodoreSQL/issues/86) — canceled; retain source-row `comprehensive_data` and item-grain `course_material`
+- [#89](https://github.com/christopherseaman/commodoreSQL/issues/89) — verify staged SQL/diagram agreement and rewrite the flow explanation
 - [#87](https://github.com/christopherseaman/commodoreSQL/issues/87) — URL carried through Master Section; final Course/Institution definitions pending
 - [#88](https://github.com/christopherseaman/commodoreSQL/issues/88) — shared newest-12-term window approved and staged; full-data count effects unmeasured under rebuild hold
 - [#83](https://github.com/christopherseaman/commodoreSQL/issues/83) — catalog-derived mailing window staged; bounded live-snapshot parity proven; rebuild pending
@@ -161,7 +144,7 @@ materials or the current buy-priced subset and labels. Do not change it.
 ### Separate older backlog
 
 Persistent DQ logging #19; Metabase organization #30; cost-driver/OER modeling #43;
-advanced reporting #47; parked program/course ideas #48. All are ticketed; none blocks #86.
+advanced reporting #47; parked program/course ideas #48. All are ticketed separately.
 
 ## Essential commands
 
