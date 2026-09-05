@@ -48,7 +48,7 @@ Raw → canonical → release reconciliation passed:
 
 - [#80](https://github.com/christopherseaman/commodoreSQL/issues/80) — implementation staged; full rebuild/reconciliation pending
 - [#81](https://github.com/christopherseaman/commodoreSQL/issues/81) — in Review; 1,282,423-row sample reconciled
-- [#24](https://github.com/christopherseaman/commodoreSQL/issues/24) — rationalize course summary views
+- [#24](https://github.com/christopherseaman/commodoreSQL/issues/24) — resolved: retain `master_course`, export 32, and Metabase card 90 for the course×term rollup; retire `master_course_material` and export 33 (no consumer; NULL publishers excluded; seats repeat across publisher/status groups).
 
 ### Reliability
 

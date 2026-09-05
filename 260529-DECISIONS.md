@@ -147,6 +147,9 @@ error-prone to hand-author). Assumed scope:
   - **publisher-split alignment — deferred.** `required_publishers` etc. still use
     `LOWER(book_status)='required'`; align to `filter_include` after the grain fix (distinct
     counts aren't additive across the split).
+  - **2026-09-04 disposition:** retain `master_course` and export 32 for the requested course×term
+    rollup. `enrollment_total` sums raw `master_section.enrollments`; assigned enrollment is not
+    substituted. Retire tentative `master_course_material` and export 33; no consumer was found.
   - **`schema.dbml` drift — open.** Not updated for the new cost/OER columns or `section_cost`
     table (`schema.dbml` has separate uncommitted WIP; left untouched). See §6 for the additions.
 

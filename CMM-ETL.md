@@ -45,11 +45,11 @@ Releases record filenames, snapshot dates, pipeline commit, and configuration. S
 | Import | `2d_data_quality.sql` | Materialize import-state metrics/drill-downs and non-mutating pricing/catalog comparisons; diagnostics are not release denominators. |
 | EDA | `3_mailing_lists.sql` | Build Master and Working mailing relations; seven geographic exports filter `current_mailing` directly. |
 | EDA | `3b_material_costs.sql` | LEFT-enrich every canonical Use item from `pricing_wide` on exact section × ISBN. |
-| EDA | `4_merged_records.sql` | Build `section_cost`, `master_section`, `master_course`, `master_course_material`, and Fall 2025 compatibility projection. |
+| EDA | `4_merged_records.sql` | Build `section_cost`, `master_section`, `master_course`, and Fall 2025 compatibility projection. |
 | Models | `scripts/sql/models/*.sql` | Materialize `master_institution`, `master_isbn`, `sample10_section_ids`, and `sample10pct_materials`. |
 | Exports | `scripts/sql/exports/*.sql` | Unless `NO_EXPORT`, run lexical wrappers to `output/<basename>.csv`; standalone exporters are separate. |
 
-The intended database has 37 DBML-managed relations (28 tables, nine views): 27 executable-flow relations, seven DQ sidecars, and three report/export views. Retired relations are removed by cleanup.
+The intended database has 36 DBML-managed relations (28 tables, eight views): 27 executable-flow relations, seven DQ sidecars, and two report/export views. Retired relations are removed by cleanup.
 
 ## Grains and lineage
 
@@ -65,8 +65,7 @@ The intended database has 37 DBML-managed relations (28 tables, nine views): 27 
 | `sample10pct_materials` | `material_costs` items in `sample10_section_ids`; identical columns and item grain. |
 | `section_cost` | One material-bearing `(period_sortable,section_id)`; cost bounds from `material_costs`. |
 | `master_section` | One section represented in `material_costs`; inherited section dimensions/enrollment and costs from `section_cost`. |
-| `master_course` | One `(course_id,period_sortable)` material-bearing course rollup. |
-| `master_course_material` | One exact group `(course_id,period,period_sortable,period_date,school,department,course_number,course_title,publisher,book_status)`; filters NULL course, publisher, sortable period. |
+| `master_course` | One material-bearing `(course_id,period_sortable)`; `enrollment_total = SUM(master_section.enrollments)` without assigned-value substitution. |
 | `master_institution` | One `(period_sortable,unit_id)`, including NULL unit bucket; bookstore URL is same-term pricing exception. |
 | `master_isbn` | One `(period_sortable,isbn13)` rollup of canonical Use items. |
 

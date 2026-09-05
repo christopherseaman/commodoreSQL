@@ -101,7 +101,7 @@ Subsets A/B (BMG)"*; for the data model see `SCHEMA.md` / `schema.dbml`; for pic
 
 ### Process
 - **Adversarial pre-write review before every heavy DB write** (workflow-orchestrated). It caught
-  the `MATERIALIZED` 4× recompute, the `master_course_material` inconsistency, and #40 itself.
+  the `MATERIALIZED` 4× recompute, the historical #24 course-summary inconsistency, and #40 itself.
 - **One rebuild window per coordinated change** (Metabase holds the DB file lock) — #40 in its own
   window, #34+#41 bundled into one.
 
@@ -121,7 +121,11 @@ Subsets A/B (BMG)"*; for the data model see `SCHEMA.md` / `schema.dbml`; for pic
   `required_count`, `optional_count`, OER/IA, coverage, publishers, and the `section_cost`-joined
   cost columns) therefore share the same material-bearing section population. The independent
   `section_enrollment` table retains the broader valid 2024+ section spine.
-- **`section_cost`** and **`master_course_material`** use the canonical #58 Use population.
+- **`section_cost`** uses the canonical #58 Use population. `master_course` is retained for the
+  requested course×term rollup (export 32); its `enrollment_total` sums raw
+  `master_section.enrollments`, while `master_section.enrollment_assigned` remains available upstream.
+- **`master_course_material` and export 33 are retired:** the tentative publisher/status output had
+  no consumer, excluded NULL publishers, and repeated seats across publisher/status groups.
 - **`master_section_us_intro_fall2025`** view (#38): Fall 2025, US-only, intro/intermediate,
   `required_count>=1` — a pure filtered projection of the material-bearing `master_section`.
   Current validated row count: **773,613**.

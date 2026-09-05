@@ -25,7 +25,6 @@ docs/data-dictionary/current_mailing.md
 docs/data-dictionary/format_type_classification.md
 docs/data-dictionary/ipeds_data.md
 docs/data-dictionary/master_course.md
-docs/data-dictionary/master_course_material.md
 docs/data-dictionary/master_institution.md
 docs/data-dictionary/master_isbn.md
 docs/data-dictionary/master_mailing.md

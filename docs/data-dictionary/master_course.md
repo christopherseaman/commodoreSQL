@@ -36,7 +36,7 @@ notion-sync: push
 | `course_level` | `varchar` | Category such as `Introductory or general undergraduate` | `mode(master_section.course_level)` by course-term. | Instructional level assigned to the course. |
 | `course_subject` | `varchar` | Source subject, such as `Biology` | `mode(master_section.course_subject)` by course-term. | Subject area assigned to the course. |
 | `section_count` | `bigint` | Non-negative whole-number count | `COUNT(DISTINCT section_id)` over `master_section`. | Distinct material-bearing sections within the aggregation group. |
-| `enrollment_total` | `hugeint` | Sum of reported section enrollment; source negatives may propagate | `SUM(enrollments)` over `master_section`. | Reported enrollment summed across the course sections. |
+| `enrollment_total` | `hugeint` | Sum of reported section enrollment; source negatives may propagate | `SUM(master_section.enrollments)` over `master_section`. Uses raw `master_section.enrollments`, without imputation. | Reported enrollment summed across the course sections. |
 | `seats_taken_total` | `hugeint` | Sum of reported occupied seats; source noise and sentinels may propagate | `SUM(seats_taken)` over `master_section`. | Reported occupied seats summed across course sections. |
 | `total_materials` | `hugeint` | Non-negative count of canonical material items | `SUM(material_count)` over `master_section`. | Canonical materials summed across all course sections. |
 | `total_required` | `hugeint` | Non-negative count of required material items | `SUM(required_count)` over `master_section`. | Required materials summed across all course sections. |

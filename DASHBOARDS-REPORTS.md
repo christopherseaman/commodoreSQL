@@ -118,7 +118,7 @@ ID `14` · [`data_lineage`](metabase/dashboards/data_lineage.json) · Selected-s
 | Lineage 4 — Pricing Wide (pivoted) | [`87`](metabase/questions/53_lineage_pricing_wide.sql) | Pricing-wide section/ISBN pairs for selected school. |
 | Lineage 5 — Section Cost | [`88`](metabase/questions/54_lineage_section_cost.sql) | Section-cost rows for selected school; all-options and buy-only. |
 | Lineage 6 — Master Section (wide record) | [`89`](metabase/questions/55_lineage_master_section.sql) | Material-bearing Master Section rows for selected school. |
-| Lineage 7 — Master Course (rollup) | [`90`](metabase/questions/56_lineage_master_course.sql) | Master Course rollups across material-bearing sections for selected school. |
+| Lineage 7 — Master Course (rollup) | [`90`](metabase/questions/56_lineage_master_course.sql) | Course rollups; `enrollment_total` uses raw section enrollment. |
 
 ## Data quality dashboards
 

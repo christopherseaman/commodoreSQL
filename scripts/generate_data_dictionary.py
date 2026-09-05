@@ -91,7 +91,6 @@ RELATION_METADATA: dict[str, RelationMetadata] = {
     "section_cost": RelationMetadata("EDA records / 4_merged_records.sql", "One material-bearing period × section", ("material_costs",), "Section-level price-bound aggregates used by release rollups."),
     "master_section": RelationMetadata("EDA records / 4_merged_records.sql", "One material-bearing period × section", ("material_costs", "section_cost", "course_materials"), "Canonical materialized per-term section release table."),
     "master_course": RelationMetadata("EDA records / 4_merged_records.sql", "One material-bearing period × course", ("master_section", "section_cost"), "Course-level section and cost rollup.", "Declared aggregate projection; no inherited base schema."),
-    "master_course_material": RelationMetadata("EDA records / 4_merged_records.sql", "One (course_id, period_sortable, period, period_date, school, department, course_number, course_title, publisher, book_status) group", ("material_costs",), "Course material distribution rollup.", "Declared aggregate projection from material_costs."),
     "master_section_us_intro_fall2025": RelationMetadata("EDA records / 4_merged_records.sql", "Filtered master_section rows", ("master_section",), "Fall 2025 required intro/intermediate scope using the executable non-Canada/nonblank-state proxy.", "All columns inherited from master_section; filtered projection only."),
     "master_institution": RelationMetadata("Release model / models/master_institution.sql", "One period × institution, including an explicit NULL-institution bucket", ("master_section", "pricing_wide"), "Canonical materialized per-term institution release table."),
     "master_isbn": RelationMetadata("Release model / models/master_isbn.sql", "One period × non-NULL ISBN", ("material_costs",), "Canonical materialized per-term ISBN release table."),
@@ -150,10 +149,10 @@ RELATION_GROUPS: tuple[tuple[str, str, tuple[str, ...]], ...] = (
         ),
     ),
     (
-        "Report/export views (3 relations)",
+        "Report/export views (2 relations)",
         "Current convenience views. Geographic mailing outputs are seven export leaves that filter `current_mailing` directly; they are not database relations or dictionary pages.",
         (
-            "master_course", "master_course_material", "master_section_us_intro_fall2025",
+            "master_course", "master_section_us_intro_fall2025",
         ),
     ),
 )
@@ -176,18 +175,6 @@ VIEW_FILTER_CONTEXT: dict[str, str] = {
     "course_materials_canada": "NoUse rows where `is_canada` is true.",
     "master_section_us_intro_fall2025": "Rows where `period_sortable = '2025-4'`, `required_count >= 1`, `course_level` is exactly `Introductory or general undergraduate` or `Intermediate undergraduate`, and non-NULL `state NOT IN ('CAN', '')`.",
 }
-
-# A small number of executable aggregate contracts are more precise than the
-# legacy DBML prose and must remain accurate in the generated dictionary.
-RELATION_NOTE_OVERRIDES: dict[str, str] = {
-    "master_course_material": (
-        "One row per (course_id × period_sortable × period × period_date × school × "
-        "department × course_number × course_title × publisher × book_status), "
-        "consumed directly from material_costs. SQL filters NULL course_id, publisher, "
-        "and period_sortable before grouping; other group keys may be NULL."
-    ),
-}
-
 
 _TABLE_RE = re.compile(
     r"^Table\s+([A-Za-z_][A-Za-z0-9_]*)(?:\s+\[note:\s*'(table|view)'\])?\s*\{$"
@@ -707,8 +694,6 @@ def _resolve_non_inherited(
         )
     if r == "master_course":
         return _master_course_metadata(column)
-    if r == "master_course_material":
-        return _master_course_material_metadata(column)
     if r == "master_institution":
         return _master_institution_metadata(column)
     if r == "master_isbn":
@@ -1025,7 +1010,7 @@ def _master_course_metadata(column: Column) -> FieldMetadata | None:
     if n in modes:
         return _metadata(column, f"`mode(master_section.{n})` by course-term.", pop, "No section has a nonmissing value.", "aggregate")
     expressions = {
-        "section_count": "COUNT(DISTINCT section_id)", "enrollment_total": "SUM(enrollments)",
+        "section_count": "COUNT(DISTINCT section_id)", "enrollment_total": "SUM(master_section.enrollments)",
         "seats_taken_total": "SUM(seats_taken)", "total_materials": "SUM(material_count)",
         "total_required": "SUM(required_count)", "total_optional": "SUM(optional_count)",
         "is_oer": "COALESCE(BOOL_OR(is_oer), FALSE)", "is_ia": "COALESCE(BOOL_OR(is_ia), FALSE)",
@@ -1041,7 +1026,10 @@ def _master_course_metadata(column: Column) -> FieldMetadata | None:
     }
     if n in expressions:
         null = "No contributing nonmissing values." if n in {"enrollment_total", "seats_taken_total", "all_publishers"} else "Never NULL for a retained group."
-        return _metadata(column, f"`{expressions[n]}` over `master_section`.", pop, null, "aggregate")
+        source = f"`{expressions[n]}` over `master_section`."
+        if n == "enrollment_total":
+            source += " Uses raw `master_section.enrollments`, without imputation."
+        return _metadata(column, source, pop, null, "aggregate")
     cost = re.fullmatch(r"(required|optional)_cost_(total|owned)_(min|max)", n)
     if cost:
         status, scope, agg = cost.groups()
@@ -1067,27 +1055,6 @@ def _master_course_metadata(column: Column) -> FieldMetadata | None:
             "No contributing section has both scope-specific price bounds.",
             "aggregate",
         )
-    return None
-
-
-def _master_course_material_metadata(column: Column) -> FieldMetadata | None:
-    n = column.name
-    pop = "Canonical Use items for one (course_id, period_sortable, period, period_date, school, department, course_number, course_title, publisher, book_status) group."
-    group_keys = {"course_id", "period_sortable", "period", "period_date", "school", "department", "course_number", "course_title", "publisher", "book_status"}
-    if n in group_keys:
-        filtered = n in {"course_id", "publisher", "period_sortable"}
-        source = f"`material_costs.{n}` group key."
-        if filtered:
-            source += f" SQL filters `{n} IS NOT NULL` before grouping."
-            null = f"Not produced; SQL excludes rows where `{n}` is NULL before GROUP BY."
-        else:
-            source += " SQL groups missing source values together."
-            null = "May be NULL when the source descriptor is missing; SQL groups NULL values together."
-        return _metadata(column, source, pop, null, "aggregate")
-    rules = {"material_instances": "COUNT(*)", "sections_using": "COUNT(DISTINCT section_id)", "total_seats_affected": "SUM(seats_taken)"}
-    if n in rules:
-        null = "No contributing nonmissing seats value." if n == "total_seats_affected" else "Never NULL for a retained group."
-        return _metadata(column, f"`{rules[n]}` over grouped items.", pop, null, "aggregate")
     return None
 
 

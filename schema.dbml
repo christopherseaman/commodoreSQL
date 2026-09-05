@@ -1197,25 +1197,7 @@ Table master_course [note: 'view'] {
   required_cost_owned_avg double
   optional_cost_avg double
 
-  Note: 'One row per material-bearing course-offering (2024+, rolled up from master_section). Cost rolls up from material_costs through section_cost via MIN/MAX/AVG.'
-}
-
-Table master_course_material [note: 'view'] {
-  course_id varchar
-  period varchar
-  period_sortable varchar
-  period_date date
-  school varchar
-  department varchar
-  course_number varchar
-  course_title varchar
-  publisher varchar
-  book_status varchar
-  material_instances bigint
-  sections_using bigint
-  total_seats_affected hugeint
-
-  Note: 'One row per (course_id × period × publisher × book_status), consumed directly from material_costs. Material distribution uses the same canonical items as master_section counts.'
+  Note: 'One row per material-bearing course-offering (2024+, rolled up from master_section). enrollment_total sums raw master_section.enrollments; enrollment_assigned is not substituted. Cost rolls up from material_costs through section_cost via MIN/MAX/AVG.'
 }
 
 Table master_section_us_intro_fall2025 [note: 'view'] {
@@ -1554,7 +1536,6 @@ Ref: material_costs.section_id > course_materials.section_id
 
 // aggregated views
 Ref: master_section.(course_id, period_sortable) > master_course.(course_id, period_sortable)
-Ref: master_course_material.(course_id, period_sortable) > master_course.(course_id, period_sortable)
 
 // ---------------------------------------------------------------------------
 // TABLE GROUPS — Pipeline Stages
@@ -1594,7 +1575,6 @@ TableGroup eda_records {
   section_cost
   master_section
   master_course
-  master_course_material
   master_institution
   master_isbn
   sample10_section_ids

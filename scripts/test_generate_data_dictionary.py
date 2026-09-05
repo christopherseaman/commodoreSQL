@@ -73,17 +73,17 @@ class DataDictionaryTest(unittest.TestCase):
             cls.relations, cls.appendix_body
         )
 
-    def test_canonical_scope_is_37_relations_and_1330_fields(self) -> None:
-        self.assertEqual(len(self.relations), 37)
+    def test_canonical_scope_is_36_relations_and_1317_fields(self) -> None:
+        self.assertEqual(len(self.relations), 36)
         self.assertEqual(sum(r.kind == "table" for r in self.relations), 28)
-        self.assertEqual(sum(r.kind == "view" for r in self.relations), 9)
+        self.assertEqual(sum(r.kind == "view" for r in self.relations), 8)
         field_count = sum(len(relation.columns) for relation in self.relations)
-        self.assertEqual(field_count, 1_330)
+        self.assertEqual(field_count, 1_317)
 
     def test_one_deterministically_named_document_per_relation(self) -> None:
         expected_names = {relation.name for relation in self.relations}
         self.assertEqual(set(self.docs), expected_names)
-        self.assertEqual(len(self.docs), 37)
+        self.assertEqual(len(self.docs), 36)
         self.assertEqual(
             {path.name for path in DOCS_DIRECTORY.glob("*.md")},
             {f"{name}.md" for name in expected_names},
@@ -97,7 +97,7 @@ class DataDictionaryTest(unittest.TestCase):
         self.assertIn("## Processing helpers (4 relations)", body)
         self.assertIn("## Canonical outputs (15 relations)", body)
         self.assertIn("## Data-quality sidecars (7 relations)", body)
-        self.assertIn("## Report/export views (3 relations)", body)
+        self.assertIn("## Report/export views (2 relations)", body)
         self.assertIn("not database relations or dictionary pages", body)
         self.assertEqual(
             {name for _, _, names in generator.RELATION_GROUPS for name in names},
@@ -147,7 +147,7 @@ class DataDictionaryTest(unittest.TestCase):
                 self.assertEqual(len(rows), len(relation.columns))
                 self.assertEqual(len({row[0] for row in rows}), len(rows))
             total_rows += len(rows)
-        self.assertEqual(total_rows, 1_330)
+        self.assertEqual(total_rows, 1_317)
 
     def test_sample_materials_preserve_material_costs_schema(self) -> None:
         material = self.by_name["material_costs"]
@@ -196,7 +196,7 @@ class DataDictionaryTest(unittest.TestCase):
                         self.assertNotIn(fragment, lowered)
         self.assertEqual(
             len({column.name for relation in self.relations for column in relation.columns}),
-            303,
+            300,
         )
 
     def test_representative_descriptions_are_conceptual_and_relation_aware(self) -> None:
@@ -233,7 +233,6 @@ class DataDictionaryTest(unittest.TestCase):
             ("master_institution", "enrollments_tot"): "negative source values may propagate",
             ("master_institution", "seats_taken_tot"): "negative source values may propagate",
             ("master_isbn", "enroll_tot"): "negative source values may propagate",
-            ("master_course_material", "total_seats_affected"): "source noise may propagate",
         }
         for key, phrase in expected_noise_structures.items():
             with self.subTest(field=".".join(key)):

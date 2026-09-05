@@ -42,7 +42,7 @@ flowchart TD
   i0c --> i00["02 · 0_setup.sql"] --> i0b["03 · 0b_state_region.sql"] --> i10["04 · 1_bookprices_import.sql"] --> i1a["05 · 1a_supply_classification.sql"] --> i1b["06 · 1b_section_enrollment.sql"] --> i20["07 · 2_oer_classification.sql"] --> i2b["08 · 2b_course_materials.sql"] --> i2c["09 · 2c_pricing_wide.sql"] --> i2d["10 · 2d_data_quality.sql"]
   i2d --> e30["11 · 3_mailing_lists.sql"] --> e3b["12 · 3b_material_costs.sql"] --> e40["13 · 4_merged_records.sql"] --> m01["14 · models/master_institution.sql"] --> m02["15 · models/master_isbn.sql"] --> m03["16 · models/sample10_section_ids.sql"] --> m04["17 · models/sample10pct_materials.sql"] --> x01
   i2d -. "NO_EDA" .-> x01
-  x01 --> x10["10_master_mailing.sql"] --> x11c["11_current_mailing.sql"] --> x11r["11_recent_mailing.sql"] --> x20["20_california_mailing.sql"] --> x21["21_texas_mailing.sql"] --> x22["22_florida_mailing.sql"] --> x23["23_newyork_mailing.sql"] --> x24["24_texas_fall_series.sql"] --> x25["25_pennsylvania_mailing.sql"] --> x26["26_canada_mailing.sql"] --> x27["27_other_mailing.sql"] --> x30["30_faculty_records.sql"] --> x31["31_master_section.sql"] --> x32["32_master_course.sql"] --> x33["33_master_course_material.sql"] --> x34["34_sample10pct_materials.sql"] --> x35["35_master_institution_by_term.sql"] --> x36["36_master_isbn_by_term.sql"] --> x37["37_sample10_reconciliation.sql"] --> x38["38_cmm_release_reconciliation.sql"] --> x39["39_cmm_release_key_reconciliation.sql"] --> x40["40_material_costs_by_term.sql"] --> x41["41_material_costs_reconciliation.sql"]
+  x01 --> x10["10_master_mailing.sql"] --> x11c["11_current_mailing.sql"] --> x11r["11_recent_mailing.sql"] --> x20["20_california_mailing.sql"] --> x21["21_texas_mailing.sql"] --> x22["22_florida_mailing.sql"] --> x23["23_newyork_mailing.sql"] --> x24["24_texas_fall_series.sql"] --> x25["25_pennsylvania_mailing.sql"] --> x26["26_canada_mailing.sql"] --> x27["27_other_mailing.sql"] --> x30["30_faculty_records.sql"] --> x31["31_master_section.sql"] --> x32["32_master_course.sql"] --> x34["34_sample10pct_materials.sql"] --> x35["35_master_institution_by_term.sql"] --> x36["36_master_isbn_by_term.sql"] --> x37["37_sample10_reconciliation.sql"] --> x38["38_cmm_release_reconciliation.sql"] --> x39["39_cmm_release_key_reconciliation.sql"] --> x40["40_material_costs_by_term.sql"] --> x41["41_material_costs_reconciliation.sql"]
 ```
 
 ## Relation inventory
@@ -71,8 +71,7 @@ flowchart TD
 | `material_costs` | One canonical Use period×section×ISBN; LEFT pricing enrichment. |
 | `section_cost` | Cost aggregates per material-bearing period×section. |
 | `master_section` | One material-bearing period×section. |
-| `master_course` | One period×course. |
-| `master_course_material` | Exact group from `material_costs`, excluding NULL course/publisher/sortable period. |
+| `master_course` | One material-bearing period×course; raw enrollment sum. |
 | `master_section_us_intro_fall2025` | Compatibility report projection. |
 | `master_institution` | Material-bearing period×institution, including NULL unit. |
 | `master_isbn` | Canonical Use period×ISBN rollup. |
@@ -81,7 +80,7 @@ flowchart TD
 
 ## Data dependencies
 
-Solid arrows are dependencies; dotted arrows are projections/subsets/leaves. All 37 DBML relations are current and consumed. Geographic mailing is seven direct `current_mailing` export filters.
+Solid arrows are dependencies; dotted arrows are projections/subsets/leaves. All 36 DBML relations are current and consumed. Geographic mailing is seven direct `current_mailing` export filters.
 
 ```mermaid
 flowchart TD
@@ -109,7 +108,6 @@ flowchart TD
   section_cost --> master_section
   master_section --> master_course
   section_cost --> master_course
-  material_costs --> master_course_material
   master_section --> master_section_us_intro_fall2025
   master_section --> master_institution
   pricing_wide --> master_institution
@@ -136,11 +134,11 @@ flowchart TD
   pricing_wide --> __data_quality_format_count_distribution
 ```
 
-`state_region` is an IMPORT helper joined at query time; it does not enrich `comprehensive_data` or release tables. Pending inputs have no implemented nodes. The intended topology is the 37 DBML relations (28 tables, nine views); cleanup enforces absence of retired relations.
+`state_region` is an IMPORT helper joined at query time; it does not enrich `comprehensive_data` or release tables. Pending inputs have no implemented nodes. The intended topology is the 36 DBML relations (28 tables, eight views); cleanup enforces absence of retired relations.
 
 ## Export dependencies and inventory
 
-Normal EXPORT runs 24 top-level wrappers, lexically, each to `output/<basename>.csv`: `01_sample_records`; `10_master_mailing`; `11_current_mailing`, `11_recent_mailing`; `20`–`27` mailing filters; `30_faculty_records`; `31`–`36` release/model exports; `37`–`39` reconciliations; `40_material_costs_by_term`; `41_material_costs_reconciliation`. Wrapper 1 is unseeded raw sampling and unrelated to deterministic `sample10_section_ids`.
+Normal EXPORT runs 23 top-level wrappers, lexically, each to `output/<basename>.csv`: `01_sample_records`; `10_master_mailing`; `11_current_mailing`, `11_recent_mailing`; `20`–`27` mailing filters; `30_faculty_records`; `31`, `32`, `34`–`36` release/model exports; `37`–`39` reconciliations; `40_material_costs_by_term`; `41_material_costs_reconciliation`. Wrapper 1 is unseeded raw sampling and unrelated to deterministic `sample10_section_ids`.
 
 `30_faculty_records.csv` requires non-NULL instructor, course number, section, and title.
 It groups by faculty ID/instructor/school/email/department, listing record/section counts by term.
@@ -152,8 +150,8 @@ Faculty ID uses email, falling back to instructor + school.
 | `scripts/export_course_materials.sh [YYYYMMDD] [YYYY-N]` | Five course-material CSVs; term optional; refuses overwrite. |
 | `scripts/export_fall2025_subsets.sh` | Two Fall 2025 Parquet subsets. |
 | `scripts/classify_supplies.sh` | `output/fall2025_supply_isbns.parquet`; separate supply audit. |
-| `scripts/export_all.sh` | Alternate CSV runner for 24 wrappers. |
-| `scripts/export_all_parquet.sh` | Same 24 top-level wrappers → `<basename-without-number>.parquet`; no recursive discovery. |
+| `scripts/export_all.sh` | Alternate CSV runner for 23 wrappers. |
+| `scripts/export_all_parquet.sh` | Same 23 top-level wrappers → `<basename-without-number>.parquet`; no recursive discovery. |
 
 ## Pending inputs and non-current paths
 

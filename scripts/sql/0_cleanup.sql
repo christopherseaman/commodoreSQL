@@ -10,6 +10,7 @@ DROP VIEW IF EXISTS catalog_filtered;
 DROP VIEW IF EXISTS course_records;
 DROP VIEW IF EXISTS course_section_records;
 DROP VIEW IF EXISTS faculty_records;
+DROP VIEW IF EXISTS master_course_material;
 
 -- Retired geographic projections; exports filter current_mailing directly.
 DROP VIEW IF EXISTS current_mailing_ca;
@@ -63,13 +64,14 @@ DROP VIEW IF EXISTS crosstab_formattype_oeria_state;
 
 -- Fail the transaction if any exact retired relation remains in the catalog.
 SELECT CASE
-    WHEN COUNT(*) = 0 THEN 'Legacy relation cleanup verified: 46 relations absent.'
+    WHEN COUNT(*) = 0 THEN 'Legacy relation cleanup verified: 47 relations absent.'
     ELSE error('Legacy relation cleanup failed: retired relations remain.')
 END AS cleanup_postcondition
 FROM information_schema.tables
 WHERE table_schema = 'main'
   AND table_name IN (
     'catalog_filtered', 'course_records', 'course_section_records', 'faculty_records',
+    'master_course_material',
     'current_mailing_ca', 'current_mailing_tx', 'current_mailing_fl',
     'current_mailing_ny', 'current_mailing_pa', 'current_mailing_can',
     'current_mailing_other',

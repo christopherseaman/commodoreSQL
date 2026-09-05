@@ -66,7 +66,6 @@ flowchart LR
     subgraph course_summaries["Course summaries"]
         direction TB
         master_course{{"master_course"}}
-        master_course_material{{"master_course_material"}}
     end
 
     subgraph samples["Samples"]
@@ -113,7 +112,6 @@ flowchart LR
     course_materials --> master_section
     master_section --> master_course
     section_cost --> master_course
-    material_costs --> master_course_material
     master_section --> master_institution
     pricing_wide --> master_institution
     material_costs --> master_isbn
@@ -188,11 +186,8 @@ flowchart TB
     subgraph course_summary_exports["Course summaries"]
         direction LR
         master_course{{"master_course"}}
-        master_course_material{{"master_course_material"}}
         course_files["32_master_course.csv"]
-        distribution_files["33_master_course_material.csv"]
         master_course --> course_files
-        master_course_material --> distribution_files
     end
 
     subgraph mailing_exports["Mailing"]
@@ -239,7 +234,7 @@ flowchart TB
     end
 
     classDef file fill:#fff2cc,stroke:#9c7227,color:#222;
-    class course_file,post_file,use_file,nouse_file,canada_file,cost_files,section_files,course_files,distribution_files,institution_files,isbn_files,master_file,mailing_files,geography_files,random_file,faculty_file,sample_file,subset_files file;
+    class course_file,post_file,use_file,nouse_file,canada_file,cost_files,section_files,course_files,institution_files,isbn_files,master_file,mailing_files,geography_files,random_file,faculty_file,sample_file,subset_files file;
     classDef expected fill:#f3f3f3,stroke:#777,stroke-width:2px,stroke-dasharray:6 4,color:#444;
     class sample25_ids,sample25_material,sample25_section,sample25_material_file,sample25_section_file expected;
 ```
@@ -272,8 +267,7 @@ Arrows above identify inputs. “Section” includes term; grain means one row p
 | `material_costs` | Use section × ISBN | Exact LEFT join; retain unmatched/unpriced items. |
 | `section_cost` | Material-bearing section | Sum required/optional and buy-only price bounds. |
 | `master_section` | Material-bearing section | Combine items, costs, assigned enrollment, excluded-row counts. |
-| `master_course` | Course × term | Auxiliary section/cost summary. |
-| `master_course_material` | Course × term × publisher × status | Auxiliary publisher/status distribution. |
+| `master_course` | Course × term | Section/cost rollup; raw enrollment sum. |
 | `master_institution` | Institution × term | Roll up sections; same-term bookstore URL; retain unknown institution. |
 | `master_isbn` | ISBN × term | Roll up material rows. |
 | `sample10_section_ids` | Section | Internal fixed 10% hash membership. |
@@ -315,7 +309,5 @@ Geographic reports join `state_region` at query time.
 | CMM external pricing | Feed the pricing-wide stage; fields/grain await source. |
 | Bookstore-brand lookup | Enrich `pricing_wide`; key and file scope await lookup. |
 | 25 institution list | Feed `sample25id_material_cost` and `sample25id_section_cost`; #60. |
-| Course summaries | #24: retain, rename, or retire; publisher/status seats are non-additive and blank publishers are excluded. |
-
 Refreshes reuse existing source boxes. Missing arrows mean destination undecided.
 “Keep History” is a pending retention decision, not a source.

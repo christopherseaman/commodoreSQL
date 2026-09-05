@@ -14,6 +14,7 @@ LEGACY_VIEWS = {
     "course_records",
     "course_section_records",
     "faculty_records",
+    "master_course_material",
     "summary_book_status",
     "summary_control",
     "summary_course_level",
@@ -77,8 +78,8 @@ def main() -> None:
         fail(f"cleanup view target set differs: {dropped_views ^ CLEANUP_VIEWS}")
     if dropped_tables != LEGACY_TABLES:
         fail(f"cleanup table target set differs: {dropped_tables ^ LEGACY_TABLES}")
-    if len(drops) != 46:
-        fail(f"cleanup has {len(drops)} drops, expected 46")
+    if len(drops) != 47:
+        fail(f"cleanup has {len(drops)} drops, expected 47")
     if not re.search(r"^BEGIN TRANSACTION;$", cleanup, re.MULTILINE):
         fail("cleanup does not start a transaction")
     if not re.search(r"^COMMIT;$", cleanup, re.MULTILINE):
@@ -166,7 +167,7 @@ def main() -> None:
     if "| Import | `0_cleanup.sql` |" not in (REPO_ROOT / "CMM-ETL.md").read_text():
         fail("CMM-ETL.md omits the cleanup step")
 
-    print("PASS: 46 exact cleanup relations are targeted with no legacy report references.")
+    print("PASS: 47 exact cleanup relations are targeted with no legacy report references.")
 
 
 if __name__ == "__main__":

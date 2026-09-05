@@ -57,6 +57,8 @@ GROUP BY period_sortable, section_id;
 -- section_enrollment; narrowing this release table does not narrow that source.
 -- Each stage preserves the original aggregate semantics while allowing prior state
 -- to be released before the next high-cardinality aggregate starts.
+-- Keep this retirement DROP here as well as in IMPORT cleanup so NO_IMPORT EDA
+-- refreshes cannot leave the obsolete view behind.
 DROP VIEW  IF EXISTS master_course_material;
 DROP VIEW  IF EXISTS master_course;
 DROP TABLE IF EXISTS master_section;
@@ -393,42 +395,6 @@ LEFT JOIN (
     FROM section_cost
     GROUP BY course_id, period_sortable
 ) cc ON base.course_id = cc.course_id AND base.period_sortable = cc.period_sortable;
-
--- Create master_course_material: material distribution by course at the
--- canonical Material Costs item grain. Source catalog duplicates cannot multiply
--- material_instances or total_seats_affected.
-DROP VIEW IF EXISTS master_course_material;
-CREATE VIEW master_course_material AS
-SELECT
-    course_id,
-    period,
-    period_sortable,
-    period_date,
-    school,
-    department,
-    course_number,
-    course_title,
-    publisher,
-    book_status,
-    COUNT(*) AS material_instances,
-    COUNT(DISTINCT section_id) AS sections_using,
-    SUM(seats_taken) AS total_seats_affected
-FROM material_costs
-WHERE
-    course_id IS NOT NULL AND
-    publisher IS NOT NULL AND
-    period_sortable IS NOT NULL
-GROUP BY
-    course_id,
-    period,
-    period_sortable,
-    period_date,
-    school,
-    department,
-    course_number,
-    course_title,
-    publisher,
-    book_status;
 
 -- BMG #38: US, intro/intermediate, required-bearing sections (Fall 2025).
 -- A pure filtered VIEW of master_section — NO new columns, NO new table. Enrichment

@@ -12,7 +12,7 @@ Generated from canonical `schema.dbml`. Each declared table or view has a separa
 dictionary in schema order. Regenerate with `python3 scripts/generate_data_dictionary.py`.
 The maintained [Master Section deep appendix](MASTER-SECTION-DICTIONARY.md) remains separate.
 
-Declared scope: 37 current, consumed relations and 1,330 fields.
+Declared scope: 36 current, consumed relations and 1,317 fields.
 
 ## External source tables (5 relations)
 
@@ -83,14 +83,13 @@ Current, consumed diagnostic snapshots; they do not define release populations o
 | [`__data_quality_top_unmatched_pricing_sections`](docs/data-dictionary/__data_quality_top_unmatched_pricing_sections.md) | table | One ranked institution × period | Data quality / 2d_data_quality.sql |
 | [`__data_quality_format_count_distribution`](docs/data-dictionary/__data_quality_format_count_distribution.md) | table | One format_count value | Data quality / 2d_data_quality.sql |
 
-## Report/export views (3 relations)
+## Report/export views (2 relations)
 
 Current convenience views. Geographic mailing outputs are seven export leaves that filter `current_mailing` directly; they are not database relations or dictionary pages.
 
 | Relation | Kind | Grain / key | Stage |
 |---|---|---|---|
 | [`master_course`](docs/data-dictionary/master_course.md) | view | One material-bearing period × course | EDA records / 4_merged_records.sql |
-| [`master_course_material`](docs/data-dictionary/master_course_material.md) | view | One (course_id, period_sortable, period, period_date, school, department, course_number, course_title, publisher, book_status) group | EDA records / 4_merged_records.sql |
 | [`master_section_us_intro_fall2025`](docs/data-dictionary/master_section_us_intro_fall2025.md) | view | Filtered master_section rows | EDA records / 4_merged_records.sql |
 
 
