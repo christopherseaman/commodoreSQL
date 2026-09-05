@@ -1,6 +1,6 @@
 -- name: Fall 2025 — Sections with no price choice, by institution class (#46)
 -- display: table
--- description: Fall-2025 BMG material-bearing section denominator; required price_min=price_max tests. BMG grant Fall-2025 material-bearing scope (period_sortable=2025-4; 4 BMG course levels × 6 teaching sectors). Required canonical items come from material_costs and are priced when price_min is non-null. A priced required item offers no price choice when price_min = price_max; a section has no price choice when it has at least one priced required item and all meet that condition. no_priced_required_material includes optional-only Set B plus required-bearing sections with no visible required price. pct_*_of_scope divides by retained material-bearing Master Section rows; price/format/IA fields come from material_costs and sentinel prices remain nulled upstream.
+-- description: Fall-2025 BMG material-bearing section denominator; required price_min=price_max tests. BMG grant Fall-2025 material-bearing scope (period_sortable=2025-4; 4 BMG course levels × 6 teaching sectors). Required canonical items come from master_material and are priced when price_min is non-null. A priced required item offers no price choice when price_min = price_max; a section has no price choice when it has at least one priced required item and all meet that condition. no_priced_required_material includes optional-only Set B plus required-bearing sections with no visible required price. pct_*_of_scope divides by retained material-bearing Master Section rows; price/format/IA fields come from master_material and sentinel prices remain nulled upstream.
 WITH scope AS (
   SELECT section_id, control, level
   FROM master_section
@@ -16,7 +16,7 @@ priced_only AS (
     m.is_ia,
     m.price_min,
     m.price_max
-  FROM material_costs m
+  FROM master_material m
   JOIN scope s ON m.section_id = s.section_id
   WHERE m.period_sortable = '2025-4'
     AND m.is_required_inferred

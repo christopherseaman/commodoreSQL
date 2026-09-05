@@ -1,6 +1,6 @@
 -- name: Coverage & Scope — Raw Pricing Options by Term
 -- display: table
--- description: All raw pricing observations by term/option/condition/format; no Use/required filter. Current-snapshot source coverage at the BMG-owned pricing_historical observation grain, grouped by term × source option × condition × format with no canonical Use, required, or inferred-required filter. valid_price means price < 9999, so zero is valid; key counts use distinct raw section × ISBN pairs. This source denominator is deliberately different from canonical material_costs items.
+-- description: All raw pricing observations by term/option/condition/format; no Use/required filter. Current-snapshot source coverage at the BMG-owned pricing_historical observation grain, grouped by term × source option × condition × format with no canonical Use, required, or inferred-required filter. valid_price means price < 9999, so zero is valid; key counts use distinct raw section × ISBN pairs. This source denominator is deliberately different from canonical master_material items.
 
 SELECT
     period_sortable,

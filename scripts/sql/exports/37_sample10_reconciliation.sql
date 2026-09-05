@@ -12,7 +12,7 @@
 -- materials/enrollments within sections are represented rather than ignored.
 -- Raw Use/NoUse, Canada, and placeholder row totals remain full-catalog additive
 -- diagnostics even though their exclusion booleans overlap. Canonical material
--- metrics use material_costs. Distinct institution/ISBN domains remain
+-- metrics use master_material. Distinct institution/ISBN domains remain
 -- coverage-only. Sample membership itself comes from the complete
 -- section_enrollment population.
 WITH sample AS MATERIALIZED (
@@ -147,14 +147,14 @@ material_spine AS MATERIALIZED (
         period_sortable,
         section_id,
         isbn13
-    FROM material_costs
+    FROM master_material
 ),
 sampled_material_spine AS MATERIALIZED (
     SELECT
         period_sortable,
         section_id,
         isbn13
-    FROM sample10pct_materials
+    FROM sample_material_10pct
 ),
 material_full AS (
     SELECT

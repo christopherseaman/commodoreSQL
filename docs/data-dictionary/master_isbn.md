@@ -11,17 +11,17 @@ notion-sync: push
 - Relation kind: table
 - Grain / key: One period × non-NULL ISBN
 - Pipeline stage: Release model / models/master_isbn.sql
-- Direct upstream relations: `material_costs`
+- Direct upstream relations: `master_material`
 
 | Column | Type | Example / structure | Direct upstream source / derivation | Description |
 |---|---|---|---|---|
-| `period_sortable` | `varchar` | YYYY-N; part of canonical key | `material_costs.period_sortable` group key. | Sortable academic term code used for chronological ordering. |
-| `isbn13` | `bigint` | 13-digit numeric ISBN or numeric source identifier; NULL when absent | `material_costs.isbn13` group key. | Book or material identifier used for cross-source matching. |
-| `book_title` | `varchar` | Material title; source punctuation/casing retained | `ANY_VALUE(material_costs.isbn_book_title)`; term×ISBN metadata is canonical upstream. | Canonical title selected for the grouped ISBN. |
-| `author` | `varchar` | Person/organization name; source punctuation/casing retained | `ANY_VALUE(material_costs.isbn_author)`; term×ISBN metadata is canonical upstream. | Author credited for the adopted course material. |
-| `publisher` | `varchar` | Publisher name; original spelling/casing retained | `ANY_VALUE(material_costs.isbn_publisher)`; term×ISBN metadata is canonical upstream. | Publisher credited for the adopted course material. |
-| `is_oer` | `boolean` | Definitive BOOL_OR across catalog rows | `COALESCE(BOOL_OR(material_costs.is_oer), FALSE)`. | Whether the material is an open educational resource. |
-| `is_ia` | `boolean` | Definitive BOOL_OR across catalog rows | `COALESCE(BOOL_OR(material_costs.is_ia), FALSE)`. | Whether the material uses inclusive access. |
+| `period_sortable` | `varchar` | YYYY-N; part of canonical key | `master_material.period_sortable` group key. | Sortable academic term code used for chronological ordering. |
+| `isbn13` | `bigint` | 13-digit numeric ISBN or numeric source identifier; NULL when absent | `master_material.isbn13` group key. | Book or material identifier used for cross-source matching. |
+| `book_title` | `varchar` | Material title; source punctuation/casing retained | `ANY_VALUE(master_material.isbn_book_title)`; term×ISBN metadata is canonical upstream. | Canonical title selected for the grouped ISBN. |
+| `author` | `varchar` | Person/organization name; source punctuation/casing retained | `ANY_VALUE(master_material.isbn_author)`; term×ISBN metadata is canonical upstream. | Author credited for the adopted course material. |
+| `publisher` | `varchar` | Publisher name; original spelling/casing retained | `ANY_VALUE(master_material.isbn_publisher)`; term×ISBN metadata is canonical upstream. | Publisher credited for the adopted course material. |
+| `is_oer` | `boolean` | Definitive BOOL_OR across catalog rows | `COALESCE(BOOL_OR(master_material.is_oer), FALSE)`. | Whether the material is an open educational resource. |
+| `is_ia` | `boolean` | Definitive BOOL_OR across catalog rows | `COALESCE(BOOL_OR(master_material.is_ia), FALSE)`. | Whether the material uses inclusive access. |
 | `is_supply` | `boolean` | Always false in the canonical Use population | Constant FALSE: supplies are excluded from the canonical Use population. | Whether the material is classified as a course supply. |
 | `unit_id_count` | `bigint` | Non-negative whole-number count | `COUNT(DISTINCT unit_id)`. | Distinct institutions using the ISBN during the term. |
 | `section_id_count` | `bigint` | Non-negative whole-number count | `COUNT(DISTINCT section_id)`. | Distinct sections using the ISBN during the term. |
@@ -29,9 +29,9 @@ notion-sync: push
 | `has_enrollment` | `boolean` | TRUE or FALSE | `COALESCE(BOOL_OR(enrollment_assigned IS NOT NULL), FALSE)`. | Whether usable enrollment information is available. |
 | `enroll_cnt` | `bigint` | Distinct sections with enrollment_assigned | `COUNT(DISTINCT section_id) FILTER (WHERE enrollment_assigned IS NOT NULL)`. | ISBN-using sections having an assigned enrollment value. |
 | `enroll_tot` | `hugeint` | Sum of assigned enrollment; negative source values may propagate | `COALESCE(SUM(enrollment_assigned), 0)` across ISBN occurrences. | Assigned enrollment summed across all ISBN-using sections. |
-| `title_variant_count` | `bigint` | Non-negative whole-number count | `ANY_VALUE(material_costs.isbn_title_variant_count)`. | Distinct title variants found within grouped catalog rows. |
-| `author_variant_count` | `bigint` | Non-negative whole-number count | `ANY_VALUE(material_costs.isbn_author_variant_count)`. | Distinct author variants found within grouped catalog rows. |
-| `publisher_variant_count` | `bigint` | Non-negative whole-number count | `ANY_VALUE(material_costs.isbn_publisher_variant_count)`. | Distinct publisher variants found within grouped catalog rows. |
+| `title_variant_count` | `bigint` | Non-negative whole-number count | `ANY_VALUE(master_material.isbn_title_variant_count)`. | Distinct title variants found within grouped catalog rows. |
+| `author_variant_count` | `bigint` | Non-negative whole-number count | `ANY_VALUE(master_material.isbn_author_variant_count)`. | Distinct author variants found within grouped catalog rows. |
+| `publisher_variant_count` | `bigint` | Non-negative whole-number count | `ANY_VALUE(master_material.isbn_publisher_variant_count)`. | Distinct publisher variants found within grouped catalog rows. |
 | `metadata_conflict` | `boolean` | True when any metadata variant count exceeds one | True when any title/author/publisher variant count exceeds one. | Flags conflicting canonical bibliographic values for the ISBN. |
 | `price_buy_new_physical_count` | `bigint` | Non-negative whole-number count | `COUNT(DISTINCT section_id) FILTER (WHERE price_buy_new_physical IS NOT NULL)`. | Sections offering new physical purchase prices. |
 | `price_buy_new_digital_count` | `bigint` | Non-negative whole-number count | `COUNT(DISTINCT section_id) FILTER (WHERE price_buy_new_digital IS NOT NULL)`. | Sections offering new digital purchase prices. |

@@ -1,13 +1,14 @@
 -- Pricing enrichment of canonical Course Materials Use items.
 --
--- course_materials owns item identity, catalog metadata, population flags,
+-- course_material owns item identity, catalog metadata, population flags,
 -- duplicate/conflict evidence, and enrollment assignment. pricing_wide remains
 -- source-owned and contributes only bookstore/pricing fields through a LEFT join.
 
 ${CONFIG}
 
 DROP TABLE IF EXISTS material_costs;
-CREATE TABLE material_costs AS
+DROP TABLE IF EXISTS master_material;
+CREATE TABLE master_material AS
 SELECT
     -- Preserve the established Material Costs prefix through has_pricing_match.
     -- The renamed direct-status fields occupy the two former literal-status slots;
@@ -80,13 +81,13 @@ SELECT
     cm.is_null_isbn_audit,
     cm.has_nonnull_isbn_in_section,
     cm.is_no_adoption_section
-FROM course_materials_use cm
+FROM course_material_use cm
 LEFT JOIN pricing_wide pw
   ON cm.section_id = pw.section_id
  AND CAST(cm.isbn13 AS VARCHAR) = pw.isbn13;
 
 SELECT
-    'material_costs grain/key/price DQ' AS metric,
+    'master_material grain/key/price DQ' AS metric,
     COUNT(*) AS rows,
     COUNT(*) - COUNT(DISTINCT (period_sortable, section_id, isbn13)) AS duplicate_rows,
     COUNT(*) FILTER (
@@ -95,14 +96,14 @@ SELECT
     COUNT(*) FILTER (WHERE has_pricing_match) AS pricing_match_rows,
     COUNT(*) FILTER (WHERE has_pricing_match AND price_min IS NOT NULL) AS priced_rows,
     COUNT(*) FILTER (WHERE NOT has_pricing_match) AS no_pricing_match_rows
-FROM material_costs;
+FROM master_material;
 
 WITH course_material_keys AS (
     SELECT period_sortable, section_id, isbn13
-    FROM course_materials_use
+    FROM course_material_use
 ), material_keys AS (
     SELECT period_sortable, section_id, isbn13
-    FROM material_costs
+    FROM master_material
 ), key_presence AS (
     SELECT
         course_material.period_sortable AS course_material_period,
@@ -114,17 +115,17 @@ WITH course_material_keys AS (
      AND course_material.isbn13 = material.isbn13
 )
 SELECT
-    'Course Materials Use to material_costs key conservation' AS metric,
+    'Course Materials Use to master_material key conservation' AS metric,
     (SELECT COUNT(*) FROM course_material_keys) AS course_material_use_rows,
-    (SELECT COUNT(*) FROM material_keys) AS material_cost_rows,
+    (SELECT COUNT(*) FROM material_keys) AS master_material_rows,
     COUNT(*) FILTER (WHERE course_material_period IS NOT NULL AND material_period IS NULL)
-        AS missing_from_material_costs,
+        AS missing_from_master_material,
     COUNT(*) FILTER (WHERE course_material_period IS NULL AND material_period IS NOT NULL)
-        AS extra_in_material_costs
+        AS extra_in_master_material
 FROM key_presence;
 
 SELECT
-    'material_costs duplicate/conflict DQ' AS metric,
+    'master_material duplicate/conflict DQ' AS metric,
     COUNT(*) FILTER (WHERE source_row_count > 1) AS duplicate_source_keys,
     COUNT(*) FILTER (WHERE catalog_metadata_conflict) AS metadata_conflict_keys,
     COUNT(*) FILTER (WHERE contact_metadata_conflict) AS contact_conflict_keys,
@@ -137,6 +138,6 @@ SELECT
     COUNT(*) FILTER (WHERE no_details_conflict) AS no_details_conflict_keys,
     COUNT(*) FILTER (WHERE no_materials_conflict) AS no_materials_conflict_keys,
     COUNT(*) FILTER (WHERE is_canada_conflict) AS canada_conflict_keys
-FROM material_costs;
+FROM master_material;
 
-ANALYZE material_costs;
+ANALYZE master_material;

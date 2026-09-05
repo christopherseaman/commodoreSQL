@@ -1,6 +1,6 @@
 -- name: Report — Materials Cost Summary
 -- display: table
--- description: Material-bearing sections under report filters; canonical required/optional costs. Canonical-Use required/optional materials cost over material-bearing sections (per-section, 2024+). Material status optionally restricts to sections carrying a matching material_costs item. Same dashboard filters as the overview.
+-- description: Material-bearing sections under report filters; canonical required/optional costs. Canonical-Use required/optional materials cost over material-bearing sections (per-section, 2024+). Material status optionally restricts to sections carrying a matching master_material item. Same dashboard filters as the overview.
 
 SELECT
     COUNT(*) AS sections,
@@ -25,7 +25,7 @@ WHERE master_section.period_date >= '2024-01-01'
   [[ AND {{course_id}} ]]
   [[ AND {{period_sortable}} ]]
   [[ AND master_section.section_id IN (
-      SELECT DISTINCT material_costs.section_id
-      FROM material_costs
+      SELECT DISTINCT master_material.section_id
+      FROM master_material
       WHERE {{material}}
   ) ]]

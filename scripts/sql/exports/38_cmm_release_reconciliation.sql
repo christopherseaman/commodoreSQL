@@ -1,7 +1,7 @@
 -- Exact current-state reconciliation across the canonical CMM release models (#59).
 --
 -- Unlike the probabilistic full-vs-10% checks in export 37, every row here must
--- match exactly. material_costs is the approved canonical-Use material input;
+-- match exactly. master_material is the approved canonical-Use material input;
 -- its distinct section keys are the exact Master Section population, and its item
 -- rows sum exactly to Master Section material_count. Master Section contains the
 -- section-level cost aggregates from the same input. Master ISBN and Master Institution then reconcile
@@ -10,7 +10,7 @@
 -- Bare SELECT by export convention.
 WITH material_spine AS MATERIALIZED (
     SELECT period_sortable, section_id, isbn13
-    FROM material_costs
+    FROM master_material
 ),
 materials AS (
     SELECT
@@ -39,7 +39,7 @@ cost_by_section AS MATERIALIZED (
         SUM(price_buy_max) FILTER (WHERE is_required_inferred) AS required_cost_owned_max,
         SUM(price_buy_min) FILTER (WHERE NOT is_required_inferred) AS optional_cost_owned_min,
         SUM(price_buy_max) FILTER (WHERE NOT is_required_inferred) AS optional_cost_owned_max
-    FROM material_costs
+    FROM master_material
     GROUP BY period_sortable, section_id
 ),
 costs AS (
@@ -147,40 +147,40 @@ metrics AS (
     SELECT period_sortable, 'key_integrity' AS stage, 'material_rows_missing_master_section' AS metric,
            0 AS source_value, material_rows_missing_master_section AS release_value
     FROM reconciled
-    UNION ALL SELECT period_sortable, 'material_costs_to_master_section', 'section_rows',
+    UNION ALL SELECT period_sortable, 'master_material_to_master_section', 'section_rows',
            source_material_section_rows AS source_value, master_section_rows AS release_value
     FROM reconciled
-    UNION ALL SELECT period_sortable, 'material_costs_to_master_section', 'item_rows',
+    UNION ALL SELECT period_sortable, 'master_material_to_master_section', 'item_rows',
            source_material_item_rows, master_section_item_rows FROM reconciled
-    UNION ALL SELECT period_sortable, 'material_costs_to_master_section_costs', 'use_bearing_sections',
+    UNION ALL SELECT period_sortable, 'master_material_to_master_section_cost', 'use_bearing_sections',
            cost_use_bearing_sections, master_section_rows FROM reconciled
-    UNION ALL SELECT period_sortable, 'material_costs_to_master_section_costs', 'required_priced_materials',
+    UNION ALL SELECT period_sortable, 'master_material_to_master_section_cost', 'required_priced_materials',
            cost_required_priced_materials, master_section_required_priced_materials FROM reconciled
-    UNION ALL SELECT period_sortable, 'material_costs_to_master_section_costs', 'optional_priced_materials',
+    UNION ALL SELECT period_sortable, 'master_material_to_master_section_cost', 'optional_priced_materials',
            cost_optional_priced_materials, master_section_optional_priced_materials FROM reconciled
-    UNION ALL SELECT period_sortable, 'material_costs_to_master_section_costs', 'required_cost_total_min',
+    UNION ALL SELECT period_sortable, 'master_material_to_master_section_cost', 'required_cost_total_min',
            cost_required_cost_total_min, master_section_required_cost_total_min FROM reconciled
-    UNION ALL SELECT period_sortable, 'material_costs_to_master_section_costs', 'required_cost_total_max',
+    UNION ALL SELECT period_sortable, 'master_material_to_master_section_cost', 'required_cost_total_max',
            cost_required_cost_total_max, master_section_required_cost_total_max FROM reconciled
-    UNION ALL SELECT period_sortable, 'material_costs_to_master_section_costs', 'optional_cost_total_min',
+    UNION ALL SELECT period_sortable, 'master_material_to_master_section_cost', 'optional_cost_total_min',
            cost_optional_cost_total_min, master_section_optional_cost_total_min FROM reconciled
-    UNION ALL SELECT period_sortable, 'material_costs_to_master_section_costs', 'optional_cost_total_max',
+    UNION ALL SELECT period_sortable, 'master_material_to_master_section_cost', 'optional_cost_total_max',
            cost_optional_cost_total_max, master_section_optional_cost_total_max FROM reconciled
-    UNION ALL SELECT period_sortable, 'material_costs_to_master_section_costs', 'required_cost_owned_min',
+    UNION ALL SELECT period_sortable, 'master_material_to_master_section_cost', 'required_cost_owned_min',
            cost_required_cost_owned_min, master_section_required_cost_owned_min FROM reconciled
-    UNION ALL SELECT period_sortable, 'material_costs_to_master_section_costs', 'required_cost_owned_max',
+    UNION ALL SELECT period_sortable, 'master_material_to_master_section_cost', 'required_cost_owned_max',
            cost_required_cost_owned_max, master_section_required_cost_owned_max FROM reconciled
-    UNION ALL SELECT period_sortable, 'material_costs_to_master_section_costs', 'optional_cost_owned_min',
+    UNION ALL SELECT period_sortable, 'master_material_to_master_section_cost', 'optional_cost_owned_min',
            cost_optional_cost_owned_min, master_section_optional_cost_owned_min FROM reconciled
-    UNION ALL SELECT period_sortable, 'material_costs_to_master_section_costs', 'optional_cost_owned_max',
+    UNION ALL SELECT period_sortable, 'master_material_to_master_section_cost', 'optional_cost_owned_max',
            cost_optional_cost_owned_max, master_section_optional_cost_owned_max FROM reconciled
     UNION ALL SELECT period_sortable, 'master_section_to_master_institution', 'section_rows',
            master_section_rows, master_institution_section_rows FROM reconciled
     UNION ALL SELECT period_sortable, 'master_section_to_master_institution', 'enrollment_assigned_total',
            master_section_enrollment_total, master_institution_enrollment_total FROM reconciled
-    UNION ALL SELECT period_sortable, 'material_costs_to_master_isbn', 'section_isbn_rows',
+    UNION ALL SELECT period_sortable, 'master_material_to_master_isbn', 'section_isbn_rows',
            source_material_item_rows, master_isbn_section_isbn_rows FROM reconciled
-    UNION ALL SELECT period_sortable, 'material_costs_to_master_isbn', 'enrollment_assigned_total',
+    UNION ALL SELECT period_sortable, 'master_material_to_master_isbn', 'enrollment_assigned_total',
            source_isbn_enrollment_total, master_isbn_enrollment_total FROM reconciled
 )
 SELECT

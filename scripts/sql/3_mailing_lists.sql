@@ -12,6 +12,7 @@ DROP VIEW IF EXISTS current_mailing_can;
 DROP VIEW IF EXISTS current_mailing_other;
 DROP VIEW IF EXISTS current_mailing;
 DROP VIEW IF EXISTS recent_periods;
+DROP VIEW IF EXISTS recent_period;
 -- Remove stale pre-#66 cache relations; they are no longer canonical outputs.
 DROP TABLE IF EXISTS master_mailing_cache;
 DROP TABLE IF EXISTS current_mailing_cache;
@@ -81,7 +82,7 @@ FROM selected;
 -- Identify the current catalog window independently of per-email Master
 -- selection. A term remains current even if no catalog contact ultimately
 -- survives the Master selection for that term.
-CREATE VIEW recent_periods AS
+CREATE VIEW recent_period AS
 SELECT DISTINCT period_sortable
 FROM ${SURVEY_TABLE}
 WHERE period_sortable IS NOT NULL
@@ -96,7 +97,7 @@ SELECT
     p.panel_response_year
 FROM master_mailing m
 LEFT JOIN panel_email p ON m.email = p.email
-WHERE m.period_sortable IN (SELECT period_sortable FROM recent_periods)
+WHERE m.period_sortable IN (SELECT period_sortable FROM recent_period)
   AND NOT EXISTS (
       SELECT 1
       FROM opt_out o

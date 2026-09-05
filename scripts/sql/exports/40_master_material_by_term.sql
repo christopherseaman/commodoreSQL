@@ -3,5 +3,5 @@
 -- including materials without a pricing match. Use export_cmm_masters.sh for
 -- separate release-dated files by term. Bare SELECT by export convention.
 SELECT *
-FROM material_costs
+FROM master_material
 ORDER BY period_sortable, section_id, isbn13;

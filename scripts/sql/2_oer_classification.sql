@@ -24,9 +24,9 @@ FROM read_csv('${LOOKUP_DIR}/format_type_lookup.tsv',
     }
 );
 
--- Supply (non-course-material) ISBN classification (#36) is built upstream now, in
--- 1a_supply_classification.sql. This file only READS supply_isbn_classification
--- (the LEFT JOIN in comprehensive_data below); it no longer rebuilds it.
+-- Supply (non-course-material) ISBN classification (#36) is built upstream in
+-- 1a_supply_classification.sql. This file reads it both for row-level supply
+-- flags and for the section-level direct-requiredness context below.
 
 -- Validate FormatType coverage before processing
 -- Check for non-empty FormatTypes that aren't in the lookup table
@@ -53,9 +53,25 @@ DROP VIEW IF EXISTS course_materials_canada;
 DROP VIEW IF EXISTS course_materials_no_use;
 DROP VIEW IF EXISTS course_materials_use;
 DROP VIEW IF EXISTS course_materials_post_2024;
+DROP VIEW IF EXISTS course_material_canada;
+DROP VIEW IF EXISTS course_material_no_use;
+DROP VIEW IF EXISTS course_material_use;
+DROP VIEW IF EXISTS course_material_post_2024;
 DROP TABLE IF EXISTS comprehensive_data;
 CREATE TABLE comprehensive_data AS
-WITH joined AS (
+WITH section_requiredness AS (
+    SELECT
+        c.period_sortable,
+        c.section_id,
+        COALESCE(BOOL_OR(c.book_status = 'required' AND si.isbn13 IS NULL), FALSE)
+            AS is_section_required_direct
+    FROM ${SURVEY_TABLE} c
+    LEFT JOIN supply_isbn_classification si ON c."ISBN13" = si.isbn13
+    WHERE c.section_id IS NOT NULL
+      AND c.period_sortable IS NOT NULL
+      AND c.period_date >= DATE '2024-01-01'
+    GROUP BY c.period_sortable, c.section_id
+), joined AS (
 SELECT
     c.*,
     -- Add OER classification from lookup table (NULL if no match)
@@ -84,10 +100,10 @@ SELECT
     -- Opt-out data
     CASE WHEN oo.email IS NOT NULL THEN true ELSE false END AS is_opted_out,
     oo.source AS opt_out_source,
-    -- Direct requiredness is row-grain; section context comes from the upstream
-    -- section spine. Inference remains its separate 2024+ fallback rule.
+    -- Direct requiredness is row-grain; section context comes from the local
+    -- requiredness grouping above. Inference remains its separate 2024+ rule.
     COALESCE(c.book_status = 'required' AND si.isbn13 IS NULL, FALSE) AS is_required_direct,
-    se.is_required_direct AS is_section_required_direct,
+    sr.is_section_required_direct,
     se.course_id AS section_course_id,
     se.control AS section_control,
     se.level AS section_level,
@@ -104,9 +120,9 @@ SELECT
     CASE
         WHEN c.period_date >= '2024-01-01'
          AND (
-             (se.is_required_direct = TRUE  AND c.book_status = 'required')
+             (sr.is_section_required_direct = TRUE  AND c.book_status = 'required')
              OR
-             (se.is_required_direct = FALSE AND c.book_status IS NULL)
+             (sr.is_section_required_direct = FALSE AND c.book_status IS NULL)
          )
         THEN TRUE
         ELSE FALSE
@@ -120,6 +136,9 @@ LEFT JOIN opt_out oo ON c.email = oo.email
 LEFT JOIN section_enrollment se
   ON c.period_sortable = se.period_sortable
  AND c.section_id = se.section_id
+LEFT JOIN section_requiredness sr
+  ON c.period_sortable = sr.period_sortable
+ AND c.section_id = sr.section_id
 ),
 row_flags AS (
     SELECT

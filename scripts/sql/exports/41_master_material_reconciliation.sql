@@ -7,7 +7,7 @@ WITH canonical_use_keys AS MATERIALIZED (
         section_id,
         isbn13,
         TRUE AS canonical_present
-    FROM course_materials_use
+    FROM course_material_use
 ),
 material_key_groups AS MATERIALIZED (
     SELECT
@@ -15,7 +15,7 @@ material_key_groups AS MATERIALIZED (
         section_id,
         isbn13,
         COUNT(*) AS row_count
-    FROM material_costs
+    FROM master_material
     GROUP BY period_sortable, section_id, isbn13
 ),
 key_presence AS MATERIALIZED (
@@ -60,7 +60,7 @@ canonical_metrics AS MATERIALIZED (
         COUNT(*) FILTER (WHERE is_course_material_use) AS canonical_use_rows,
         SUM(use_source_row_count) FILTER (WHERE is_course_material_use)
             AS canonical_use_source_rows
-    FROM course_materials
+    FROM course_material
     WHERE is_post_2024
     GROUP BY period_sortable
 ),
@@ -73,12 +73,12 @@ terms AS (
     UNION
     SELECT period_sortable FROM canonical_use_keys
     UNION
-    SELECT period_sortable FROM material_costs WHERE period_sortable IS NOT NULL
+    SELECT period_sortable FROM master_material WHERE period_sortable IS NOT NULL
 ),
 material_metrics AS MATERIALIZED (
     SELECT
         period_sortable,
-        COUNT(*) AS material_cost_rows,
+        COUNT(*) AS master_material_rows,
         COUNT(*) FILTER (WHERE has_pricing_match) AS pricing_match_rows,
         COUNT(*) FILTER (WHERE NOT has_pricing_match) AS pricing_unmatched_rows,
         COUNT(*) FILTER (WHERE has_pricing_match AND price_min IS NULL)
@@ -89,7 +89,7 @@ material_metrics AS MATERIALIZED (
         COUNT(*) FILTER (
             WHERE period_sortable IS NULL OR section_id IS NULL OR isbn13 IS NULL
         ) AS null_key_rows
-    FROM material_costs
+    FROM master_material
     GROUP BY period_sortable
 ),
 uniqueness_metrics AS (
@@ -103,9 +103,9 @@ key_metrics AS (
     SELECT
         period_sortable,
         COUNT(*) FILTER (WHERE canonical_present AND NOT material_present)
-            AS missing_from_material_costs,
+            AS missing_from_master_material,
         COUNT(*) FILTER (WHERE NOT canonical_present AND material_present)
-            AS extra_in_material_costs
+            AS extra_in_master_material
     FROM key_presence
     GROUP BY period_sortable
 ),
@@ -113,7 +113,7 @@ coverage_metrics AS (
     SELECT
         mc.period_sortable,
         COUNT(*) FILTER (WHERE ms.section_id IS NULL) AS rows_missing_master_section
-    FROM material_costs mc
+    FROM master_material mc
     LEFT JOIN master_section ms
       ON ms.period_sortable = mc.period_sortable
      AND ms.section_id = mc.section_id
@@ -142,7 +142,7 @@ per_term AS (
             AS canonical_null_isbn_source_rows,
         COALESCE(canonical.canonical_use_rows, 0) AS canonical_use_rows,
         COALESCE(canonical.canonical_use_source_rows, 0) AS canonical_use_source_rows,
-        COALESCE(material.material_cost_rows, 0) AS material_cost_rows,
+        COALESCE(material.master_material_rows, 0) AS master_material_rows,
         COALESCE(unique_keys.material_cost_duplicate_key_rows, 0)
             AS material_cost_duplicate_key_rows,
         COALESCE(material.null_key_rows, 0) AS null_key_rows,
@@ -153,8 +153,8 @@ per_term AS (
         COALESCE(material.null_price_min_rows, 0) AS null_price_min_rows,
         COALESCE(material.null_pricing_match_flag_rows, 0)
             AS null_pricing_match_flag_rows,
-        COALESCE(keys.missing_from_material_costs, 0) AS missing_from_material_costs,
-        COALESCE(keys.extra_in_material_costs, 0) AS extra_in_material_costs,
+        COALESCE(keys.missing_from_master_material, 0) AS missing_from_master_material,
+        COALESCE(keys.extra_in_master_material, 0) AS extra_in_master_material,
         COALESCE(coverage.rows_missing_master_section, 0) AS rows_missing_master_section
     FROM terms
     LEFT JOIN raw_metrics raw USING (period_sortable)
@@ -184,7 +184,7 @@ reported AS (
         SUM(canonical_null_isbn_source_rows) AS canonical_null_isbn_source_rows,
         SUM(canonical_use_rows) AS canonical_use_rows,
         SUM(canonical_use_source_rows) AS canonical_use_source_rows,
-        SUM(material_cost_rows) AS material_cost_rows,
+        SUM(master_material_rows) AS master_material_rows,
         SUM(material_cost_duplicate_key_rows) AS material_cost_duplicate_key_rows,
         SUM(null_key_rows) AS null_key_rows,
         SUM(pricing_match_rows) AS pricing_match_rows,
@@ -192,8 +192,8 @@ reported AS (
         SUM(matched_without_valid_price_rows) AS matched_without_valid_price_rows,
         SUM(null_price_min_rows) AS null_price_min_rows,
         SUM(null_pricing_match_flag_rows) AS null_pricing_match_flag_rows,
-        SUM(missing_from_material_costs) AS missing_from_material_costs,
-        SUM(extra_in_material_costs) AS extra_in_material_costs,
+        SUM(missing_from_master_material) AS missing_from_master_material,
+        SUM(extra_in_master_material) AS extra_in_master_material,
         SUM(rows_missing_master_section) AS rows_missing_master_section
     FROM per_term
 )
@@ -207,14 +207,14 @@ SELECT
       AND raw_use_rows = canonical_use_source_rows
       AND raw_distinct_use_keys = canonical_use_rows
       AND canonical_course_material_duplicate_key_rows = 0
-      AND canonical_use_rows = material_cost_rows
+      AND canonical_use_rows = master_material_rows
       AND material_cost_duplicate_key_rows = 0
       AND null_key_rows = 0
       AND null_pricing_match_flag_rows = 0
-      AND pricing_match_rows + pricing_unmatched_rows = material_cost_rows
+      AND pricing_match_rows + pricing_unmatched_rows = master_material_rows
       AND null_price_min_rows = pricing_unmatched_rows + matched_without_valid_price_rows
-      AND missing_from_material_costs = 0
-      AND extra_in_material_costs = 0
+      AND missing_from_master_material = 0
+      AND extra_in_master_material = 0
       AND rows_missing_master_section = 0,
       FALSE
     ) AS is_match

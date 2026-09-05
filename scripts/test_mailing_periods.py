@@ -26,17 +26,17 @@ def view_definition(sql: str, name: str) -> str:
 
 def assert_static_contract(recent_periods_sql: str, current_mailing_sql: str) -> None:
     if "FROM ${SURVEY_TABLE}" not in recent_periods_sql:
-        fail("recent_periods must derive directly from ${SURVEY_TABLE}")
+        fail("recent_period must derive directly from ${SURVEY_TABLE}")
     if "master_mailing" in recent_periods_sql or "comprehensive_data" in recent_periods_sql:
-        fail("recent_periods must not derive from a selected or enriched relation")
+        fail("recent_period must not derive from a selected or enriched relation")
     for clause in ("WHERE period_sortable IS NOT NULL", "ORDER BY period_sortable DESC", "LIMIT 12"):
         if clause not in recent_periods_sql:
-            fail(f"recent_periods is missing {clause}")
+            fail(f"recent_period is missing {clause}")
 
     required_current_fragments = (
         "FROM master_mailing m",
         "LEFT JOIN panel_email p ON m.email = p.email",
-        "m.period_sortable IN (SELECT period_sortable FROM recent_periods)",
+        "m.period_sortable IN (SELECT period_sortable FROM recent_period)",
         "NOT EXISTS (",
         "FROM opt_out o",
         "WHERE o.email = m.email",
@@ -68,12 +68,12 @@ CREATE TABLE panel_email (email VARCHAR, panel_response_year VARCHAR);
 INSERT INTO panel_email VALUES ('recent@example.edu', 'OER_2025');
 CREATE TABLE opt_out (email VARCHAR);
 INSERT INTO opt_out VALUES ('opted@example.edu');
-CREATE VIEW recent_periods AS
+CREATE VIEW recent_period AS
 {recent_periods_sql.replace('${SURVEY_TABLE}', 'course_catalog_test')};
 CREATE VIEW current_mailing AS
 {current_mailing_sql};
 SELECT COUNT(*), MIN(period_sortable), MAX(period_sortable)
-FROM recent_periods;
+FROM recent_period;
 SELECT COUNT(*), MIN(email), MAX(panel_response_year)
 FROM current_mailing;
 """
@@ -93,7 +93,7 @@ FROM current_mailing;
 
 def main() -> None:
     sql = MAILING_SQL.read_text()
-    recent_periods_sql = view_definition(sql, "recent_periods")
+    recent_periods_sql = view_definition(sql, "recent_period")
     current_mailing_sql = view_definition(sql, "current_mailing")
     assert_static_contract(recent_periods_sql, current_mailing_sql)
     assert_isolated_behavior(recent_periods_sql, current_mailing_sql)

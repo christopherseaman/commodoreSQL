@@ -1,6 +1,6 @@
 -- name: Coverage & Scope — Canonical Use Pricing by Term
 -- display: table
--- description: Canonical material_costs item denominator; exact matches versus valid prices. Current-snapshot pricing and classification coverage over canonical material_costs Use items (one period × section × ISBN). inferred_required_item_count uses catalog is_required_inferred; inferred_optional_item_count is its complement. item_count is the percentage denominator; section/course/institution/ISBN columns are distinct canonical denominators. has_pricing_match records exact source-key presence, while valid_price_item_count requires non-NULL price_min after the <9999 rule (zero remains valid), so matched_without_valid_price is kept separate. Option presence is independent of valid price and price_avg is not used.
+-- description: Canonical master_material item denominator; exact matches versus valid prices. Current-snapshot pricing and classification coverage over canonical master_material Use items (one period × section × ISBN). inferred_required_item_count uses catalog is_required_inferred; inferred_optional_item_count is its complement. item_count is the percentage denominator; section/course/institution/ISBN columns are distinct canonical denominators. has_pricing_match records exact source-key presence, while valid_price_item_count requires non-NULL price_min after the <9999 rule (zero remains valid), so matched_without_valid_price is kept separate. Option presence is independent of valid price and price_avg is not used.
 
 SELECT
     period_sortable,
@@ -54,7 +54,7 @@ SELECT
         AS pct_raw_enrollment_of_items,
     ROUND(100.0 * COUNT(*) FILTER (WHERE enrollment_assigned IS NOT NULL) / NULLIF(COUNT(*), 0), 2)
         AS pct_assigned_enrollment_of_items
-FROM material_costs
+FROM master_material
 WHERE 1 = 1
 [[ AND {{period_sortable}} ]]
 GROUP BY period_sortable

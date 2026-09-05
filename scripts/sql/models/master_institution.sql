@@ -7,7 +7,7 @@
 --
 -- Source decisions (the supplied workbook and processing notes disagree in places):
 -- * Every rollup count is over material-bearing Master Section rows. Enrollment
---   fields are inherited through material_costs; direct required context and the
+--   fields are inherited through master_material; direct required context and the
 --   comprehensive-data supply audit cover excluded
 --   rows co-occurring with retained sections. Keeping direct required separate from
 --   inferred required preserves the source contract and exposes the inference rule.

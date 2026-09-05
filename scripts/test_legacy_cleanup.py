@@ -10,6 +10,13 @@ REPO_ROOT = Path(__file__).resolve().parent.parent
 CLEANUP_SQL = REPO_ROOT / "scripts/sql/0_cleanup.sql"
 
 LEGACY_VIEWS = {
+    "recent_periods",
+    "course_materials_post_2024",
+    "course_materials_use",
+    "course_materials_no_use",
+    "course_materials_canada",
+    "course_material_canada",
+    "master_section_us_intro_fall2025",
     "catalog_filtered",
     "course_records",
     "course_section_records",
@@ -49,6 +56,9 @@ LEGACY_VIEWS = {
     "crosstab_formattype_oeria_state",
 }
 LEGACY_TABLES = {
+    "course_materials",
+    "material_costs",
+    "sample10pct_materials",
     "data_quality_unmatched_formats",
     "email_issues",
     "section_book_status",
@@ -84,8 +94,8 @@ def main() -> None:
         fail(f"cleanup view target set differs: {dropped_views ^ CLEANUP_VIEWS}")
     if dropped_tables != LEGACY_TABLES:
         fail(f"cleanup table target set differs: {dropped_tables ^ LEGACY_TABLES}")
-    if len(drops) != 49:
-        fail(f"cleanup has {len(drops)} drops, expected 49")
+    if len(drops) != len(CLEANUP_RELATIONS):
+        fail(f"cleanup has {len(drops)} drops, expected {len(CLEANUP_RELATIONS)}")
     if not re.search(r"^BEGIN TRANSACTION;$", cleanup, re.MULTILINE):
         fail("cleanup does not start a transaction")
     if not re.search(r"^COMMIT;$", cleanup, re.MULTILINE):
@@ -114,7 +124,7 @@ def main() -> None:
         '"1a_supply_classification.sql"',
         '"1b_section_enrollment.sql"',
         '"2_oer_classification.sql"',
-        '"2b_course_materials.sql"',
+        '"2b_course_material.sql"',
         '"2c_pricing_wide.sql"',
         '"2d_data_quality.sql"',
     ]
@@ -165,14 +175,14 @@ def main() -> None:
         'i0c["01 · 0_cleanup.sql"]',
         'i2d["10 · 2d_data_quality.sql"]',
         'e30["11 · 3_mailing_lists.sql"]',
-        'm03["16 · models/sample10pct_materials.sql"]',
+        'm03["16 · models/sample_material_10pct.sql"]',
     )
     if any(marker not in schema_doc for marker in required_execution_markers):
         fail("SCHEMA.md does not show the exact 16-step processing order")
     if "| Import | `0_cleanup.sql` |" not in (REPO_ROOT / "CMM-ETL.md").read_text():
         fail("CMM-ETL.md omits the cleanup step")
 
-    print("PASS: 49 exact cleanup relations are targeted with no legacy report references.")
+    print(f"PASS: {len(CLEANUP_RELATIONS)} exact cleanup relations are targeted with no legacy report references.")
 
 
 if __name__ == "__main__":

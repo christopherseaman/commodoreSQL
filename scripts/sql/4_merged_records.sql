@@ -3,11 +3,11 @@
 ${CONFIG}
 
 -- Create master_section: exactly one row per canonical material-bearing
--- (period_sortable, section_id). material_costs determines the population and all
+-- (period_sortable, section_id). master_material determines the population and all
 -- material-facing descriptors/aggregates, including section costs. Enrichment
 -- columns live HERE, not in downstream tables:
 -- retained-section canonical Course Materials audits (#58/#36) and enrollment fill
--- (#32: enrollment_assigned / enrollment_source inherited from material_costs).
+-- (#32: enrollment_assigned / enrollment_source inherited from master_material).
 -- Materialized as a TABLE (not a VIEW). The build is deliberately staged through
 -- narrow TEMP tables: keeping multiple mode() states, publisher lists, and scalar
 -- states in one high-cardinality CTAS exceeded host memory. Enrollment medians
@@ -88,51 +88,51 @@ SELECT
     SUM(price_buy_max) FILTER (WHERE NOT is_required_inferred) AS optional_cost_owned_max,
     COUNT(*) FILTER (WHERE is_required_inferred AND price_min IS NOT NULL) AS required_priced_count,
     COUNT(*) FILTER (WHERE NOT is_required_inferred AND price_min IS NOT NULL) AS optional_priced_count
-FROM material_costs
+FROM master_material
 GROUP BY period_sortable, section_id;
 
 -- Keep native mode() tie behavior, but only one frequency state per pass.
 CREATE TEMP TABLE _ms_mode_school AS
 SELECT period_sortable, section_id, mode(school) AS school
-FROM material_costs
+FROM master_material
 GROUP BY period_sortable, section_id;
 
 CREATE TEMP TABLE _ms_mode_department AS
 SELECT period_sortable, section_id, mode(department) AS department
-FROM material_costs
+FROM master_material
 GROUP BY period_sortable, section_id;
 
 CREATE TEMP TABLE _ms_mode_course_number AS
 SELECT period_sortable, section_id, mode(course_number) AS course_number
-FROM material_costs
+FROM master_material
 GROUP BY period_sortable, section_id;
 
 CREATE TEMP TABLE _ms_mode_section AS
 SELECT period_sortable, section_id, mode(section) AS section
-FROM material_costs
+FROM master_material
 GROUP BY period_sortable, section_id;
 
 CREATE TEMP TABLE _ms_mode_course_title AS
 SELECT period_sortable, section_id, mode(course_title) AS course_title
-FROM material_costs
+FROM master_material
 GROUP BY period_sortable, section_id;
 
 CREATE TEMP TABLE _ms_mode_course_subject AS
 SELECT period_sortable, section_id, mode(course_subject) AS course_subject
-FROM material_costs
+FROM master_material
 GROUP BY period_sortable, section_id;
 
 -- Publisher lists retain the original LIST(DISTINCT) semantics and NULL result
 -- for sections with no qualifying publisher. Counts are isolated from list state.
 CREATE TEMP TABLE _ms_publishers AS
 SELECT period_sortable, section_id, LIST(DISTINCT publisher) AS publishers
-FROM material_costs
+FROM master_material
 WHERE publisher IS NOT NULL
 GROUP BY period_sortable, section_id;
 
 CREATE TEMP TABLE _ms_required_publishers AS
 SELECT period_sortable, section_id, LIST(DISTINCT publisher) AS required_publishers
-FROM material_costs
+FROM master_material
 WHERE publisher IS NOT NULL
   AND is_required_inferred
 GROUP BY period_sortable, section_id;
@@ -143,7 +143,7 @@ SELECT
     section_id,
     COUNT(DISTINCT publisher) FILTER (WHERE is_required_inferred) AS required_publisher_count,
     COUNT(DISTINCT publisher) FILTER (WHERE NOT is_required_inferred) AS optional_publisher_count
-FROM material_costs
+FROM master_material
 GROUP BY period_sortable, section_id;
 
 -- Canonical Course Materials sidecar: these columns audit excluded/noisy item
@@ -154,7 +154,7 @@ GROUP BY period_sortable, section_id;
 CREATE TEMP TABLE _ms_course_material_audit AS
 WITH retained_section_keys AS (
     SELECT period_sortable, section_id
-    FROM material_costs
+    FROM master_material
     GROUP BY period_sortable, section_id
 )
 SELECT
@@ -166,7 +166,7 @@ SELECT
     COALESCE(BOOL_OR(c.is_canada), FALSE) AS is_canada,
     COALESCE(BOOL_OR(c.is_supply), FALSE) AS is_supply,
     COUNT(*) FILTER (WHERE c.is_supply) AS supply_count
-FROM course_materials c
+FROM course_material c
 JOIN retained_section_keys retained
   ON c.period_sortable = retained.period_sortable
  AND c.section_id = retained.section_id
@@ -353,7 +353,8 @@ GROUP BY course_id, period_sortable;
 -- lives on master_section itself; downstream artifacts only project/filter it.
 -- US only = state excludes 'CAN' (Canada) and blank/unknown-country.
 DROP VIEW IF EXISTS master_section_us_intro_fall2025;
-CREATE VIEW master_section_us_intro_fall2025 AS
+DROP VIEW IF EXISTS sample_section_us_intro_fall2025;
+CREATE VIEW sample_section_us_intro_fall2025 AS
 SELECT *
 FROM master_section
 WHERE period_sortable = '2025-4'
@@ -426,7 +427,7 @@ WITH material_section_counts AS MATERIALIZED (
         period_sortable,
         section_id,
         COUNT(*) AS item_count
-    FROM material_costs
+    FROM master_material
     GROUP BY period_sortable, section_id
 ),
 key_presence AS (
@@ -442,7 +443,7 @@ key_presence AS (
      AND master.section_id = material.section_id
 )
 SELECT
-    'material_costs to master_section exact reconciliation' AS metric,
+    'master_material to master_section exact reconciliation' AS metric,
     period_sortable,
     COUNT(material_section_id) AS material_section_rows,
     COUNT(master_section_id) AS master_section_rows,
@@ -453,7 +454,7 @@ SELECT
     ) AS missing_from_master_section,
     COUNT(*) FILTER (
         WHERE material_section_id IS NULL AND master_section_id IS NOT NULL
-    ) AS missing_from_material_costs,
+    ) AS missing_from_master_material,
     COUNT(*) FILTER (
         WHERE item_count IS DISTINCT FROM material_count
     ) AS material_count_violations
@@ -524,7 +525,7 @@ SELECT 'section descriptive divergence (course_subject)' AS note,
        COUNT(*) AS divergent_sections
 FROM (
     SELECT period_sortable, section_id
-    FROM material_costs
+    FROM master_material
     GROUP BY period_sortable, section_id
     HAVING MIN(course_subject) IS DISTINCT FROM MAX(course_subject)
 );
@@ -533,7 +534,7 @@ SELECT 'section descriptive divergence (course_number)' AS note,
        COUNT(*) AS divergent_sections
 FROM (
     SELECT period_sortable, section_id
-    FROM material_costs
+    FROM master_material
     GROUP BY period_sortable, section_id
     HAVING MIN(course_number) IS DISTINCT FROM MAX(course_number)
 );
@@ -542,7 +543,7 @@ SELECT 'section descriptive divergence (course_title)' AS note,
        COUNT(*) AS divergent_sections
 FROM (
     SELECT period_sortable, section_id
-    FROM material_costs
+    FROM master_material
     GROUP BY period_sortable, section_id
     HAVING MIN(course_title) IS DISTINCT FROM MAX(course_title)
 );
@@ -551,7 +552,7 @@ SELECT 'section descriptive divergence (course_level)' AS note,
        COUNT(*) AS divergent_sections
 FROM (
     SELECT period_sortable, section_id
-    FROM material_costs
+    FROM master_material
     GROUP BY period_sortable, section_id
     HAVING MIN(course_level) IS DISTINCT FROM MAX(course_level)
 );
@@ -560,7 +561,7 @@ SELECT 'section descriptive divergence (school)' AS note,
        COUNT(*) AS divergent_sections
 FROM (
     SELECT period_sortable, section_id
-    FROM material_costs
+    FROM master_material
     GROUP BY period_sortable, section_id
     HAVING MIN(school) IS DISTINCT FROM MAX(school)
 );
@@ -569,7 +570,7 @@ SELECT 'section descriptive divergence (section)' AS note,
        COUNT(*) AS divergent_sections
 FROM (
     SELECT period_sortable, section_id
-    FROM material_costs
+    FROM master_material
     GROUP BY period_sortable, section_id
     HAVING MIN(section) IS DISTINCT FROM MAX(section)
 );
@@ -578,7 +579,7 @@ SELECT 'section descriptive divergence (department)' AS note,
        COUNT(*) AS divergent_sections
 FROM (
     SELECT period_sortable, section_id
-    FROM material_costs
+    FROM master_material
     GROUP BY period_sortable, section_id
     HAVING MIN(department) IS DISTINCT FROM MAX(department)
 );

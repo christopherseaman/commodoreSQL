@@ -1,6 +1,6 @@
 -- name: Coverage & Scope — Canonical Material Classification by Term
 -- display: table
--- description: Canonical material_costs items per term/classification dimension, including unclassified. Current-snapshot classification frequencies over canonical material_costs Use items (one period × section × ISBN). A single source scan is expanded into six dimensions: catalog book_format, catalog FormatType, catalog book_status, inferred-required, OER, and IA. OER/IA NULLs are explicitly labeled unclassified. pct_of_term_dimension_items uses canonical item rows within each term and dimension, not source rows or sections.
+-- description: Canonical master_material items per term/classification dimension, including unclassified. Current-snapshot classification frequencies over canonical master_material Use items (one period × section × ISBN). A single source scan is expanded into six dimensions: catalog book_format, catalog FormatType, catalog book_status, inferred-required, OER, and IA. OER/IA NULLs are explicitly labeled unclassified. pct_of_term_dimension_items uses canonical item rows within each term and dimension, not source rows or sections.
 
 WITH classified AS (
     SELECT
@@ -15,7 +15,7 @@ WITH classified AS (
         is_required_inferred,
         is_oer,
         is_ia
-    FROM material_costs
+    FROM master_material
     WHERE 1 = 1
     [[ AND {{period_sortable}} ]]
 ), tall AS (

@@ -19,7 +19,7 @@ RUNNER_CONTRACTS = {
     "scripts/run_sql.sh": ("${DUCKDB}", "${DUCKDB} -bail", 7),
     "scripts/export_all.sh": ("$DUCKDB", "$DUCKDB -bail", 1),
     "scripts/export_all_parquet.sh": ("${DUCKDB}", "${DUCKDB} -bail", 1),
-    "scripts/export_course_materials.sh": (
+    "scripts/export_course_material.sh": (
         '"${DUCKDB_ARGS[@]}"',
         '"${DUCKDB_ARGS[@]}" -bail',
         1,

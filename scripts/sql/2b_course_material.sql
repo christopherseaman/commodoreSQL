@@ -1,18 +1,22 @@
 -- Canonical processed Course Materials.
 --
--- comprehensive_data remains the enriched source-row table. course_materials
+-- comprehensive_data remains the enriched source-row table. course_material
 -- is the first item-grain model: one row per valid period/section/ISBN, plus
 -- one NULL-ISBN audit row per period/section when such source rows exist.
 
 ${CONFIG}
 
 DROP VIEW IF EXISTS course_materials_canada;
+DROP VIEW IF EXISTS course_material_canada;
 DROP VIEW IF EXISTS course_materials_no_use;
+DROP VIEW IF EXISTS course_material_no_use;
 DROP VIEW IF EXISTS course_materials_use;
+DROP VIEW IF EXISTS course_material_use;
 DROP VIEW IF EXISTS course_materials_post_2024;
+DROP VIEW IF EXISTS course_material_post_2024;
 
 DROP TABLE IF EXISTS _cm_key_agg;
-DROP TABLE IF EXISTS course_materials;
+DROP TABLE IF EXISTS course_material;
 
 -- Fixed-size aggregate state is safe for every high-cardinality item key.
 -- Expensive DISTINCT metadata state and representative windows are restricted
@@ -168,7 +172,7 @@ WHERE is_course_material_use
   AND "ISBN13" IS NOT NULL
 GROUP BY period_sortable, "ISBN13";
 
-CREATE TABLE course_materials AS
+CREATE TABLE course_material AS
 WITH representative AS (
     -- Unique item groups can stream directly from the enriched source table;
     -- only duplicate groups require a materialized representative window.
@@ -344,19 +348,14 @@ DROP TABLE _cm_duplicate_representative;
 DROP TABLE _cm_duplicate_variants;
 DROP TABLE _cm_isbn_metadata;
 
-CREATE VIEW course_materials_post_2024 AS
-SELECT * FROM course_materials WHERE is_post_2024;
+CREATE VIEW course_material_post_2024 AS
+SELECT * FROM course_material WHERE is_post_2024;
 
-CREATE VIEW course_materials_use AS
-SELECT * FROM course_materials_post_2024 WHERE is_course_material_use;
+CREATE VIEW course_material_use AS
+SELECT * FROM course_material_post_2024 WHERE is_course_material_use;
 
-CREATE VIEW course_materials_no_use AS
-SELECT * FROM course_materials_post_2024 WHERE is_course_material_no_use;
-
-CREATE VIEW course_materials_canada AS
-SELECT *
-FROM course_materials_no_use
-WHERE is_canada;
+CREATE VIEW course_material_no_use AS
+SELECT * FROM course_material_post_2024 WHERE is_course_material_no_use;
 
 -- Raw rows with invalid canonical keys remain preserved and explicitly reported.
 SELECT
@@ -371,10 +370,10 @@ SELECT
     'Course Materials raw-to-canonical conservation' AS metric,
     (SELECT COUNT(*) FROM comprehensive_data
       WHERE period_sortable IS NOT NULL AND section_id IS NOT NULL) AS valid_raw_rows,
-    (SELECT SUM(source_row_count) FROM course_materials) AS represented_raw_rows,
+    (SELECT SUM(source_row_count) FROM course_material) AS represented_raw_rows,
     (SELECT COUNT(*) FROM comprehensive_data
       WHERE period_sortable IS NOT NULL AND section_id IS NOT NULL)
-      - (SELECT SUM(source_row_count) FROM course_materials) AS row_difference;
+      - (SELECT SUM(source_row_count) FROM course_material) AS row_difference;
 
 SELECT
     'Course Materials grain and NULL audit' AS metric,
@@ -396,7 +395,7 @@ SELECT
         WHERE is_no_adoption_section IS DISTINCT FROM
               (is_null_isbn_audit AND NOT has_nonnull_isbn_in_section)
     ) AS no_adoption_flag_violations
-FROM course_materials;
+FROM course_material;
 
 SELECT
     'Course Materials population contract' AS metric,
@@ -418,7 +417,7 @@ SELECT
     ) AS population_conflict_flag_violations,
     COUNT(*) FILTER (WHERE is_null_isbn_audit AND is_course_material_use)
         AS null_isbn_use_violations
-FROM course_materials;
+FROM course_material;
 
 WITH raw_use_keys AS (
     SELECT period_sortable, section_id, "ISBN13" AS isbn13
@@ -432,31 +431,28 @@ WITH raw_use_keys AS (
 SELECT
     'Course Materials raw Use key conservation' AS metric,
     (SELECT COUNT(*) FROM raw_use_keys) AS raw_distinct_use_keys,
-    (SELECT COUNT(*) FROM course_materials_use) AS canonical_use_rows,
+    (SELECT COUNT(*) FROM course_material_use) AS canonical_use_rows,
     (SELECT COUNT(*) FROM raw_use_keys)
-      - (SELECT COUNT(*) FROM course_materials_use) AS key_count_difference;
+      - (SELECT COUNT(*) FROM course_material_use) AS key_count_difference;
 
 WITH flag_counts AS (
     SELECT
         COUNT(*) FILTER (WHERE is_post_2024) AS post_2024_rows,
         COUNT(*) FILTER (WHERE is_course_material_use) AS use_rows,
-        COUNT(*) FILTER (WHERE is_course_material_no_use) AS no_use_rows,
-        COUNT(*) FILTER (WHERE is_course_material_no_use AND is_canada) AS canada_rows
-    FROM course_materials
+        COUNT(*) FILTER (WHERE is_course_material_no_use) AS no_use_rows
+    FROM course_material
 ), view_counts AS (
     SELECT
-        (SELECT COUNT(*) FROM course_materials_post_2024) AS post_2024_rows,
-        (SELECT COUNT(*) FROM course_materials_use) AS use_rows,
-        (SELECT COUNT(*) FROM course_materials_no_use) AS no_use_rows,
-        (SELECT COUNT(*) FROM course_materials_canada) AS canada_rows
+        (SELECT COUNT(*) FROM course_material_post_2024) AS post_2024_rows,
+        (SELECT COUNT(*) FROM course_material_use) AS use_rows,
+        (SELECT COUNT(*) FROM course_material_no_use) AS no_use_rows
 )
 SELECT
     'Course Materials population view conservation' AS metric,
     ABS(v.post_2024_rows - f.post_2024_rows) AS post_2024_violations,
     ABS(v.use_rows - f.use_rows) AS use_violations,
-    ABS(v.no_use_rows - f.no_use_rows) AS no_use_violations,
-    ABS(v.canada_rows - f.canada_rows) AS canada_violations
+    ABS(v.no_use_rows - f.no_use_rows) AS no_use_violations
 FROM flag_counts f
 CROSS JOIN view_counts v;
 
-ANALYZE course_materials;
+ANALYZE course_material;

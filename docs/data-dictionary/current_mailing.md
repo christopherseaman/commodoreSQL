@@ -11,21 +11,21 @@ notion-sync: push
 - Relation kind: view
 - Grain / key: One non-opted-out cleaned email selected in the latest 12 catalog periods
 - Pipeline stage: Release / 3_mailing_lists.sql
-- Direct upstream relations: `master_mailing`, `recent_periods`, `panel_email`, `opt_out`
+- Direct upstream relations: `master_mailing`, `recent_period`, `panel_email`, `opt_out`
 
 | Column | Type | Example / structure | Direct upstream source / derivation | Description |
 |---|---|---|---|---|
-| `unit_id` | `bigint` | IPEDS institution identifier | `master_mailing.unit_id` passthrough after `recent_periods` and `opt_out.email` filters. | IPEDS institution identifier used throughout the pipeline. |
-| `school` | `varchar` | Institution name; source spelling/casing retained | `master_mailing.school` passthrough after `recent_periods` and `opt_out.email` filters. | Institution or school name attached to the course. |
-| `state` | `varchar` | Normalized state or province code, such as `CA` or `CAN` | `master_mailing.state` passthrough after `recent_periods` and `opt_out.email` filters. | State or province code for the institution. |
-| `department` | `varchar` | Academic department, such as `Biology` | `master_mailing.department` passthrough after `recent_periods` and `opt_out.email` filters. | Academic department responsible for the course. |
-| `course_level` | `varchar` | Category such as `Introductory or general undergraduate` | `master_mailing.course_level` passthrough after `recent_periods` and `opt_out.email` filters. | Instructional level assigned to the course. |
-| `course_subject` | `varchar` | Source subject, such as `Biology` | `master_mailing.course_subject` passthrough after `recent_periods` and `opt_out.email` filters. | Subject area assigned to the course. |
-| `period` | `varchar` | Academic term label such as `Fall 2024` | `master_mailing.period` passthrough after `recent_periods` and `opt_out.email` filters. | Human-readable academic term label from the source. |
-| `period_sortable` | `varchar` | `YYYY-N`; 1=Winter, 2=Spring, 3=Summer, 4=Fall | `master_mailing.period_sortable` passthrough after `recent_periods` and `opt_out.email` filters. | Sortable academic term code used for chronological ordering. |
-| `period_date` | `date` | Canonical date: YYYY-01-01, YYYY-04-01, YYYY-07-01, or YYYY-10-01 | `master_mailing.period_date` passthrough after `recent_periods` and `opt_out.email` filters. | Canonical starting date assigned to the academic term. |
-| `instructor` | `varchar` | Instructor name; source punctuation/casing retained | `master_mailing.instructor` passthrough after `recent_periods` and `opt_out.email` filters. | Instructor name attached to the course section. |
-| `first_name` | `varchar` | Given name; source punctuation/casing retained | `master_mailing.first_name` passthrough after `recent_periods` and `opt_out.email` filters. | Given name of the course instructor. |
-| `last_name` | `varchar` | Family name; source punctuation/casing retained | `master_mailing.last_name` passthrough after `recent_periods` and `opt_out.email` filters. | Family name of the course instructor. |
-| `email` | `varchar` | Lowercase, trimmed email text | `master_mailing.email` passthrough after `recent_periods` and `opt_out.email` filters. | Normalized instructor email used for contact and matching. |
+| `unit_id` | `bigint` | IPEDS institution identifier | `master_mailing.unit_id` passthrough after `recent_period` and `opt_out.email` filters. | IPEDS institution identifier used throughout the pipeline. |
+| `school` | `varchar` | Institution name; source spelling/casing retained | `master_mailing.school` passthrough after `recent_period` and `opt_out.email` filters. | Institution or school name attached to the course. |
+| `state` | `varchar` | Normalized state or province code, such as `CA` or `CAN` | `master_mailing.state` passthrough after `recent_period` and `opt_out.email` filters. | State or province code for the institution. |
+| `department` | `varchar` | Academic department, such as `Biology` | `master_mailing.department` passthrough after `recent_period` and `opt_out.email` filters. | Academic department responsible for the course. |
+| `course_level` | `varchar` | Category such as `Introductory or general undergraduate` | `master_mailing.course_level` passthrough after `recent_period` and `opt_out.email` filters. | Instructional level assigned to the course. |
+| `course_subject` | `varchar` | Source subject, such as `Biology` | `master_mailing.course_subject` passthrough after `recent_period` and `opt_out.email` filters. | Subject area assigned to the course. |
+| `period` | `varchar` | Academic term label such as `Fall 2024` | `master_mailing.period` passthrough after `recent_period` and `opt_out.email` filters. | Human-readable academic term label from the source. |
+| `period_sortable` | `varchar` | `YYYY-N`; 1=Winter, 2=Spring, 3=Summer, 4=Fall | `master_mailing.period_sortable` passthrough after `recent_period` and `opt_out.email` filters. | Sortable academic term code used for chronological ordering. |
+| `period_date` | `date` | Canonical date: YYYY-01-01, YYYY-04-01, YYYY-07-01, or YYYY-10-01 | `master_mailing.period_date` passthrough after `recent_period` and `opt_out.email` filters. | Canonical starting date assigned to the academic term. |
+| `instructor` | `varchar` | Instructor name; source punctuation/casing retained | `master_mailing.instructor` passthrough after `recent_period` and `opt_out.email` filters. | Instructor name attached to the course section. |
+| `first_name` | `varchar` | Given name; source punctuation/casing retained | `master_mailing.first_name` passthrough after `recent_period` and `opt_out.email` filters. | Given name of the course instructor. |
+| `last_name` | `varchar` | Family name; source punctuation/casing retained | `master_mailing.last_name` passthrough after `recent_period` and `opt_out.email` filters. | Family name of the course instructor. |
+| `email` | `varchar` | Lowercase, trimmed email text | `master_mailing.email` passthrough after `recent_period` and `opt_out.email` filters. | Normalized instructor email used for contact and matching. |
 | `panel_response_year` | `varchar` | Campaign label shaped `OER_YYYY`, such as `OER_2025` | `panel_email.panel_response_year` LEFT JOINed to `master_mailing` by cleaned email. | Latest recorded panel response campaign label. |

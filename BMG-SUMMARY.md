@@ -30,7 +30,7 @@ Subsets A/B (BMG)"*; for the data model see `SCHEMA.md` / `schema.dbml`; for pic
 ### Scope & subset definition (#35)
 - **"Required code" = `is_required_inferred`** (issue #1's inferred-required; renamed from
   `filter_include`, #34). Set A = `required_count > 0`, Set B = `required_count = 0`, where
-  `required_count` counts canonical `material_costs` items where `is_required_inferred` is true.
+  `required_count` counts canonical `master_material` items where `is_required_inferred` is true.
   The #58 Use flag additionally excludes Canada, missing ISBN, `no_details`, and `no_materials`.
   In the current material-cost-derived Master Section, Set B means optional-only material-bearing
   sections; no-adoption sections are not represented.
@@ -53,7 +53,7 @@ Subsets A/B (BMG)"*; for the data model see `SCHEMA.md` / `schema.dbml`; for pic
 - **Classify once over all 2024+ title variants** of an ISBN (not per-analysis-window), so the
   flag is stable and reusable across periods.
 - **In-place exclusion, not parallel columns** — supplies are excluded from the canonical
-  `material_costs` item spine, and `master_section` consumes that spine. Any
+  `master_material` item spine, and `master_section` consumes that spine. Any
   all-source supply audit belongs to `comprehensive_data`, not to the material-bearing section
   denominator.
 - **#41 resolution = narrow fold-in, not blanket exclusion nor document-only.** The pseudo-SKU
@@ -116,8 +116,8 @@ Subsets A/B (BMG)"*; for the data model see `SCHEMA.md` / `schema.dbml`; for pic
   (renamed from `filter_include`), followed by the canonical #58 population booleans and direct
   post-2024 Use/NoUse/Canada views.
 - **`master_section`** is the material-cost-derived section rollup: one row per section represented
-  by canonical `material_costs` Use items. Section enrollment fields arrive through
-  `comprehensive_data` → `course_materials` → `material_costs` (#32). Material counts/costs (`material_count`,
+  by canonical `master_material` Use items. Section enrollment fields arrive through
+  `comprehensive_data` → `course_material` → `master_material` (#32). Material counts/costs (`material_count`,
   `required_count`, `optional_count`, OER/IA, coverage, publishers, and cost columns therefore
   share the same material-bearing section population. The independent
   `section_enrollment` table retains the broader valid 2024+ section spine.
@@ -125,7 +125,7 @@ Subsets A/B (BMG)"*; for the data model see `SCHEMA.md` / `schema.dbml`; for pic
   `master_section.enrollments`, while `master_section.enrollment_assigned` remains available upstream.
 - **`master_course_material` and export 33 are retired:** the tentative publisher/status output had
   no consumer, excluded NULL publishers, and repeated seats across publisher/status groups.
-- **`master_section_us_intro_fall2025`** view (#38): Fall 2025, US-only, intro/intermediate,
+- **`sample_section_us_intro_fall2025`** view (#38): Fall 2025, US-only, intro/intermediate,
   `required_count>=1` — a pure filtered projection of the material-bearing `master_section`.
   Current validated row count: **773,613**.
 - **Supply keyword list** `scripts/sql/lookups/supply_keywords.tsv`: **97 include + 26 exclude**
@@ -141,7 +141,7 @@ Subsets A/B (BMG)"*; for the data model see `SCHEMA.md` / `schema.dbml`; for pic
 - **Master ISBN review extract** (#37) — card **157**: 348,826 raw Fall-2025 groups at
   (ISBN13, Title, Author, Format, FormatType), including broad catalog/DQ populations, with
   NumReq/NumOpt/NumRec/NumBlnk/NumBVAReq/NumTot + IsSupply. Canonical release Model **171** is a
-  separate term×ISBN rollup from `material_costs` with 335,157 Fall-2025 records.
+  separate term×ISBN rollup from `master_material` with 335,157 Fall-2025 records.
 - **Top-125 ISBN cost extract** (#33) — card **125**: per-adoption pricing for the 125 most-common
   ISBNs, for same-item analysis.
 - **Cost hypothesis test** — card **160** (enrollment-weighted cost) + card **161** (same-item

@@ -1,6 +1,6 @@
--- Complete valid 2024+ section spine, supply-aware direct requiredness, and
--- the established enrollment assignment ladder. This intentionally reads the
--- normalized source and IPEDS directly so comprehensive_data can inherit it.
+-- Complete valid 2024+ section spine and the established enrollment assignment
+-- ladder. This helper intentionally reads the normalized source and IPEDS
+-- directly; supply-aware section requiredness is computed in 2_oer_classification.
 
 ${CONFIG}
 
@@ -15,6 +15,8 @@ DROP TABLE IF EXISTS _se_level_agg;
 DROP TABLE IF EXISTS section_enrollment;
 
 CREATE TEMP TABLE _se_base AS
+-- Requiredness is a row/material concern and is joined in comprehensive_data;
+-- this helper remains independent of supply classification.
 SELECT
     c.section_id,
     ANY_VALUE(c.course_id) AS course_id,
@@ -26,13 +28,9 @@ SELECT
     MAX(c.seats_taken) AS seats_taken,
     (MAX(c.enrollments) IS NOT NULL) AS has_enrollment,
     (MAX(c.seats_taken) IS NOT NULL AND MAX(c.seats_taken) < 9999)
-        AS has_enrollment_own_seats,
-    COALESCE(BOOL_OR(c.book_status = 'required' AND si.isbn13 IS NULL), FALSE)
-        AS is_required_direct,
-    COALESCE(BOOL_OR(c.book_status = 'required'), FALSE) AS is_required_direct_legacy
+        AS has_enrollment_own_seats
 FROM ${SURVEY_TABLE} c
 LEFT JOIN ${IPEDS_TABLE} i ON c.unit_id = i.unitid
-LEFT JOIN supply_isbn_classification si ON c."ISBN13" = si.isbn13
 WHERE c.section_id IS NOT NULL
   AND c.period_sortable IS NOT NULL
   AND c.period_date >= DATE '2024-01-01'
@@ -98,7 +96,7 @@ DROP TABLE _se_reference;
 CREATE TABLE section_enrollment AS
 SELECT base.section_id, base.course_id, base.period_sortable, base.control, base.level,
     base.sector, base.course_level, base.enrollments, base.seats_taken,
-    base.is_required_direct, base.has_enrollment, base.has_enrollment_sibling,
+    base.has_enrollment, base.has_enrollment_sibling,
     base.has_enrollment_own_seats, base.has_enrollment_sibling_seats,
     ROUND(COALESCE(base.enrollments, CASE WHEN base.seats_taken < 9999 THEN base.seats_taken END,
                    ca.course_enrollment_median, ca.course_seats_median,
@@ -116,12 +114,6 @@ FROM _se_enriched base
 LEFT JOIN _se_course_agg ca ON base.course_id = ca.course_id AND base.period_sortable = ca.period_sortable
 LEFT JOIN _se_class_agg cla ON base.control = cla.control AND base.level = cla.level AND base.period_sortable = cla.period_sortable
 LEFT JOIN _se_level_agg lv ON base.level = lv.level AND base.period_sortable = lv.period_sortable;
-
--- Supply contamination comparison is diagnostic only; the legacy value is never persisted.
-SELECT 'is_required_direct supply-contamination corrected' AS metric,
-    COUNT(*) FILTER (WHERE is_required_direct_legacy AND NOT is_required_direct) AS sections_true_to_false,
-    COUNT(*) FILTER (WHERE NOT is_required_direct_legacy AND is_required_direct) AS sections_false_to_true
-FROM _se_enriched;
 
 DROP TABLE _se_enriched;
 DROP TABLE _se_course_agg;

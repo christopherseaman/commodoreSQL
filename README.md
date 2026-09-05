@@ -41,11 +41,11 @@ NO_IMPORT=1 NO_EXPORT=1 scripts/run_sql.sh  # run EDA + models from existing imp
 ```bash
 scripts/export_cmm_masters.sh             # every material-bearing term
 scripts/export_cmm_masters.sh 2025-4      # one term
-scripts/export_course_materials.sh 20260901
-scripts/export_course_materials.sh 20260901 2025-4
+scripts/export_course_material.sh 20260901
+scripts/export_course_material.sh 20260901 2025-4
 ```
 
-Default destinations: `output/cmm/` and `output/course_materials/`.
+Default destinations: `output/cmm/` and `output/course_material/`.
 Course Materials exports refuse overwrites.
 
 ## Metabase

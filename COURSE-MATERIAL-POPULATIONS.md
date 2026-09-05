@@ -6,14 +6,14 @@ notion-sync: push
 
 # Course-material populations
 
-Flags: `2_oer_classification.sql`. Grouping/enrollment: `2b_course_materials.sql`.
+Flags: `2_oer_classification.sql`. Grouping/enrollment: `2b_course_material.sql`.
 
 ## Source and canonical grains
 
 `comprehensive_data`: enriched source rows. Raw IPEDS/opt-out joins require unique lookup keys;
 each refresh must prove row conservation.
 
-`course_materials`: group by `(period_sortable, section_id, ISBN13)` with NULL-safe ISBN equality.
+`course_material`: group by `(period_sortable, section_id, ISBN13)` with NULL-safe ISBN equality.
 Require non-NULL period/section; `UNKNOWN` components remain eligible. Rejected rows stay upstream.
 Each section keeps its ISBN items plus at most one NULL-ISBN row; all-NULL sections have
 `is_no_adoption_section=TRUE`. Section IDs include term.
@@ -57,12 +57,12 @@ use lexical `MIN` plus variant counts.
 
 | Table / view | Population |
 |---|---|
-| `course_materials_post_2024` | `is_post_2024` |
-| `course_materials_use` | `is_course_material_use` |
-| `course_materials_no_use` | `is_course_material_no_use` |
-| `course_materials_canada` | NoUse AND Canada |
-| `material_costs` | Every Use item, LEFT-enriched with pricing |
-| `master_section` | Sections represented in `material_costs` |
+| `course_material_post_2024` | `is_post_2024` |
+| `course_material_use` | `is_course_material_use` |
+| `course_material_no_use` | `is_course_material_no_use` |
+| Canada export | NoUse AND `is_canada`; direct filter, no relation |
+| `master_material` | Every Use item, LEFT-enriched with pricing |
+| `master_section` | Sections represented in `master_material` |
 | `section_enrollment` | All valid 2024+ sections, independent of ISBN/Use |
 
 Excluded rows contribute only labeled audit counts; they cannot add release sections.
@@ -77,6 +77,6 @@ tied course-level labels resolve lexically. Join by period/section; never re-imp
 
 - Enriched rows = source rows; count rejected admission keys.
 - `SUM(source_row_count)` = admitted source rows; unique canonical keys/NULL audits.
-- Raw distinct Use keys = `course_materials_use` rows; views = flags.
+- Raw distinct Use keys = `course_material_use` rows; views = flags.
 - Valid Use/NoUse partition, no-adoption flags, and conflict evidence.
 - Unique non-NULL enrollment keys; assignments agree with source signals.

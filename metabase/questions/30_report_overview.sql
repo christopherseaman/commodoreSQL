@@ -1,6 +1,6 @@
 -- name: Report — Section / OER / IA Overview
 -- display: table
--- description: Material-bearing sections/institutions under selected report filters. Material-bearing sections and institutions, with canonical-Use OER/IA adoption, over the selected filters. Material status optionally restricts to sections carrying a matching material_costs item. Filters live on the dashboard.
+-- description: Material-bearing sections/institutions under selected report filters. Material-bearing sections and institutions, with canonical-Use OER/IA adoption, over the selected filters. Material status optionally restricts to sections carrying a matching master_material item. Filters live on the dashboard.
 
 SELECT
     COUNT(*) AS sections,
@@ -23,7 +23,7 @@ WHERE master_section.period_date >= '2024-01-01'
   [[ AND {{course_id}} ]]
   [[ AND {{period_sortable}} ]]
   [[ AND master_section.section_id IN (
-      SELECT DISTINCT material_costs.section_id
-      FROM material_costs
+      SELECT DISTINCT master_material.section_id
+      FROM master_material
       WHERE {{material}}
   ) ]]

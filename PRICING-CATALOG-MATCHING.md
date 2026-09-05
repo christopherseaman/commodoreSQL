@@ -10,7 +10,7 @@ notion-sync: push
 
 ## Current contract
 
-`material_costs` retains every `course_materials_use` item and LEFT-enriches:
+`master_material` retains every `course_material_use` item and LEFT-enriches:
 
 ```sql
 LEFT JOIN pricing_wide pw

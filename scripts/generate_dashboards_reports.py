@@ -250,7 +250,7 @@ def render() -> str:
         "| Model | ID | Scope |",
         "|---|---:|---|",
     ]
-    for key in ("model_master_institution", "model_master_isbn", "model_master_section", "model_master_section_us_intro_fall2025"):
+    for key in ("model_master_institution", "model_master_isbn", "model_master_section", "model_sample_section_us_intro_fall2025"):
         title, description = models[key]
         stem = key.removeprefix("model_")
         lines.append(

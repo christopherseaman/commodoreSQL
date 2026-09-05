@@ -29,7 +29,7 @@ class RequirednessNamingTest(unittest.TestCase):
     def test_direct_and_inferred_names_are_present(self) -> None:
         comprehensive = (SQL_ROOT / "2_oer_classification.sql").read_text()
         section = (SQL_ROOT / "1b_section_enrollment.sql").read_text()
-        self.assertIn("AS is_required_direct", section)
+        self.assertNotIn("AS is_required_direct", section)
         self.assertIn("AS is_required_direct", comprehensive)
         self.assertIn("AS is_required_inferred", comprehensive)
 

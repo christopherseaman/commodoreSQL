@@ -12,13 +12,19 @@ State: 2026-09-04. Backlog: GitHub Issues / Project 2.
 
 ## Current implementation
 
-- `material_costs`: canonical Use items LEFT-enriched by exact section × ISBN pricing.
+- `master_material`: canonical Use items LEFT-enriched by exact section × ISBN pricing.
 - `section_enrollment`: complete section population and assigned enrollment.
-- `sample10pct_materials`: direct stable section-hash sample of `material_costs`.
+- `sample_material_10pct`: direct stable section-hash sample of `master_material`.
 - `master_section`: owns section costs; no separate `section_cost` relation.
 - `current_mailing`: Master contacts in the latest 12 catalog terms, history-enriched, minus opt-outs.
 
 [Flow](CMM-DATA-FLOW.md) · [ETL rules](CMM-ETL.md) · [Dictionary](DATA-DICTIONARY.md)
+
+Current branch checks: 58 automated tests plus standalone cleanup/mailing checks pass.
+Isolated actual-SQL fixtures cover enrollment, requiredness, canonical grain, costs,
+master rollups, exact sample membership, release reconciliations, and cleanup/replay.
+All five diagrams render; generated dictionaries/report inventory match their sources.
+These checks do not establish full-data parity.
 
 ## Live pre-change baseline
 
@@ -26,22 +32,22 @@ The last full rebuild predates #80/#81/#83/#84. Its raw → canonical → releas
 reconciliation passed and remains the comparison baseline, not proof of the staged SQL:
 
 - `comprehensive_data`: **102,885,609** enriched source rows
-- `course_materials`: **96,663,781** canonical groups/audit rows
-- `material_costs`: **12,806,060** canonical Use items
+- `course_materials` (staged: `course_material`): **96,663,781** canonical groups/audit rows
+- `material_costs` (staged: `master_material`): **12,806,060** canonical Use items
 - `master_section`: **6,983,049** material-bearing sections
 - Fall 2025: **2,754,111** Material Costs, **1,509,634** Master Section,
   **2,216** Master Institution, and **335,157** Master ISBN rows
 - 10% material sample definition: **1,282,423** items, **698,578** material-bearing sections,
-  no NULL/duplicate keys, and exact key parity with sampled `course_materials_use`
+  no NULL/duplicate keys, and exact key parity with sampled `course_material_use`
 - Raw conservation, release/key-set, price-cell, mailing, and partition checks passed in that rebuild.
 
 Bounded read-only checks of the staged expressions against that snapshot found:
 
 - Catalog and prior Master produce the same 12-period set. Each yields **1,411,582**
   Master contacts before opt-outs and **1,374,828** Working contacts after opt-outs.
-- Direct `sample10pct_materials` hashing reproduces **1,282,423** items and **698,578**
+- Direct `sample_material_10pct` hashing reproduces **1,282,423** items and **698,578**
   material-bearing sections with zero key difference from the retired helper join.
-- Direct `material_costs` cost aggregation matches all ten existing section cost fields for
+- Direct `master_material` cost aggregation matches all ten existing section cost fields for
   **6,983,049** sections; release reconciliation reports zero differences in every term.
 - The direct `master_course` rollup preserves **3,444,030** keys. Decimal-equivalent
   averages differ only by floating aggregation order (maximum absolute difference
@@ -60,8 +66,11 @@ Bounded read-only checks of the staged expressions against that snapshot found:
 
 ### Flow changes
 
-- [#80](https://github.com/christopherseaman/commodoreSQL/issues/80) — implementation staged; full rebuild/reconciliation pending
-- [#81](https://github.com/christopherseaman/commodoreSQL/issues/81) — direct Material Costs hash sample staged; rebuild pending
+- [#80](https://github.com/christopherseaman/commodoreSQL/issues/80) — enrollment helper no longer computes requiredness or joins supply; IPEDS cohort/median dependency remains; rebuild pending
+- [#81](https://github.com/christopherseaman/commodoreSQL/issues/81) — direct `master_material` hash sample staged; rebuild pending
+- [#85](https://github.com/christopherseaman/commodoreSQL/issues/85) — singular relation/sample naming and direct Canada export staged; live migration held
+- [#86](https://github.com/christopherseaman/commodoreSQL/issues/86) — consolidate enriched raw/canonical processing without losing source-row consumers
+- [#87](https://github.com/christopherseaman/commodoreSQL/issues/87) — confirm master definitions and institution bookstore-URL lineage
 - [#83](https://github.com/christopherseaman/commodoreSQL/issues/83) — catalog-derived mailing window staged; bounded live-snapshot parity proven; rebuild pending
 - [#84](https://github.com/christopherseaman/commodoreSQL/issues/84) — section costs folded into Master Section; rebuild pending
 - [#24](https://github.com/christopherseaman/commodoreSQL/issues/24) — resolved: retain `master_course`, export 32, and Metabase card 90 for the course×term rollup; retire `master_course_material` and export 33 (no consumer; NULL publishers excluded; seats repeat across publisher/status groups).
@@ -108,7 +117,7 @@ Pipeline and release exports:
 scripts/run_sql.sh
 NO_IMPORT=1 NO_EXPORT=1 scripts/run_sql.sh
 scripts/export_cmm_masters.sh 2025-4
-scripts/export_course_materials.sh 20260901 2025-4
+scripts/export_course_material.sh 20260901 2025-4
 ```
 
 Stop Metabase before database writes; restart afterward:
@@ -119,4 +128,5 @@ MEM_LIMIT=16GB NUM_THREADS=1 scripts/run_sql.sh
 docker start metabase
 ```
 
-Metabase preview: `python3 metabase/sync.py --dry-run`.
+Metabase preview: `python3 metabase/sync.py --dry-run`. Do not publish the renamed
+queries until the database migration succeeds; live reports still use the old names.

@@ -1,3 +1,3 @@
 {
-  "period_sortable": { "display-name": "Term", "field": "material_costs.period_sortable" }
+  "period_sortable": { "display-name": "Term", "field": "master_material.period_sortable" }
 }

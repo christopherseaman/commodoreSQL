@@ -110,7 +110,7 @@ UNION ALL SELECT 'pricing', 'unknown_segments', 'distinct_section_ids_affected',
 -- One non-mutating catalog lookup serves every cross-source DQ check below. Building
 -- it once avoids repeating the 103M-row pair aggregation for OER/IA and each exact
 -- pricing comparison. ISBN is normalized to the same VARCHAR representation used by
--- material_costs before joining to source pricing.
+-- master_material before joining to source pricing.
 CREATE OR REPLACE TEMP TABLE _dq_catalog_pairs AS
 SELECT
     section_id,

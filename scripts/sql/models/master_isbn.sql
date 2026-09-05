@@ -4,7 +4,7 @@
 -- rows in the canonical issue-#58 Use population. The Fall-2025
 -- row set is therefore period_sortable = '2025-4'; no term literal is baked in.
 --
--- material_costs owns the distinct section/ISBN spine, its 1:1 pricing join, the
+-- master_material owns the distinct section/ISBN spine, its 1:1 pricing join, the
 -- persisted section enrollment assignment, and the established term/ISBN
 -- metadata contract. This rollup does not return to raw catalog or pricing rows.
 
@@ -31,7 +31,7 @@ WITH material_rows AS MATERIALIZED (
         price_rental_new_physical, price_rental_new_digital, price_rental_new_na,
         price_rental_used_physical, price_rental_used_digital, price_rental_used_na,
         price_rental_na_physical, price_rental_na_digital, price_rental_na_na
-    FROM material_costs
+    FROM master_material
 ),
 aggregated AS (
     SELECT

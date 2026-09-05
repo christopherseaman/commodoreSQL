@@ -42,14 +42,14 @@ IMPORT_SQL=(
     "1a_supply_classification.sql"
     "1b_section_enrollment.sql"
     "2_oer_classification.sql"
-    "2b_course_materials.sql"
+    "2b_course_material.sql"
     "2c_pricing_wide.sql"
     "2d_data_quality.sql"
 )
 
 EDA_SQL=(
     "3_mailing_lists.sql"
-    "3b_material_costs.sql"
+    "3b_master_material.sql"
     "4_merged_records.sql"
 )
 
@@ -236,6 +236,9 @@ process_model() {
     echo "[MODEL] Materializing ${model_name} from ${sql_file}..."
     {
         printf '%s\n' "${CONFIG}"
+        if [ "$model_name" = "sample_material_10pct" ]; then
+            printf 'DROP TABLE IF EXISTS sample10pct_materials;\n'
+        fi
         printf 'CREATE OR REPLACE TABLE %s AS\n' "$model_name"
         envsubst < "sql/${sql_file}"
     } > "${TMP_DIR}/${model_name}.sql"

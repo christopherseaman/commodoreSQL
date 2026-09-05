@@ -14,7 +14,7 @@ SELECT
               / NULLIF(COUNT(DISTINCT c.isbn13), 0),
         1
     )                                                                                 AS formattype_pct
-FROM material_costs c
+FROM master_material c
 WHERE c.is_required_inferred = TRUE
 GROUP BY c.course_level, c.period_sortable, c.period_date
 ORDER BY c.period_sortable DESC, c.course_level

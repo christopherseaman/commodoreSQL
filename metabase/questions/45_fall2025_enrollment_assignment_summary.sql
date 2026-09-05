@@ -1,6 +1,6 @@
 -- name: Fall 2025 — Enrollment Assignment Summary (source mix + raw vs assigned)
 -- display: table
--- description: Fall-2025 BMG-scope material-bearing sections; raw/assigned enrollment by control/level/set. Companion to question 44, aggregating persisted enrollment fill (#32) over material-bearing Master Section rows. Per control x level x A/B set it reports fill-source counts, raw versus assigned enrollment, and the imputed share. The assignment ladder and medians still originate from the complete section_enrollment reference population; this card's denominator is the retained material-bearing scope. A/B membership uses required_count over canonical material_costs items.
+-- description: Fall-2025 BMG-scope material-bearing sections; raw/assigned enrollment by control/level/set. Companion to question 44, aggregating persisted enrollment fill (#32) over material-bearing Master Section rows. Per control x level x A/B set it reports fill-source counts, raw versus assigned enrollment, and the imputed share. The assignment ladder and medians still originate from the complete section_enrollment reference population; this card's denominator is the retained material-bearing scope. A/B membership uses required_count over canonical master_material items.
 SELECT
   control,
   CASE level WHEN 'Four or more years' THEN '4yr' WHEN 'At least 2 but less than 4 years' THEN '2yr' END AS lvl,

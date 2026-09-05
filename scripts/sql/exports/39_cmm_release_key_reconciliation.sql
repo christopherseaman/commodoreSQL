@@ -6,7 +6,7 @@
 -- export convention.
 WITH source_keys AS MATERIALIZED (
     SELECT period_sortable, section_id
-    FROM material_costs
+    FROM master_material
     GROUP BY period_sortable, section_id
 ),
 key_presence AS (

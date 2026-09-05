@@ -73,17 +73,17 @@ class DataDictionaryTest(unittest.TestCase):
             cls.relations, cls.appendix_body
         )
 
-    def test_canonical_scope_is_34_relations_and_1300_fields(self) -> None:
-        self.assertEqual(len(self.relations), 34)
+    def test_canonical_scope_is_33_relations_and_1199_fields(self) -> None:
+        self.assertEqual(len(self.relations), 33)
         self.assertEqual(sum(r.kind == "table" for r in self.relations), 26)
-        self.assertEqual(sum(r.kind == "view" for r in self.relations), 8)
+        self.assertEqual(sum(r.kind == "view" for r in self.relations), 7)
         field_count = sum(len(relation.columns) for relation in self.relations)
-        self.assertEqual(field_count, 1_300)
+        self.assertEqual(field_count, 1_199)
 
     def test_one_deterministically_named_document_per_relation(self) -> None:
         expected_names = {relation.name for relation in self.relations}
         self.assertEqual(set(self.docs), expected_names)
-        self.assertEqual(len(self.docs), 34)
+        self.assertEqual(len(self.docs), 33)
         self.assertEqual(
             {path.name for path in DOCS_DIRECTORY.glob("*.md")},
             {f"{name}.md" for name in expected_names},
@@ -93,9 +93,9 @@ class DataDictionaryTest(unittest.TestCase):
         body = _body(self.index)
         self.assertEqual(body.count("| Relation | Kind | Grain / key | Stage |"), 6)
         self.assertIn("## External source tables (5 relations)", body)
-        self.assertIn("## Lookup/reference inputs (3 relations)", body)
-        self.assertIn("## Processing helpers (4 relations)", body)
-        self.assertIn("## Canonical outputs (13 relations)", body)
+        self.assertIn("## Lookup/reference inputs (2 relations)", body)
+        self.assertIn("## Processing helpers (5 relations)", body)
+        self.assertIn("## Canonical outputs (12 relations)", body)
         self.assertIn("## Data-quality sidecars (7 relations)", body)
         self.assertIn("## Report/export views (2 relations)", body)
         self.assertIn("not database relations or dictionary pages", body)
@@ -147,11 +147,11 @@ class DataDictionaryTest(unittest.TestCase):
                 self.assertEqual(len(rows), len(relation.columns))
                 self.assertEqual(len({row[0] for row in rows}), len(rows))
             total_rows += len(rows)
-        self.assertEqual(total_rows, 1_300)
+        self.assertEqual(total_rows, 1_199)
 
     def test_sample_materials_preserve_material_costs_schema(self) -> None:
-        material = self.by_name["material_costs"]
-        sample = self.by_name["sample10pct_materials"]
+        material = self.by_name["master_material"]
+        sample = self.by_name["sample_material_10pct"]
         self.assertEqual(
             [(column.name, column.data_type) for column in sample.columns],
             [(column.name, column.data_type) for column in material.columns],
@@ -160,7 +160,7 @@ class DataDictionaryTest(unittest.TestCase):
             metadata = self.field_metadata[(sample.name, column.name)]
             self.assertEqual(
                 metadata.source,
-                f"`material_costs.{column.name}` retained after the deterministic section-hash filter.",
+                f"`master_material.{column.name}` retained after the deterministic section-hash filter.",
             )
 
     def test_every_field_has_example_source_and_short_conceptual_description(self) -> None:
@@ -204,8 +204,8 @@ class DataDictionaryTest(unittest.TestCase):
             ("course_catalog_20251215", "Title"): "Title supplied for the adopted course material.",
             ("course_catalog_20251215", "section_id"): "Period-specific identifier for the distinct section offering.",
             ("comprehensive_data", "institution_name"): "Canonical institution name supplied by IPEDS.",
-            ("course_materials", "source_row_count"): "Catalog rows collapsed into the canonical material item.",
-            ("course_materials", "catalog_metadata_conflict"): "Flags conflicting bibliographic values among grouped catalog rows.",
+            ("course_material", "source_row_count"): "Catalog rows collapsed into the canonical material item.",
+            ("course_material", "catalog_metadata_conflict"): "Flags conflicting bibliographic values among grouped catalog rows.",
             ("master_mailing", "email"): "Normalized instructor email used for contact and matching.",
             ("pricing_historical", "price"): "Observed amount for the specific pricing offering.",
             ("section_enrollment", "enrollment_assigned"): "Best available section enrollment from the assignment ladder.",
@@ -266,11 +266,11 @@ class DataDictionaryTest(unittest.TestCase):
             for relation in self.relations
             for row in _table_rows(self.docs[relation.name])
         }
-        self.assertIn("YYYY-N", examples[("course_materials", "period_sortable")])
-        self.assertIn("TRUE or FALSE", examples[("course_materials", "is_oer")])
+        self.assertIn("YYYY-N", examples[("course_material", "period_sortable")])
+        self.assertIn("TRUE or FALSE", examples[("course_material", "is_oer")])
         self.assertIn(
             "Non-negative whole-number count",
-            examples[("course_materials", "source_row_count")],
+            examples[("course_material", "source_row_count")],
         )
         self.assertIn("USD amount", examples[("pricing_historical", "price")])
         self.assertIn("DECIMAL(10,2)", examples[("pricing_historical", "price")])

@@ -34,7 +34,7 @@ ID `10` · [`oer_ia_adoption`](metabase/dashboards/oer_ia_adoption.json) · Cano
 | Card | ID | Scope |
 |---|---:|---|
 | OER/IA Rate Among Classified Materials (2024+) | [`82`](metabase/questions/31_oer_ia_rate_among_classified.sql) | Canonical Use items with FormatType; unclassified items excluded. |
-| FormatType Classification Coverage Over Time (2024+) | [`83`](metabase/questions/32_formattype_coverage_over_time.sql) | All canonical material_costs items; fraction with FormatType. |
+| FormatType Classification Coverage Over Time (2024+) | [`83`](metabase/questions/32_formattype_coverage_over_time.sql) | All canonical master_material items; fraction with FormatType. |
 | OER/IA Section Adoption Over Time (2024+) | [`77`](metabase/questions/26_oer_ia_section_adoption.sql) | Material-bearing Master Section denominator; any canonical OER/IA item. |
 | OER/IA Adoption Over Time (Filtered, 2024+) | [`55`](metabase/questions/05_filtered_oer_over_time.sql) | Canonical inferred-required items; enrollment counted once per section/OER/IA group. |
 
@@ -91,15 +91,15 @@ ID `19` · [`bmg_coverage_scope`](metabase/dashboards/bmg_coverage_scope.json) �
 
 | Card | ID | Scope |
 |---|---:|---|
-| Coverage & Scope — Course Material Population by Term | [`173`](metabase/questions/65_coverage_course_material_population_by_term.sql) | Canonical course_materials term/section/ISBN groups, including NULL-ISBN audits. |
+| Coverage & Scope — Course Material Population by Term | [`173`](metabase/questions/65_coverage_course_material_population_by_term.sql) | Canonical course_material term/section/ISBN groups, including NULL-ISBN audits. |
 | Coverage & Scope — Course Material Exclusion Overlap | [`174`](metabase/questions/66_coverage_course_material_exclusion_overlap.sql) | Post-2024 canonical item groups; overlapping exclusion flags, not source rows. |
-| Coverage & Scope — Canonical Material Classification by Term | [`175`](metabase/questions/67_coverage_course_material_classification_by_term.sql) | Canonical material_costs items per term/classification dimension, including unclassified. |
+| Coverage & Scope — Canonical Material Classification by Term | [`175`](metabase/questions/67_coverage_course_material_classification_by_term.sql) | Canonical master_material items per term/classification dimension, including unclassified. |
 | Coverage & Scope — Complete Section Enrollment by Term | [`176`](metabase/questions/68_coverage_section_enrollment_by_term.sql) | Complete valid 2024+ section_enrollment spine; raw/assigned enrollment distinguished. |
 | Coverage & Scope — Raw Pricing Options by Term | [`177`](metabase/questions/69_coverage_pricing_source_options_by_term.sql) | All raw pricing observations by term/option/condition/format; no Use/required filter. |
-| Coverage & Scope — Canonical Use Pricing by Term | [`178`](metabase/questions/70_coverage_canonical_pricing_by_term.sql) | Canonical material_costs item denominator; exact matches versus valid prices. |
+| Coverage & Scope — Canonical Use Pricing by Term | [`178`](metabase/questions/70_coverage_canonical_pricing_by_term.sql) | Canonical master_material item denominator; exact matches versus valid prices. |
 | Coverage & Scope — Canonical Retained Sections by Institution Profile | [`179`](metabase/questions/71_coverage_canonical_by_institution.sql) | Institution-profile rollups; percentages divide by retained canonical sections. |
 | Coverage & Scope — Canonical Price Cells by Term | [`180`](metabase/questions/72_coverage_canonical_price_cells_by_term.sql) | Canonical term/ISBN rollups; section-item occurrences denominator, overlapping price cells. |
-| FormatType Classification Coverage Over Time (2024+) | [`83`](metabase/questions/32_formattype_coverage_over_time.sql) | All canonical material_costs items; fraction with FormatType. |
+| FormatType Classification Coverage Over Time (2024+) | [`83`](metabase/questions/32_formattype_coverage_over_time.sql) | All canonical master_material items; fraction with FormatType. |
 | OER/IA Rate Among Classified Materials (2024+) | [`82`](metabase/questions/31_oer_ia_rate_among_classified.sql) | Canonical Use items with FormatType; unclassified items excluded. |
 | FormatType Coverage by Supply Status (2024+) | [`162`](metabase/questions/57_formattype_coverage_by_supply.sql) | Raw 2024+ ISBN-bearing catalog rows, by supply status; no Use filter. |
 | Coverage — Enrollment Fill-Potential (sections, 2024+) | [`91`](metabase/questions/33_coverage_enrollment_fill.sql) | Material-bearing Master Section denominator; overlapping enrollment-availability signals, not imputations. |
@@ -116,7 +116,7 @@ ID `14` · [`data_lineage`](metabase/dashboards/data_lineage.json) · Catalog/pr
 | Lineage 2 — Merged (catalog × IPEDS × OER/IA) | [`85`](metabase/questions/51_lineage_merged.sql) | All 2024+ comprehensive_data rows for selected school; no Use exclusions. |
 | Lineage 3 — Raw Cost (BMG pricing) | [`86`](metabase/questions/52_lineage_pricing.sql) | All raw pricing option rows for selected school. |
 | Lineage 4 — Pricing Wide (pivoted) | [`87`](metabase/questions/53_lineage_pricing_wide.sql) | Pricing-wide section/ISBN pairs for selected school. |
-| Lineage 5 — Material Costs | [`88`](metabase/questions/54_lineage_material_costs.sql) | Canonical material-cost rows for selected school; unmatched and unpriced items remain. |
+| Lineage 5 — Master Material | [`88`](metabase/questions/54_lineage_master_material.sql) | Canonical material-cost rows for selected school; unmatched and unpriced items remain. |
 | Lineage 6 — Master Section (wide record) | [`89`](metabase/questions/55_lineage_master_section.sql) | Material-bearing Master Section rows for selected school. |
 | Lineage 7 — Master Course (rollup) | [`90`](metabase/questions/56_lineage_master_course.sql) | Course rollups for selected school. |
 
@@ -225,7 +225,7 @@ ID `11` · [`data_quality_pricing_filtered`](metabase/dashboards/data_quality_pr
 | Master Institution by Term | [`170`](metabase/models/master_institution.sql) | Material-bearing institutions, one row per term/institution, 2024+; unknown bucket retained. |
 | Master ISBN by Term | [`171`](metabase/models/master_isbn.sql) | Canonical Use population, one row per term/ISBN, 2024+. |
 | Master Section | [`158`](metabase/models/master_section.sql) | One row per canonical material-bearing section, 2024+. |
-| Master Section — US Intro/Intermediate, Fall 2025 (BMG scope) | [`159`](metabase/models/master_section_us_intro_fall2025.sql) | Fall-2025 required intro/intermediate sections; nonblank/non-Canada state proxy, not validated US. |
+| Section Sample — US Intro/Intermediate, Fall 2025 (BMG scope) | [`159`](metabase/models/sample_section_us_intro_fall2025.sql) | Fall-2025 required intro/intermediate sections; nonblank/non-Canada state proxy, not validated US. |
 
 ## Coverage checks
 

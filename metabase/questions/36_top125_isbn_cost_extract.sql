@@ -1,9 +1,9 @@
 -- name: Top-125 ISBN Cost Extract — Fall 2025 (institution × course × faculty)
 -- display: table
--- description: Fall-2025 canonical section/ISBN adoptions of 125 most-adopted ISBNs. One row per canonical Use Fall-2025 (period 2025-4) section-adoption of the 125 most common ISBNs (ranked by distinct sections), read from material_costs at its canonical (period_sortable, section_id, isbn13) grain. Carries the deterministic catalog metadata, institution class (control, iclevel, instsize, sector), course, faculty, and the full pricing breakdown (buy/rental × new/used × physical/digital). Built for cost-difference analysis across institution classes (e.g. public 2-year vs private 4-year). Current result expectation: 178,058 adoptions; 112,968 (63.44%) have a matched price and 132,775 (74.57%) are inferred-required. Cost columns remain NULL when the material has no pricing match.
+-- description: Fall-2025 canonical section/ISBN adoptions of 125 most-adopted ISBNs. One row per canonical Use Fall-2025 (period 2025-4) section-adoption of the 125 most common ISBNs (ranked by distinct sections), read from master_material at its canonical (period_sortable, section_id, isbn13) grain. Carries the deterministic catalog metadata, institution class (control, iclevel, instsize, sector), course, faculty, and the full pricing breakdown (buy/rental × new/used × physical/digital). Built for cost-difference analysis across institution classes (e.g. public 2-year vs private 4-year). Current result expectation: 178,058 adoptions; 112,968 (63.44%) have a matched price and 132,775 (74.57%) are inferred-required. Cost columns remain NULL when the material has no pricing match.
 WITH top_isbns AS (
     SELECT isbn13
-    FROM material_costs
+    FROM master_material
     WHERE period_sortable = '2025-4'
     GROUP BY isbn13
     ORDER BY COUNT(DISTINCT section_id) DESC
@@ -35,7 +35,7 @@ SELECT
     c.has_buy, c.has_rent,
     c.price_min, c.price_max, c.price_buy_min, c.price_buy_max,
     c.rental_days_min, c.rental_days_max, c.format_count
-FROM material_costs c
+FROM master_material c
 JOIN top_isbns t ON c.isbn13 = t.isbn13
 WHERE c.period_sortable = '2025-4'
 ORDER BY c.isbn13, c.control, c.level, c.state, c.section_id

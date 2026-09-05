@@ -4,10 +4,10 @@ set -euo pipefail
 # Export the canonical course-material relations on demand. The full pipeline
 # deliberately does not invoke this script because the exports can be large.
 # Usage:
-#   scripts/export_course_materials.sh                 # all terms, today's date
-#   scripts/export_course_materials.sh 20250828        # all terms, release date
-#   scripts/export_course_materials.sh 2025-4           # one term, today's date
-#   scripts/export_course_materials.sh 20250828 2025-4 # one term, release date
+#   scripts/export_course_material.sh                 # all terms, today's date
+#   scripts/export_course_material.sh 20250828        # all terms, release date
+#   scripts/export_course_material.sh 2025-4           # one term, today's date
+#   scripts/export_course_material.sh 20250828 2025-4 # one term, release date
 
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 REPO_ROOT="$(cd "$SCRIPT_DIR/.." && pwd)"
@@ -31,7 +31,7 @@ unset CM_MAIN_DB_OVERRIDE CM_DUCKDB_OVERRIDE
 
 DB="${MAIN_DB:-$REPO_ROOT/duckdb/commodore.duckdb}"
 DUCKDB="${DUCKDB:-duckdb}"
-OUT_DIR="${COURSE_MATERIALS_OUTPUT_DIR:-${CMM_OUTPUT_DIR:-$REPO_ROOT/output/course_materials}}"
+OUT_DIR="${COURSE_MATERIALS_OUTPUT_DIR:-${CMM_OUTPUT_DIR:-$REPO_ROOT/output/course_material}}"
 EXPORT_DATE="${CMM_EXPORT_DATE:-$(date +%Y%m%d)}"
 TERM=""
 # dot.env may include trusted DuckDB flags.
@@ -82,7 +82,7 @@ term_slug=""
 term_predicate=""
 if [ -n "$TERM" ]; then
     term_slug="_${TERM/-/_}"
-    term_predicate=" WHERE period_sortable = '${TERM}'"
+    term_predicate=" AND period_sortable = '${TERM}'"
 fi
 
 copy_path_sql() {
@@ -93,18 +93,18 @@ copy_path_sql() {
 # The relation names are fixed, validated canonical contracts; paths are
 # escaped as SQL literals before being interpolated into the read-only COPY.
 declare -a EXPORTS=(
-    "course_materials|course_materials${term_slug}_${EXPORT_DATE}.csv|period_sortable, section_id, isbn13"
-    "course_materials_post_2024|course_materials_post_2024${term_slug}_${EXPORT_DATE}.csv|period_sortable, section_id, isbn13"
-    "course_materials_use|course_materials_use_post_2024${term_slug}_${EXPORT_DATE}.csv|period_sortable, section_id, isbn13"
-    "course_materials_no_use|course_materials_nouse_post_2024${term_slug}_${EXPORT_DATE}.csv|period_sortable, section_id, isbn13"
-    "course_materials_canada|course_materials_can_post_2024${term_slug}_${EXPORT_DATE}.csv|period_sortable, section_id, isbn13"
+    "course_material|course_material${term_slug}_${EXPORT_DATE}.csv|period_sortable, section_id, isbn13|TRUE"
+    "course_material_post_2024|course_material_post_2024${term_slug}_${EXPORT_DATE}.csv|period_sortable, section_id, isbn13|TRUE"
+    "course_material_use|course_material_use_post_2024${term_slug}_${EXPORT_DATE}.csv|period_sortable, section_id, isbn13|TRUE"
+    "course_material_no_use|course_material_no_use_post_2024${term_slug}_${EXPORT_DATE}.csv|period_sortable, section_id, isbn13|TRUE"
+    "course_material_no_use|course_material_can_post_2024${term_slug}_${EXPORT_DATE}.csv|period_sortable, section_id, isbn13|is_canada"
 )
 
 # Refuse to replace an existing dated release. Build every file in one staging
 # directory so a failed relation does not leave a partial release in OUT_DIR.
 declare -a OUTPUT_FILENAMES=()
 for export_spec in "${EXPORTS[@]}"; do
-    IFS='|' read -r _ filename _ <<< "$export_spec"
+    IFS='|' read -r _ filename _ _ <<< "$export_spec"
     if [ -e "$OUT_DIR/$filename" ]; then
         echo "Error: refusing to overwrite existing export: $OUT_DIR/$filename" >&2
         exit 1
@@ -112,21 +112,21 @@ for export_spec in "${EXPORTS[@]}"; do
     OUTPUT_FILENAMES+=("$filename")
 done
 
-STAGING_DIR="$(mktemp -d "$OUT_DIR/.course_materials_export.XXXXXX")"
+STAGING_DIR="$(mktemp -d "$OUT_DIR/.course_material_export.XXXXXX")"
 cleanup_staging() {
     rm -r -- "$STAGING_DIR"
 }
 trap cleanup_staging EXIT
 
 for export_spec in "${EXPORTS[@]}"; do
-    IFS='|' read -r relation filename ordering <<< "$export_spec"
+    IFS='|' read -r relation filename ordering predicate <<< "$export_spec"
     output_path="$OUT_DIR/$filename"
     staged_path="$STAGING_DIR/$filename"
     output_path_sql=$(copy_path_sql "$staged_path")
     echo "[EXPORT] ${relation}${TERM:+ (${TERM})} -> ${output_path#$REPO_ROOT/}"
     "${DUCKDB_ARGS[@]}" -bail -readonly "$DB" <<SQL
 COPY (
-    SELECT * FROM ${relation}${term_predicate}
+    SELECT * FROM ${relation} WHERE ${predicate}${term_predicate}
     ORDER BY ${ordering}
 ) TO '${output_path_sql}' (HEADER, DELIMITER ',');
 SQL
