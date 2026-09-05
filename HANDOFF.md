@@ -6,22 +6,24 @@ State: 2026-09-04. Backlog: GitHub Issues / Project 2.
 
 - Branch: **`cmm-spring-2026`**
 - PR: [#62](https://github.com/christopherseaman/commodoreSQL/pull/62), open/non-draft.
-- SQL/database audited at `62479bf`; later documentation edits do not validate new data.
+- The live database remains at the pre-#80 baseline; current branch SQL is newer.
 - Inputs and `duckdb/commodore.duckdb` end at Fall 2025 (`2025-4`).
-- The validated database remains at the pre-#80 baseline; Spring 2026 and pending lookups remain absent.
+- Spring 2026 and pending lookups remain absent.
 
 ## Current implementation
 
 - `material_costs`: canonical Use items LEFT-enriched by exact section × ISBN pricing.
 - `section_enrollment`: complete section population and assigned enrollment.
-- `sample10pct_materials`: stable section-cluster sample of `material_costs`.
-- `current_mailing`: latest contacts, 12-term window, history, minus opt-outs.
+- `sample10pct_materials`: direct stable section-hash sample of `material_costs`.
+- `master_section`: owns section costs; no separate `section_cost` relation.
+- `current_mailing`: Master contacts in the latest 12 catalog terms, history-enriched, minus opt-outs.
 
 [Flow](CMM-DATA-FLOW.md) · [ETL rules](CMM-ETL.md) · [Dictionary](DATA-DICTIONARY.md)
 
-## Validation baseline
+## Live pre-change baseline
 
-Raw → canonical → release reconciliation passed:
+The last full rebuild predates #80/#81/#83/#84. Its raw → canonical → release
+reconciliation passed and remains the comparison baseline, not proof of the staged SQL:
 
 - `comprehensive_data`: **102,885,609** enriched source rows
 - `course_materials`: **96,663,781** canonical groups/audit rows
@@ -31,7 +33,19 @@ Raw → canonical → release reconciliation passed:
   **2,216** Master Institution, and **335,157** Master ISBN rows
 - 10% material sample definition: **1,282,423** items, **698,578** material-bearing sections,
   no NULL/duplicate keys, and exact key parity with sampled `course_materials_use`
-- Raw conservation, release/key-set, price-cell, mailing, and partition checks passed.
+- Raw conservation, release/key-set, price-cell, mailing, and partition checks passed in that rebuild.
+
+Bounded read-only checks of the staged expressions against that snapshot found:
+
+- Catalog and prior Master produce the same 12-period set. Each yields **1,411,582**
+  Master contacts before opt-outs and **1,374,828** Working contacts after opt-outs.
+- Direct `sample10pct_materials` hashing reproduces **1,282,423** items and **698,578**
+  material-bearing sections with zero key difference from the retired helper join.
+- Direct `material_costs` cost aggregation matches all ten existing section cost fields for
+  **6,983,049** sections; release reconciliation reports zero differences in every term.
+- The direct `master_course` rollup preserves **3,444,030** keys. Decimal-equivalent
+  averages differ only by floating aggregation order (maximum absolute difference
+  **1.14e-12**); MIN/MAX values are unchanged.
 
 ## Next release
 
@@ -47,7 +61,9 @@ Raw → canonical → release reconciliation passed:
 ### Flow changes
 
 - [#80](https://github.com/christopherseaman/commodoreSQL/issues/80) — implementation staged; full rebuild/reconciliation pending
-- [#81](https://github.com/christopherseaman/commodoreSQL/issues/81) — in Review; 1,282,423-row sample reconciled
+- [#81](https://github.com/christopherseaman/commodoreSQL/issues/81) — direct Material Costs hash sample staged; rebuild pending
+- [#83](https://github.com/christopherseaman/commodoreSQL/issues/83) — catalog-derived mailing window staged; bounded live-snapshot parity proven; rebuild pending
+- [#84](https://github.com/christopherseaman/commodoreSQL/issues/84) — section costs folded into Master Section; rebuild pending
 - [#24](https://github.com/christopherseaman/commodoreSQL/issues/24) — resolved: retain `master_course`, export 32, and Metabase card 90 for the course×term rollup; retire `master_course_material` and export 33 (no consumer; NULL publishers excluded; seats repeat across publisher/status groups).
 
 ### Reliability

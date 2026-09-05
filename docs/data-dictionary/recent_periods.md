@@ -11,8 +11,8 @@ notion-sync: push
 - Relation kind: view
 - Grain / key: One of the latest 12 distinct non-NULL periods
 - Pipeline stage: EDA mailing / 3_mailing_lists.sql
-- Direct upstream relations: `master_mailing`
+- Direct upstream relations: `course_catalog_20251215`
 
 | Column | Type | Example / structure | Direct upstream source / derivation | Description |
 |---|---|---|---|---|
-| `period_sortable` | `varchar` | YYYY-N | Latest 12 distinct nonmissing `master_mailing.period_sortable` values. | Sortable academic term code used for chronological ordering. |
+| `period_sortable` | `varchar` | YYYY-N | Latest 12 distinct nonmissing `course_catalog_20251215.period_sortable` values. | Sortable academic term code used for chronological ordering. |

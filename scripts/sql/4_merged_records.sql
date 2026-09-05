@@ -2,52 +2,10 @@
 
 ${CONFIG}
 
--- section_cost: per-(period_sortable, section_id) cost aggregates over canonical
--- Use materials.
--- Required vs non-required uses the catalog classification (is_required_inferred, #1).
--- The canonical issue-#58 Use flag excludes Canada, missing ISBN, supplies, and
--- no-details/no-material placeholders. Cost columns therefore measure only the
--- release material population. material_costs already owns the distinct
--- (period_sortable, section_id, isbn13) grain; NULL-priced materials contribute
--- nothing (*_priced_count shows coverage). "owned" = buy-only (rentals omitted),
--- from material_costs.price_buy_min/max. Materialized as a TABLE so
--- master_section / master_course join it cheaply.
-DROP TABLE IF EXISTS section_cost;
-CREATE TABLE section_cost AS
-WITH materials AS (
-    SELECT
-        section_id,
-        course_id,
-        period_sortable,
-        isbn13,
-        is_required_inferred AS is_required,
-        price_min,
-        price_max,
-        price_buy_min AS owned_min,
-        price_buy_max AS owned_max
-    FROM material_costs
-)
-SELECT
-    section_id,
-    ANY_VALUE(course_id) AS course_id,
-    period_sortable,
-    SUM(price_min) FILTER (WHERE is_required)     AS required_cost_total_min,
-    SUM(price_max) FILTER (WHERE is_required)     AS required_cost_total_max,
-    SUM(price_min) FILTER (WHERE NOT is_required) AS optional_cost_total_min,
-    SUM(price_max) FILTER (WHERE NOT is_required) AS optional_cost_total_max,
-    SUM(owned_min) FILTER (WHERE is_required)     AS required_cost_owned_min,
-    SUM(owned_max) FILTER (WHERE is_required)     AS required_cost_owned_max,
-    SUM(owned_min) FILTER (WHERE NOT is_required) AS optional_cost_owned_min,
-    SUM(owned_max) FILTER (WHERE NOT is_required) AS optional_cost_owned_max,
-    COUNT(*) FILTER (WHERE is_required AND price_min IS NOT NULL)     AS required_priced_count,
-    COUNT(*) FILTER (WHERE NOT is_required AND price_min IS NOT NULL) AS optional_priced_count
-FROM materials
-GROUP BY period_sortable, section_id;
-
 -- Create master_section: exactly one row per canonical material-bearing
 -- (period_sortable, section_id). material_costs determines the population and all
--- material-facing descriptors/aggregates. Cost columns (#2/#3/#4) join 1:1 on the
--- same explicit key. Enrichment columns live HERE, not in downstream tables:
+-- material-facing descriptors/aggregates, including section costs. Enrichment
+-- columns live HERE, not in downstream tables:
 -- retained-section canonical Course Materials audits (#58/#36) and enrollment fill
 -- (#32: enrollment_assigned / enrollment_source inherited from material_costs).
 -- Materialized as a TABLE (not a VIEW). The build is deliberately staged through
@@ -61,7 +19,9 @@ GROUP BY period_sortable, section_id;
 -- refreshes cannot leave the obsolete view behind.
 DROP VIEW  IF EXISTS master_course_material;
 DROP VIEW  IF EXISTS master_course;
+DROP TABLE IF EXISTS section_cost;
 DROP TABLE IF EXISTS master_section;
+DROP TABLE IF EXISTS sample10_section_ids;
 
 DROP TABLE IF EXISTS _ms_scalar;
 DROP TABLE IF EXISTS _ms_mode_school;
@@ -117,7 +77,17 @@ SELECT
     COALESCE(BOOL_OR(has_isbn), FALSE) AS has_isbn,
     COALESCE(BOOL_OR(has_formattype), FALSE) AS has_formattype,
     COUNT(*) FILTER (WHERE has_isbn)       AS isbn_count,
-    COUNT(*) FILTER (WHERE has_formattype) AS classified_count
+    COUNT(*) FILTER (WHERE has_formattype) AS classified_count,
+    SUM(price_min) FILTER (WHERE is_required_inferred) AS required_cost_total_min,
+    SUM(price_max) FILTER (WHERE is_required_inferred) AS required_cost_total_max,
+    SUM(price_min) FILTER (WHERE NOT is_required_inferred) AS optional_cost_total_min,
+    SUM(price_max) FILTER (WHERE NOT is_required_inferred) AS optional_cost_total_max,
+    SUM(price_buy_min) FILTER (WHERE is_required_inferred) AS required_cost_owned_min,
+    SUM(price_buy_max) FILTER (WHERE is_required_inferred) AS required_cost_owned_max,
+    SUM(price_buy_min) FILTER (WHERE NOT is_required_inferred) AS optional_cost_owned_min,
+    SUM(price_buy_max) FILTER (WHERE NOT is_required_inferred) AS optional_cost_owned_max,
+    COUNT(*) FILTER (WHERE is_required_inferred AND price_min IS NOT NULL) AS required_priced_count,
+    COUNT(*) FILTER (WHERE NOT is_required_inferred AND price_min IS NOT NULL) AS optional_priced_count
 FROM material_costs
 GROUP BY period_sortable, section_id;
 
@@ -257,7 +227,17 @@ SELECT
     s.has_enrollment_sibling_seats,
     s.enrollment_assigned,
     s.enrollment_source,
-    s.is_required_direct
+    s.is_required_direct,
+    s.required_cost_total_min,
+    s.required_cost_total_max,
+    s.optional_cost_total_min,
+    s.optional_cost_total_max,
+    s.required_cost_owned_min,
+    s.required_cost_owned_max,
+    s.optional_cost_owned_min,
+    s.optional_cost_owned_max,
+    s.required_priced_count,
+    s.optional_priced_count
 FROM _ms_scalar s
 JOIN _ms_mode_school school
   ON school.period_sortable = s.period_sortable AND school.section_id = s.section_id
@@ -296,105 +276,77 @@ DROP TABLE _ms_course_material_audit;
 
 CREATE TABLE master_section AS
 SELECT
-    base.*,
-    sc.required_cost_total_min, sc.required_cost_total_max,
-    sc.optional_cost_total_min, sc.optional_cost_total_max,
-    sc.required_cost_owned_min, sc.required_cost_owned_max,
-    sc.optional_cost_owned_min, sc.optional_cost_owned_max,
+    base.* EXCLUDE (required_priced_count, optional_priced_count),
     -- price_avg convention: (min + max) / 2, NOT an arithmetic mean (see CLAUDE.md)
-    (sc.required_cost_total_min + sc.required_cost_total_max) / 2.0 AS required_cost_avg,
-    (sc.required_cost_owned_min + sc.required_cost_owned_max) / 2.0 AS required_cost_owned_avg,
-    (sc.optional_cost_total_min + sc.optional_cost_total_max) / 2.0 AS optional_cost_avg,
-    sc.required_priced_count, sc.optional_priced_count
-FROM _ms_enriched base
-JOIN section_cost sc
-  ON sc.period_sortable = base.period_sortable
- AND sc.section_id = base.section_id;
+    (base.required_cost_total_min + base.required_cost_total_max) / 2.0 AS required_cost_avg,
+    (base.required_cost_owned_min + base.required_cost_owned_max) / 2.0 AS required_cost_owned_avg,
+    (base.optional_cost_total_min + base.optional_cost_total_max) / 2.0 AS optional_cost_avg,
+    base.required_priced_count,
+    base.optional_priced_count
+FROM _ms_enriched base;
 
 DROP TABLE _ms_enriched;
 
 -- Create master_course: one row per course per period.
--- Cost rolls up section_cost via MIN(min)/MAX(max)/AVG(avg) across the course's
+-- Cost rolls up master_section via MIN(min)/MAX(max)/AVG(avg) across the course's
 -- sections (sections of a course usually share materials, so SUM would multiply a
 -- shared book's cost). Attached at (course_id, period_sortable).
 DROP VIEW IF EXISTS master_course;
 CREATE VIEW master_course AS
 SELECT
-    base.*,
-    cc.required_cost_total_min, cc.required_cost_total_max,
-    cc.optional_cost_total_min, cc.optional_cost_total_max,
-    cc.required_cost_owned_min, cc.required_cost_owned_max,
-    cc.optional_cost_owned_min, cc.optional_cost_owned_max,
-    cc.required_cost_avg, cc.required_cost_owned_avg, cc.optional_cost_avg
-FROM (
-    SELECT
-        course_id,
-        period_sortable,
-        ANY_VALUE(period)      AS period,
-        ANY_VALUE(period_date) AS period_date,
-        -- institution enrichment (constant per unit -> per course), carried from master_section
-        ANY_VALUE(unit_id)                  AS unit_id,
-        ANY_VALUE(state)                    AS state,
-        ANY_VALUE(control)                  AS control,
-        ANY_VALUE(level)                    AS level,
-        ANY_VALUE(size)                     AS size,
-        ANY_VALUE(sector)                   AS sector,
-        ANY_VALUE(institution_name)         AS institution_name,
-        ANY_VALUE(institution_type)         AS institution_type,
-        ANY_VALUE(enrollment_2024)          AS enrollment_2024,
-        ANY_VALUE(distance_enrollment_2024) AS distance_enrollment_2024,
-        mode(school)           AS school,
-        mode(department)       AS department,
-        mode(course_number)    AS course_number,
-        mode(course_title)     AS course_title,
-        mode(course_level)     AS course_level,
-        mode(course_subject)   AS course_subject,
-        COUNT(DISTINCT section_id) AS section_count,
-        SUM(enrollments) AS enrollment_total,
-        SUM(seats_taken) AS seats_taken_total,
-        SUM(material_count) AS total_materials,
-        SUM(required_count) AS total_required,
-        SUM(optional_count) AS total_optional,
-        -- OER / IA rollup: indicator = any section is OER/IA; count = sum of section
-        -- item counts (consistent with total_materials being a SUM across sections).
-        COALESCE(BOOL_OR(is_oer), FALSE) AS is_oer,
-        COALESCE(BOOL_OR(is_ia),  FALSE) AS is_ia,
-        SUM(oer_count) AS oer_count,
-        SUM(ia_count)  AS ia_count,
-        -- coverage rollup (2026-06-04 notes): any-section indicator + summed material counts
-        COALESCE(BOOL_OR(has_isbn), FALSE)       AS has_isbn,
-        COALESCE(BOOL_OR(has_formattype), FALSE) AS has_formattype,
-        SUM(isbn_count)       AS isbn_count,
-        SUM(classified_count) AS classified_count,
-        -- enrollment fill-potential rolled to section counts (of section_count) — how many
-        -- of the course's sections carry each signal (2026-06-04 notes).
-        COUNT(*) FILTER (WHERE has_enrollment)               AS has_enrollment_sections,
-        COUNT(*) FILTER (WHERE has_enrollment_sibling)       AS has_enrollment_sibling_sections,
-        COUNT(*) FILTER (WHERE has_enrollment_own_seats)     AS has_enrollment_own_seats_sections,
-        COUNT(*) FILTER (WHERE has_enrollment_sibling_seats) AS has_enrollment_sibling_seats_sections,
-        LIST(publishers) FILTER (WHERE publishers IS NOT NULL) AS all_publishers,
-        SUM(required_publisher_count) AS unique_required_publishers
-    FROM master_section
-    GROUP BY course_id, period_sortable
-) base
-LEFT JOIN (
-    SELECT
-        course_id,
-        period_sortable,
-        MIN(required_cost_total_min) AS required_cost_total_min,
-        MAX(required_cost_total_max) AS required_cost_total_max,
-        MIN(optional_cost_total_min) AS optional_cost_total_min,
-        MAX(optional_cost_total_max) AS optional_cost_total_max,
-        MIN(required_cost_owned_min) AS required_cost_owned_min,
-        MAX(required_cost_owned_max) AS required_cost_owned_max,
-        MIN(optional_cost_owned_min) AS optional_cost_owned_min,
-        MAX(optional_cost_owned_max) AS optional_cost_owned_max,
-        AVG((required_cost_total_min + required_cost_total_max) / 2.0) AS required_cost_avg,
-        AVG((required_cost_owned_min + required_cost_owned_max) / 2.0) AS required_cost_owned_avg,
-        AVG((optional_cost_total_min + optional_cost_total_max) / 2.0) AS optional_cost_avg
-    FROM section_cost
-    GROUP BY course_id, period_sortable
-) cc ON base.course_id = cc.course_id AND base.period_sortable = cc.period_sortable;
+    course_id,
+    period_sortable,
+    ANY_VALUE(period)      AS period,
+    ANY_VALUE(period_date) AS period_date,
+    ANY_VALUE(unit_id)                  AS unit_id,
+    ANY_VALUE(state)                    AS state,
+    ANY_VALUE(control)                  AS control,
+    ANY_VALUE(level)                    AS level,
+    ANY_VALUE(size)                     AS size,
+    ANY_VALUE(sector)                   AS sector,
+    ANY_VALUE(institution_name)         AS institution_name,
+    ANY_VALUE(institution_type)         AS institution_type,
+    ANY_VALUE(enrollment_2024)          AS enrollment_2024,
+    ANY_VALUE(distance_enrollment_2024) AS distance_enrollment_2024,
+    mode(school)           AS school,
+    mode(department)       AS department,
+    mode(course_number)    AS course_number,
+    mode(course_title)     AS course_title,
+    mode(course_level)     AS course_level,
+    mode(course_subject)   AS course_subject,
+    COUNT(DISTINCT section_id) AS section_count,
+    SUM(enrollments) AS enrollment_total,
+    SUM(seats_taken) AS seats_taken_total,
+    SUM(material_count) AS total_materials,
+    SUM(required_count) AS total_required,
+    SUM(optional_count) AS total_optional,
+    COALESCE(BOOL_OR(is_oer), FALSE) AS is_oer,
+    COALESCE(BOOL_OR(is_ia),  FALSE) AS is_ia,
+    SUM(oer_count) AS oer_count,
+    SUM(ia_count)  AS ia_count,
+    COALESCE(BOOL_OR(has_isbn), FALSE)       AS has_isbn,
+    COALESCE(BOOL_OR(has_formattype), FALSE) AS has_formattype,
+    SUM(isbn_count)       AS isbn_count,
+    SUM(classified_count) AS classified_count,
+    COUNT(*) FILTER (WHERE has_enrollment)               AS has_enrollment_sections,
+    COUNT(*) FILTER (WHERE has_enrollment_sibling)       AS has_enrollment_sibling_sections,
+    COUNT(*) FILTER (WHERE has_enrollment_own_seats)     AS has_enrollment_own_seats_sections,
+    COUNT(*) FILTER (WHERE has_enrollment_sibling_seats) AS has_enrollment_sibling_seats_sections,
+    LIST(publishers) FILTER (WHERE publishers IS NOT NULL) AS all_publishers,
+    SUM(required_publisher_count) AS unique_required_publishers,
+    MIN(required_cost_total_min) AS required_cost_total_min,
+    MAX(required_cost_total_max) AS required_cost_total_max,
+    MIN(optional_cost_total_min) AS optional_cost_total_min,
+    MAX(optional_cost_total_max) AS optional_cost_total_max,
+    MIN(required_cost_owned_min) AS required_cost_owned_min,
+    MAX(required_cost_owned_max) AS required_cost_owned_max,
+    MIN(optional_cost_owned_min) AS optional_cost_owned_min,
+    MAX(optional_cost_owned_max) AS optional_cost_owned_max,
+    AVG((required_cost_total_min + required_cost_total_max) / 2.0) AS required_cost_avg,
+    AVG((required_cost_owned_min + required_cost_owned_max) / 2.0) AS required_cost_owned_avg,
+    AVG((optional_cost_total_min + optional_cost_total_max) / 2.0) AS optional_cost_avg
+FROM master_section
+GROUP BY course_id, period_sortable;
 
 -- BMG #38: US, intro/intermediate, required-bearing sections (Fall 2025).
 -- A pure filtered VIEW of master_section — NO new columns, NO new table. Enrichment

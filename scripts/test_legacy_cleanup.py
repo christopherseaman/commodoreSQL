@@ -48,7 +48,13 @@ LEGACY_VIEWS = {
     "crosstab_formattype_oeria_sector",
     "crosstab_formattype_oeria_state",
 }
-LEGACY_TABLES = {"data_quality_unmatched_formats", "email_issues", "section_book_status"}
+LEGACY_TABLES = {
+    "data_quality_unmatched_formats",
+    "email_issues",
+    "section_book_status",
+    "section_cost",
+    "sample10_section_ids",
+}
 REPLACEABLE_CURRENT_VIEWS = {
     "current_mailing_ca",
     "current_mailing_tx",
@@ -70,7 +76,7 @@ def fail(message: str) -> None:
 
 def main() -> None:
     cleanup = CLEANUP_SQL.read_text()
-    drops = re.findall(r"^DROP (VIEW|TABLE) IF EXISTS ([a-z_]+);$", cleanup, re.MULTILINE)
+    drops = re.findall(r"^DROP (VIEW|TABLE) IF EXISTS ([a-z0-9_]+);$", cleanup, re.MULTILINE)
     dropped_views = {name for relation_type, name in drops if relation_type == "VIEW"}
     dropped_tables = {name for relation_type, name in drops if relation_type == "TABLE"}
 
@@ -78,8 +84,8 @@ def main() -> None:
         fail(f"cleanup view target set differs: {dropped_views ^ CLEANUP_VIEWS}")
     if dropped_tables != LEGACY_TABLES:
         fail(f"cleanup table target set differs: {dropped_tables ^ LEGACY_TABLES}")
-    if len(drops) != 47:
-        fail(f"cleanup has {len(drops)} drops, expected 47")
+    if len(drops) != 49:
+        fail(f"cleanup has {len(drops)} drops, expected 49")
     if not re.search(r"^BEGIN TRANSACTION;$", cleanup, re.MULTILINE):
         fail("cleanup does not start a transaction")
     if not re.search(r"^COMMIT;$", cleanup, re.MULTILINE):
@@ -91,7 +97,7 @@ def main() -> None:
     postcondition_sql = cleanup.split("AND table_name IN (", maxsplit=1)
     if len(postcondition_sql) != 2:
         fail("cleanup postcondition does not enumerate relation names")
-    postcondition_targets = set(re.findall(r"'([a-z_]+)'", postcondition_sql[1]))
+    postcondition_targets = set(re.findall(r"'([a-z0-9_]+)'", postcondition_sql[1]))
     if postcondition_targets != CLEANUP_RELATIONS:
         fail("cleanup postcondition target set differs")
 
@@ -159,15 +165,14 @@ def main() -> None:
         'i0c["01 · 0_cleanup.sql"]',
         'i2d["10 · 2d_data_quality.sql"]',
         'e30["11 · 3_mailing_lists.sql"]',
-        'm03["16 · models/sample10_section_ids.sql"]',
-        'm04["17 · models/sample10pct_materials.sql"]',
+        'm03["16 · models/sample10pct_materials.sql"]',
     )
     if any(marker not in schema_doc for marker in required_execution_markers):
-        fail("SCHEMA.md does not show the exact 17-step processing order")
+        fail("SCHEMA.md does not show the exact 16-step processing order")
     if "| Import | `0_cleanup.sql` |" not in (REPO_ROOT / "CMM-ETL.md").read_text():
         fail("CMM-ETL.md omits the cleanup step")
 
-    print("PASS: 47 exact cleanup relations are targeted with no legacy report references.")
+    print("PASS: 49 exact cleanup relations are targeted with no legacy report references.")
 
 
 if __name__ == "__main__":

@@ -78,10 +78,12 @@ SELECT
     email
 FROM selected;
 
--- Identify most recent periods for current mailing list
+-- Identify the current catalog window independently of per-email Master
+-- selection. A term remains current even if no catalog contact ultimately
+-- survives the Master selection for that term.
 CREATE VIEW recent_periods AS
 SELECT DISTINCT period_sortable
-FROM master_mailing
+FROM ${SURVEY_TABLE}
 WHERE period_sortable IS NOT NULL
 ORDER BY period_sortable DESC
 LIMIT 12;

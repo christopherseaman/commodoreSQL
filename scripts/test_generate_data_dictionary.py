@@ -73,17 +73,17 @@ class DataDictionaryTest(unittest.TestCase):
             cls.relations, cls.appendix_body
         )
 
-    def test_canonical_scope_is_36_relations_and_1317_fields(self) -> None:
-        self.assertEqual(len(self.relations), 36)
-        self.assertEqual(sum(r.kind == "table" for r in self.relations), 28)
+    def test_canonical_scope_is_34_relations_and_1300_fields(self) -> None:
+        self.assertEqual(len(self.relations), 34)
+        self.assertEqual(sum(r.kind == "table" for r in self.relations), 26)
         self.assertEqual(sum(r.kind == "view" for r in self.relations), 8)
         field_count = sum(len(relation.columns) for relation in self.relations)
-        self.assertEqual(field_count, 1_317)
+        self.assertEqual(field_count, 1_300)
 
     def test_one_deterministically_named_document_per_relation(self) -> None:
         expected_names = {relation.name for relation in self.relations}
         self.assertEqual(set(self.docs), expected_names)
-        self.assertEqual(len(self.docs), 36)
+        self.assertEqual(len(self.docs), 34)
         self.assertEqual(
             {path.name for path in DOCS_DIRECTORY.glob("*.md")},
             {f"{name}.md" for name in expected_names},
@@ -95,7 +95,7 @@ class DataDictionaryTest(unittest.TestCase):
         self.assertIn("## External source tables (5 relations)", body)
         self.assertIn("## Lookup/reference inputs (3 relations)", body)
         self.assertIn("## Processing helpers (4 relations)", body)
-        self.assertIn("## Canonical outputs (15 relations)", body)
+        self.assertIn("## Canonical outputs (13 relations)", body)
         self.assertIn("## Data-quality sidecars (7 relations)", body)
         self.assertIn("## Report/export views (2 relations)", body)
         self.assertIn("not database relations or dictionary pages", body)
@@ -147,7 +147,7 @@ class DataDictionaryTest(unittest.TestCase):
                 self.assertEqual(len(rows), len(relation.columns))
                 self.assertEqual(len({row[0] for row in rows}), len(rows))
             total_rows += len(rows)
-        self.assertEqual(total_rows, 1_317)
+        self.assertEqual(total_rows, 1_300)
 
     def test_sample_materials_preserve_material_costs_schema(self) -> None:
         material = self.by_name["material_costs"]
@@ -160,7 +160,7 @@ class DataDictionaryTest(unittest.TestCase):
             metadata = self.field_metadata[(sample.name, column.name)]
             self.assertEqual(
                 metadata.source,
-                f"`material_costs.{column.name}` retained for `sample10_section_ids` membership.",
+                f"`material_costs.{column.name}` retained after the deterministic section-hash filter.",
             )
 
     def test_every_field_has_example_source_and_short_conceptual_description(self) -> None:
@@ -196,7 +196,7 @@ class DataDictionaryTest(unittest.TestCase):
                         self.assertNotIn(fragment, lowered)
         self.assertEqual(
             len({column.name for relation in self.relations for column in relation.columns}),
-            300,
+            298,
         )
 
     def test_representative_descriptions_are_conceptual_and_relation_aware(self) -> None:
@@ -337,6 +337,10 @@ class DataDictionaryTest(unittest.TestCase):
                     self.assertIn(f"`{base_name}.{column.name}`", source)
 
     def test_reviewed_semantic_contracts_match_executable_sql(self) -> None:
+        self.assertEqual(
+            generator.RELATION_METADATA["current_mailing"].stage,
+            "Release / 3_mailing_lists.sql",
+        )
         master_course = self.by_name["master_course"]
         types = {column.name: column.data_type for column in master_course.columns}
         for name in (
@@ -370,12 +374,12 @@ class DataDictionaryTest(unittest.TestCase):
                 for bound in ("min", "max"):
                     name = f"{status}_cost_{scope}_{bound}"
                     self.assertIn(
-                        f"section_cost.{name}",
+                        f"master_section.{name}",
                         self.field_metadata[("master_course", name)].source,
                     )
         owned_avg = self.field_metadata[("master_course", "required_cost_owned_avg")]
-        self.assertIn("section_cost.required_cost_owned_min", owned_avg.source)
-        self.assertIn("section_cost.required_cost_owned_max", owned_avg.source)
+        self.assertIn("master_section.required_cost_owned_min", owned_avg.source)
+        self.assertIn("master_section.required_cost_owned_max", owned_avg.source)
         self.assertNotIn("required_cost_owned_midpoint", owned_avg.source)
         self.assertIn("midpoint", owned_avg.description)
 
@@ -437,7 +441,7 @@ class DataDictionaryTest(unittest.TestCase):
             pricing_wide,
         )
         self.assertIn(
-            "AVG((required_cost_owned_min + required_cost_owned_max) / 2.0)",
+            "(base.required_cost_owned_min + base.required_cost_owned_max) / 2.0",
             merged,
         )
         self.assertRegex(

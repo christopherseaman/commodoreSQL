@@ -43,13 +43,13 @@ Releases record filenames, snapshot dates, pipeline commit, and configuration. S
 | Import | `2b_course_materials.sql` | Build canonical `course_materials` and population views from enriched source rows. |
 | Import | `2c_pricing_wide.sql` | Pivot to one `(section_id,isbn13)` row with 18 price cells and rental bounds. |
 | Import | `2d_data_quality.sql` | Materialize import-state metrics/drill-downs and non-mutating pricing/catalog comparisons; diagnostics are not release denominators. |
-| EDA | `3_mailing_lists.sql` | Build Master and Working mailing relations; seven geographic exports filter `current_mailing` directly. |
+| EDA | `3_mailing_lists.sql` | Build Master, catalog-derived 12-term lookup, and Working; seven geographic exports filter `current_mailing`. |
 | EDA | `3b_material_costs.sql` | LEFT-enrich every canonical Use item from `pricing_wide` on exact section × ISBN. |
-| EDA | `4_merged_records.sql` | Build `section_cost`, `master_section`, `master_course`, and Fall 2025 compatibility projection. |
-| Models | `scripts/sql/models/*.sql` | Materialize `master_institution`, `master_isbn`, `sample10_section_ids`, and `sample10pct_materials`. |
+| EDA | `4_merged_records.sql` | Build `master_section`, `master_course`, and Fall 2025 compatibility projection. |
+| Models | `scripts/sql/models/*.sql` | Materialize `master_institution`, `master_isbn`, and `sample10pct_materials`. |
 | Exports | `scripts/sql/exports/*.sql` | Unless `NO_EXPORT`, run lexical wrappers to `output/<basename>.csv`; standalone exporters are separate. |
 
-The intended database has 36 DBML-managed relations (28 tables, eight views): 27 executable-flow relations, seven DQ sidecars, and two report/export views. Retired relations are removed by cleanup.
+The intended database has 34 DBML-managed relations (26 tables, eight views): 25 executable-flow relations, seven DQ sidecars, and two report/export views. Retired relations are removed by cleanup.
 
 ## Grains and lineage
 
@@ -62,9 +62,8 @@ The intended database has 36 DBML-managed relations (28 tables, eight views): 27
 | `pricing_historical` | One `(section_id,isbn13,book_option,book_condition,book_format,rental_days)`; latest source-owned observation after dedupe. |
 | `pricing_wide` | One `(section_id,isbn13)` source-owned pivot; no catalog/IPEDS/OER/IA/required enrichment. |
 | `material_costs` | One canonical Use `(period_sortable,section_id,isbn13)`; catalog spine LEFT-enriched from pricing; unmatched/unpriced remain. |
-| `sample10pct_materials` | `material_costs` items in `sample10_section_ids`; identical columns and item grain. |
-| `section_cost` | One material-bearing `(period_sortable,section_id)`; cost bounds from `material_costs`. |
-| `master_section` | One section represented in `material_costs`; inherited section dimensions/enrollment and costs from `section_cost`. |
+| `sample10pct_materials` | Stable 10% section-cluster sample of `material_costs`; identical columns and item grain. |
+| `master_section` | One section represented in `material_costs`; material-bearing section rollup and downstream source. |
 | `master_course` | One material-bearing `(course_id,period_sortable)`; `enrollment_total = SUM(master_section.enrollments)` without assigned-value substitution. |
 | `master_institution` | One `(period_sortable,unit_id)`, including NULL unit bucket; bookstore URL is same-term pricing exception. |
 | `master_isbn` | One `(period_sortable,isbn13)` rollup of canonical Use items. |
@@ -133,7 +132,7 @@ values remain.
 | Institution | Material-bearing sections by term×unit; NULL unit is explicit. |
 | ISBN | Deduplicated `material_costs` section×ISBN; price-cell counts are distinct sections. |
 
-Metabase routes item analyses to `material_costs`, section analyses to `master_section`, and complete-population diagnostics to `comprehensive_data`/`section_enrollment` with denominator labeled. The stable 10% sample hashes `section_id` with unsigned first-64-bit MD5 modulo 10, bucket zero (`md5-prefix64-mod10-v1`). `sample10_section_ids` retains complete-section membership; `sample10pct_materials` applies it to `material_costs`. Only additive section-cluster totals may be expanded, not distinct institution/ISBN domains.
+Metabase routes item analyses to `material_costs`, section analyses to `master_section`, and complete-population diagnostics to `comprehensive_data`/`section_enrollment`. `sample10pct_materials` keeps sections whose first 64 MD5 bits modulo 10 equal zero (`md5-prefix64-mod10-v1`); reconciliation applies the same rule inline to `section_enrollment`. Only additive section-cluster totals may be expanded.
 
 Pending boundaries: Spring 2026 materials, updated IPEDS, additional-term pricing, BVA history (#56), external pricing, discipline, later campus IA, bookstore-brand, and the 25 institution list.
 

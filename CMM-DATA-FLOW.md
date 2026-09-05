@@ -27,7 +27,7 @@ flowchart LR
             cmm_ia_source["CMM IA"]
             external_pricing_source["CMM external pricing"]
             brand_source["Bookstore-brand lookup"]
-            review25_source["25 institution list"]
+            sample25_unit_ids["sample25_unit_ids<br/>(25 institution list)"]
         end
     end
 
@@ -56,10 +56,10 @@ flowchart LR
     subgraph release["Release"]
         direction TB
         material_costs("material_costs")
-        section_cost("section_cost")
         master_section("master_section")
         master_institution("master_institution")
         master_isbn("master_isbn")
+        current_mailing{{"current_mailing"}}
         fall_scope{{"master_section_us_intro_fall2025"}}
     end
 
@@ -70,9 +70,7 @@ flowchart LR
 
     subgraph samples["Samples"]
         direction TB
-        sample10("sample10_section_ids")
         sample10_materials("sample10pct_materials")
-        sample25_ids("sample25_unit_ids")
         sample25_material("sample25id_material_cost")
         sample25_section("sample25id_section_cost")
     end
@@ -80,7 +78,6 @@ flowchart LR
     subgraph mailing["Mailing"]
         direction TB
         master_mailing("master_mailing")
-        current_mailing{{"current_mailing"}}
     end
 
     panel --> panel_email
@@ -106,22 +103,17 @@ flowchart LR
     pricing_historical --> pricing_wide
     materials_use --> material_costs
     pricing_wide --> material_costs
-    material_costs --> section_cost
     material_costs --> master_section
-    section_cost --> master_section
     course_materials --> master_section
     master_section --> master_course
-    section_cost --> master_course
     master_section --> master_institution
     pricing_wide --> master_institution
     material_costs --> master_isbn
-    section_enrollment --> sample10
-    sample10 --> sample10_materials
     material_costs --> sample10_materials
     master_section --> fall_scope
 
     catalog --> master_mailing
-    master_mailing --> recent_periods
+    catalog --> recent_periods
     master_mailing --> current_mailing
     recent_periods --> current_mailing
     panel_email --> current_mailing
@@ -131,16 +123,15 @@ flowchart LR
     cmm_ia_source -.-> comprehensive
     external_pricing_source -.-> pricing_wide
     brand_source -.-> pricing_wide
-    review25_source -.-> sample25_ids
-    sample25_ids -.-> sample25_material
+    sample25_unit_ids -.-> sample25_material
+    sample25_unit_ids -.-> sample25_section
     material_costs -.-> sample25_material
-    section_cost -.-> sample25_section
-    sample25_material -.-> sample25_section
+    master_section -.-> sample25_section
 
     classDef imported fill:#d9ead3,stroke:#38761d,stroke-width:2px,color:#274e13;
     classDef expected fill:#f3f3f3,stroke:#777,stroke-width:2px,stroke-dasharray:6 4,color:#444;
-    class catalog,pricing_historical,ipeds,optout,panel,format_lookup,supply imported;
-    class cmm_discipline_source,cmm_ia_source,external_pricing_source,brand_source,review25_source,sample25_ids,sample25_material,sample25_section expected;
+    class catalog,pricing_historical,ipeds,optout,panel,format_lookup,supply,region_lookup imported;
+    class cmm_discipline_source,cmm_ia_source,external_pricing_source,brand_source,sample25_unit_ids,sample25_material,sample25_section expected;
     style expected_sources fill:#fafafa,stroke:#777,stroke-width:2px,stroke-dasharray:8 4
 ```
 
@@ -219,16 +210,15 @@ flowchart TB
 
     subgraph pending_sample_exports["Pending 25-institution samples"]
         direction LR
-        section_cost("section_cost")
-        sample25_ids("sample25_unit_ids")
+        sample25_unit_ids["sample25_unit_ids<br/>(25 institution list)"]
         sample25_material("sample25id_material_cost")
         sample25_section("sample25id_section_cost")
         sample25_material_file["sample25id_material_cost.csv"]
         sample25_section_file["sample25id_section_cost.csv"]
         material_costs -.-> sample25_material
-        sample25_ids -.-> sample25_material
-        section_cost -.-> sample25_section
-        sample25_material -.-> sample25_section
+        sample25_unit_ids -.-> sample25_material
+        sample25_unit_ids -.-> sample25_section
+        master_section -.-> sample25_section
         sample25_section -.-> sample25_section_file
         sample25_material -.-> sample25_material_file
     end
@@ -236,7 +226,7 @@ flowchart TB
     classDef file fill:#fff2cc,stroke:#9c7227,color:#222;
     class course_file,post_file,use_file,nouse_file,canada_file,cost_files,section_files,course_files,institution_files,isbn_files,master_file,mailing_files,geography_files,random_file,faculty_file,sample_file,subset_files file;
     classDef expected fill:#f3f3f3,stroke:#777,stroke-width:2px,stroke-dasharray:6 4,color:#444;
-    class sample25_ids,sample25_material,sample25_section,sample25_material_file,sample25_section_file expected;
+    class sample25_unit_ids,sample25_material,sample25_section,sample25_material_file,sample25_section_file expected;
 ```
 
 `YYYY_N` is the term; `YYYYMMDD` is the export date. Brackets mark an optional term suffix.
@@ -265,16 +255,14 @@ Arrows above identify inputs. “Section” includes term; grain means one row p
 | `pricing_historical` | Section × ISBN × option × condition × format × rental term | Remove exact/instructor-only duplicates; latest dated offer. |
 | `pricing_wide` | Section × ISBN | Pivot offers; no catalog enrichment. |
 | `material_costs` | Use section × ISBN | Exact LEFT join; retain unmatched/unpriced items. |
-| `section_cost` | Material-bearing section | Sum required/optional and buy-only price bounds. |
 | `master_section` | Material-bearing section | Combine items, costs, assigned enrollment, excluded-row counts. |
 | `master_course` | Course × term | Section/cost rollup; raw enrollment sum. |
 | `master_institution` | Institution × term | Roll up sections; same-term bookstore URL; retain unknown institution. |
 | `master_isbn` | ISBN × term | Roll up material rows. |
-| `sample10_section_ids` | Section | Internal fixed 10% hash membership. |
 | `sample10pct_materials` | Section × ISBN | Selected section clusters from `material_costs`. |
 | `master_section_us_intro_fall2025` | Section | Fall 2025; required-bearing; introductory/intermediate; nonblank, non-Canada state. |
 | `master_mailing` | Email | Nonblank; newest term, largest enrollment, stable tie-breakers. |
-| `recent_periods` | Term | Newest 12 terms represented after `master_mailing` selection. |
+| `recent_periods` | Term | Lookup view of newest 12 terms from `course_catalog_20251215`. |
 | `current_mailing` | Email | Recent terms; add history; exclude opt-outs. |
 
 ### Use filter
@@ -295,7 +283,7 @@ the key; conflicts remain recorded. Pre-2024 rows stay upstream. Exclusion reaso
 
 | Reports | Tables / views |
 |---|---|
-| Release | `material_costs`, `master_section`, `master_institution`, `master_isbn`, `master_section_us_intro_fall2025` |
+| Release | `material_costs`, `master_section`, `master_institution`, `master_isbn`, `current_mailing`, `master_section_us_intro_fall2025` |
 | Populations | `course_materials` and its routing views; `section_enrollment` |
 
 Geographic reports join `state_region` at query time.
@@ -308,6 +296,6 @@ Geographic reports join `state_region` at query time.
 | CMM IA | Campus availability, distinct from FormatType IA; grain/dates/precedence unresolved. |
 | CMM external pricing | Feed the pricing-wide stage; fields/grain await source. |
 | Bookstore-brand lookup | Enrich `pricing_wide`; key and file scope await lookup. |
-| 25 institution list | Feed `sample25id_material_cost` and `sample25id_section_cost`; #60. |
+| 25 institution list | `sample25_unit_ids` feeds `sample25id_material_cost` and `sample25id_section_cost`; #60. |
 Refreshes reuse existing source boxes. Missing arrows mean destination undecided.
 “Keep History” is a pending retention decision, not a source.

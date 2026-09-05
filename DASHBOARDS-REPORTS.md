@@ -108,7 +108,7 @@ ID `19` · [`bmg_coverage_scope`](metabase/dashboards/bmg_coverage_scope.json) �
 
 ### Data Lineage — by School
 
-ID `14` · [`data_lineage`](metabase/dashboards/data_lineage.json) · Selected-school teaching path; not complete executable lineage.
+ID `14` · [`data_lineage`](metabase/dashboards/data_lineage.json) · Catalog/pricing checkpoints through Material Costs, Master Section, and Master Course.
 
 | Card | ID | Scope |
 |---|---:|---|
@@ -116,9 +116,9 @@ ID `14` · [`data_lineage`](metabase/dashboards/data_lineage.json) · Selected-s
 | Lineage 2 — Merged (catalog × IPEDS × OER/IA) | [`85`](metabase/questions/51_lineage_merged.sql) | All 2024+ comprehensive_data rows for selected school; no Use exclusions. |
 | Lineage 3 — Raw Cost (BMG pricing) | [`86`](metabase/questions/52_lineage_pricing.sql) | All raw pricing option rows for selected school. |
 | Lineage 4 — Pricing Wide (pivoted) | [`87`](metabase/questions/53_lineage_pricing_wide.sql) | Pricing-wide section/ISBN pairs for selected school. |
-| Lineage 5 — Section Cost | [`88`](metabase/questions/54_lineage_section_cost.sql) | Section-cost rows for selected school; all-options and buy-only. |
+| Lineage 5 — Material Costs | [`88`](metabase/questions/54_lineage_material_costs.sql) | Canonical material-cost rows for selected school; unmatched and unpriced items remain. |
 | Lineage 6 — Master Section (wide record) | [`89`](metabase/questions/55_lineage_master_section.sql) | Material-bearing Master Section rows for selected school. |
-| Lineage 7 — Master Course (rollup) | [`90`](metabase/questions/56_lineage_master_course.sql) | Course rollups; `enrollment_total` uses raw section enrollment. |
+| Lineage 7 — Master Course (rollup) | [`90`](metabase/questions/56_lineage_master_course.sql) | Course rollups for selected school. |
 
 ## Data quality dashboards
 
@@ -134,7 +134,7 @@ ID `6` · [`filter_include_quality`](metabase/dashboards/filter_include_quality.
 
 ### OER/IA + Status (Filtered, 2024+)
 
-ID `5` · [`oer_ia_status_filtered`](metabase/dashboards/oer_ia_status_filtered.json) · Canonical inferred-required items, 2024+; FormatType/OER/IA/status cross-tabs.
+ID `5` · [`oer_ia_status_filtered`](metabase/dashboards/oer_ia_status_filtered.json) · Canonical inferred-required items, 2024+; FormatType/OER/IA/status cross-tabs using the inferred-required rule.
 
 | Card | ID | Scope |
 |---|---:|---|

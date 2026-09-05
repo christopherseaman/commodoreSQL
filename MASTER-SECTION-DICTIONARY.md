@@ -92,7 +92,7 @@ integers. Raw enrollment fields remain unchanged.
 
 ## Cost and price coverage
 
-`section_cost` aggregates canonical `(period_sortable, section_id, isbn13)` Use items from
+`master_section` aggregates canonical `(period_sortable, section_id, isbn13)` Use items from
 `material_costs`. Missing prices are not zero; Owned is buy-only (not rental); Average is the
 legacy midpoint, not arithmetic mean.
 

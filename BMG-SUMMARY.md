@@ -53,7 +53,7 @@ Subsets A/B (BMG)"*; for the data model see `SCHEMA.md` / `schema.dbml`; for pic
 - **Classify once over all 2024+ title variants** of an ISBN (not per-analysis-window), so the
   flag is stable and reusable across periods.
 - **In-place exclusion, not parallel columns** — supplies are excluded from the canonical
-  `material_costs` item spine, and `section_cost`/`master_section` consume that spine. Any
+  `material_costs` item spine, and `master_section` consumes that spine. Any
   all-source supply audit belongs to `comprehensive_data`, not to the material-bearing section
   denominator.
 - **#41 resolution = narrow fold-in, not blanket exclusion nor document-only.** The pseudo-SKU
@@ -118,11 +118,10 @@ Subsets A/B (BMG)"*; for the data model see `SCHEMA.md` / `schema.dbml`; for pic
 - **`master_section`** is the material-cost-derived section rollup: one row per section represented
   by canonical `material_costs` Use items. Section enrollment fields arrive through
   `comprehensive_data` → `course_materials` → `material_costs` (#32). Material counts/costs (`material_count`,
-  `required_count`, `optional_count`, OER/IA, coverage, publishers, and the `section_cost`-joined
-  cost columns) therefore share the same material-bearing section population. The independent
+  `required_count`, `optional_count`, OER/IA, coverage, publishers, and cost columns therefore
+  share the same material-bearing section population. The independent
   `section_enrollment` table retains the broader valid 2024+ section spine.
-- **`section_cost`** uses the canonical #58 Use population. `master_course` is retained for the
-  requested course×term rollup (export 32); its `enrollment_total` sums raw
+- **`master_course`** is retained for the requested course×term rollup (export 32); its `enrollment_total` sums raw
   `master_section.enrollments`, while `master_section.enrollment_assigned` remains available upstream.
 - **`master_course_material` and export 33 are retired:** the tentative publisher/status output had
   no consumer, excluded NULL publishers, and repeated seats across publisher/status groups.

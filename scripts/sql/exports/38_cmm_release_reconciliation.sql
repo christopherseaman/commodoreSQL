@@ -3,8 +3,8 @@
 -- Unlike the probabilistic full-vs-10% checks in export 37, every row here must
 -- match exactly. material_costs is the approved canonical-Use material input;
 -- its distinct section keys are the exact Master Section population, and its item
--- rows sum exactly to Master Section material_count. section_cost aggregates the
--- same input before joining 1:1. Master ISBN and Master Institution then reconcile
+-- rows sum exactly to Master Section material_count. Master Section contains the
+-- section-level cost aggregates from the same input. Master ISBN and Master Institution then reconcile
 -- to the narrowed canonical release rollups. Raw full-population diagnostics live
 -- in export 37 and the build-time DQ, not in these release equality checks.
 -- Bare SELECT by export convention.
@@ -25,6 +25,23 @@ materials AS (
      AND ms.section_id = spine.section_id
     GROUP BY spine.period_sortable
 ),
+cost_by_section AS MATERIALIZED (
+    SELECT
+        period_sortable,
+        section_id,
+        COUNT(*) FILTER (WHERE is_required_inferred AND price_min IS NOT NULL) AS required_priced_count,
+        COUNT(*) FILTER (WHERE NOT is_required_inferred AND price_min IS NOT NULL) AS optional_priced_count,
+        SUM(price_min) FILTER (WHERE is_required_inferred) AS required_cost_total_min,
+        SUM(price_max) FILTER (WHERE is_required_inferred) AS required_cost_total_max,
+        SUM(price_min) FILTER (WHERE NOT is_required_inferred) AS optional_cost_total_min,
+        SUM(price_max) FILTER (WHERE NOT is_required_inferred) AS optional_cost_total_max,
+        SUM(price_buy_min) FILTER (WHERE is_required_inferred) AS required_cost_owned_min,
+        SUM(price_buy_max) FILTER (WHERE is_required_inferred) AS required_cost_owned_max,
+        SUM(price_buy_min) FILTER (WHERE NOT is_required_inferred) AS optional_cost_owned_min,
+        SUM(price_buy_max) FILTER (WHERE NOT is_required_inferred) AS optional_cost_owned_max
+    FROM material_costs
+    GROUP BY period_sortable, section_id
+),
 costs AS (
     SELECT
         period_sortable,
@@ -39,7 +56,7 @@ costs AS (
         SUM(required_cost_owned_max) AS required_cost_owned_max,
         SUM(optional_cost_owned_min) AS optional_cost_owned_min,
         SUM(optional_cost_owned_max) AS optional_cost_owned_max
-    FROM section_cost
+    FROM cost_by_section
     GROUP BY period_sortable
 ),
 sections AS (
@@ -135,27 +152,27 @@ metrics AS (
     FROM reconciled
     UNION ALL SELECT period_sortable, 'material_costs_to_master_section', 'item_rows',
            source_material_item_rows, master_section_item_rows FROM reconciled
-    UNION ALL SELECT period_sortable, 'section_cost_to_master_section', 'use_bearing_sections',
+    UNION ALL SELECT period_sortable, 'material_costs_to_master_section_costs', 'use_bearing_sections',
            cost_use_bearing_sections, master_section_rows FROM reconciled
-    UNION ALL SELECT period_sortable, 'section_cost_to_master_section', 'required_priced_materials',
+    UNION ALL SELECT period_sortable, 'material_costs_to_master_section_costs', 'required_priced_materials',
            cost_required_priced_materials, master_section_required_priced_materials FROM reconciled
-    UNION ALL SELECT period_sortable, 'section_cost_to_master_section', 'optional_priced_materials',
+    UNION ALL SELECT period_sortable, 'material_costs_to_master_section_costs', 'optional_priced_materials',
            cost_optional_priced_materials, master_section_optional_priced_materials FROM reconciled
-    UNION ALL SELECT period_sortable, 'section_cost_to_master_section', 'required_cost_total_min',
+    UNION ALL SELECT period_sortable, 'material_costs_to_master_section_costs', 'required_cost_total_min',
            cost_required_cost_total_min, master_section_required_cost_total_min FROM reconciled
-    UNION ALL SELECT period_sortable, 'section_cost_to_master_section', 'required_cost_total_max',
+    UNION ALL SELECT period_sortable, 'material_costs_to_master_section_costs', 'required_cost_total_max',
            cost_required_cost_total_max, master_section_required_cost_total_max FROM reconciled
-    UNION ALL SELECT period_sortable, 'section_cost_to_master_section', 'optional_cost_total_min',
+    UNION ALL SELECT period_sortable, 'material_costs_to_master_section_costs', 'optional_cost_total_min',
            cost_optional_cost_total_min, master_section_optional_cost_total_min FROM reconciled
-    UNION ALL SELECT period_sortable, 'section_cost_to_master_section', 'optional_cost_total_max',
+    UNION ALL SELECT period_sortable, 'material_costs_to_master_section_costs', 'optional_cost_total_max',
            cost_optional_cost_total_max, master_section_optional_cost_total_max FROM reconciled
-    UNION ALL SELECT period_sortable, 'section_cost_to_master_section', 'required_cost_owned_min',
+    UNION ALL SELECT period_sortable, 'material_costs_to_master_section_costs', 'required_cost_owned_min',
            cost_required_cost_owned_min, master_section_required_cost_owned_min FROM reconciled
-    UNION ALL SELECT period_sortable, 'section_cost_to_master_section', 'required_cost_owned_max',
+    UNION ALL SELECT period_sortable, 'material_costs_to_master_section_costs', 'required_cost_owned_max',
            cost_required_cost_owned_max, master_section_required_cost_owned_max FROM reconciled
-    UNION ALL SELECT period_sortable, 'section_cost_to_master_section', 'optional_cost_owned_min',
+    UNION ALL SELECT period_sortable, 'material_costs_to_master_section_costs', 'optional_cost_owned_min',
            cost_optional_cost_owned_min, master_section_optional_cost_owned_min FROM reconciled
-    UNION ALL SELECT period_sortable, 'section_cost_to_master_section', 'optional_cost_owned_max',
+    UNION ALL SELECT period_sortable, 'material_costs_to_master_section_costs', 'optional_cost_owned_max',
            cost_optional_cost_owned_max, master_section_optional_cost_owned_max FROM reconciled
     UNION ALL SELECT period_sortable, 'master_section_to_master_institution', 'section_rows',
            master_section_rows, master_institution_section_rows FROM reconciled

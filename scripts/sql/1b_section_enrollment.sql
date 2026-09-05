@@ -29,7 +29,7 @@ SELECT
         AS has_enrollment_own_seats,
     COALESCE(BOOL_OR(c.book_status = 'required' AND si.isbn13 IS NULL), FALSE)
         AS is_required_direct,
-    COALESCE(BOOL_OR(c.book_status = 'required'), FALSE) AS legacy_is_required_direct
+    COALESCE(BOOL_OR(c.book_status = 'required'), FALSE) AS is_required_direct_legacy
 FROM ${SURVEY_TABLE} c
 LEFT JOIN ${IPEDS_TABLE} i ON c.unit_id = i.unitid
 LEFT JOIN supply_isbn_classification si ON c."ISBN13" = si.isbn13
@@ -119,8 +119,8 @@ LEFT JOIN _se_level_agg lv ON base.level = lv.level AND base.period_sortable = l
 
 -- Supply contamination comparison is diagnostic only; the legacy value is never persisted.
 SELECT 'is_required_direct supply-contamination corrected' AS metric,
-    COUNT(*) FILTER (WHERE legacy_is_required_direct AND NOT is_required_direct) AS sections_true_to_false,
-    COUNT(*) FILTER (WHERE NOT legacy_is_required_direct AND is_required_direct) AS sections_false_to_true
+    COUNT(*) FILTER (WHERE is_required_direct_legacy AND NOT is_required_direct) AS sections_true_to_false,
+    COUNT(*) FILTER (WHERE NOT is_required_direct_legacy AND is_required_direct) AS sections_false_to_true
 FROM _se_enriched;
 
 DROP TABLE _se_enriched;

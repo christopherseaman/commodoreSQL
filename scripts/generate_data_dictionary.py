@@ -85,17 +85,15 @@ RELATION_METADATA: dict[str, RelationMetadata] = {
     "course_materials_no_use": RelationMetadata("Canonical materials / 2b_course_materials.sql", "Filtered course_materials rows", ("course_materials_post_2024",), "Canonical NoUse audit projection.", "All columns inherited from course_materials_post_2024; filter: is_course_material_no_use."),
     "course_materials_canada": RelationMetadata("Canonical materials / 2b_course_materials.sql", "Filtered course_materials rows", ("course_materials_no_use",), "Canadian NoUse audit projection.", "All columns inherited from course_materials_no_use; filter: is_canada."),
     "master_mailing": RelationMetadata("EDA mailing / 3_mailing_lists.sql", "One non-NULL, nonblank cleaned email", ("course_catalog_20251215",), "Persisted canonical deterministic mailing selection; independent of opt-out and panel history."),
-    "recent_periods": RelationMetadata("EDA mailing / 3_mailing_lists.sql", "One of the latest 12 distinct non-NULL periods", ("master_mailing",), "Period boundary used by current_mailing.", "Declared one-column projection from persisted master_mailing."),
-    "current_mailing": RelationMetadata("EDA mailing / 3_mailing_lists.sql", "One non-opted-out cleaned email selected in the latest 12 master periods", ("master_mailing", "recent_periods", "panel_email", "opt_out"), "Whiteboard Mailing Working view with panel response enrichment.", "Master fields pass through; panel_response_year is LEFT-joined; recent-period and opt-out filters define population."),
+    "recent_periods": RelationMetadata("EDA mailing / 3_mailing_lists.sql", "One of the latest 12 distinct non-NULL periods", ("course_catalog_20251215",), "Period boundary used by current_mailing.", "Declared one-column projection from course_catalog_20251215."),
+    "current_mailing": RelationMetadata("Release / 3_mailing_lists.sql", "One non-opted-out cleaned email selected in the latest 12 catalog periods", ("master_mailing", "recent_periods", "panel_email", "opt_out"), "Whiteboard Mailing Working view with panel response enrichment.", "Master fields pass through; panel_response_year is LEFT-joined; recent-period and opt-out filters define population."),
     "material_costs": RelationMetadata("EDA records / 3b_material_costs.sql", "One canonical Use period × section × ISBN item", ("course_materials_use", "pricing_wide"), "Approved item-level input with optional LEFT pricing enrichment."),
-    "section_cost": RelationMetadata("EDA records / 4_merged_records.sql", "One material-bearing period × section", ("material_costs",), "Section-level price-bound aggregates used by release rollups."),
-    "master_section": RelationMetadata("EDA records / 4_merged_records.sql", "One material-bearing period × section", ("material_costs", "section_cost", "course_materials"), "Canonical materialized per-term section release table."),
-    "master_course": RelationMetadata("EDA records / 4_merged_records.sql", "One material-bearing period × course", ("master_section", "section_cost"), "Course-level section and cost rollup.", "Declared aggregate projection; no inherited base schema."),
+    "master_section": RelationMetadata("EDA records / 4_merged_records.sql", "One material-bearing period × section", ("material_costs", "course_materials"), "Canonical materialized per-term section release table."),
+    "master_course": RelationMetadata("EDA records / 4_merged_records.sql", "One material-bearing period × course", ("master_section",), "Course-level section and cost rollup.", "Declared aggregate projection; no inherited base schema."),
     "master_section_us_intro_fall2025": RelationMetadata("EDA records / 4_merged_records.sql", "Filtered master_section rows", ("master_section",), "Fall 2025 required intro/intermediate scope using the executable non-Canada/nonblank-state proxy.", "All columns inherited from master_section; filtered projection only."),
     "master_institution": RelationMetadata("Release model / models/master_institution.sql", "One period × institution, including an explicit NULL-institution bucket", ("master_section", "pricing_wide"), "Canonical materialized per-term institution release table."),
     "master_isbn": RelationMetadata("Release model / models/master_isbn.sql", "One period × non-NULL ISBN", ("material_costs",), "Canonical materialized per-term ISBN release table."),
-    "sample10_section_ids": RelationMetadata("Sampling / models/sample10_section_ids.sql", "One selected section_enrollment section", ("section_enrollment",), "Stable deterministic 10% section-membership lookup."),
-    "sample10pct_materials": RelationMetadata("Sampling / models/sample10pct_materials.sql", "One sampled Material Costs period × section × ISBN item", ("material_costs", "sample10_section_ids"), "Stable 10% section-cluster sample with the full Material Costs payload."),
+    "sample10pct_materials": RelationMetadata("Sampling / models/sample10pct_materials.sql", "One sampled Material Costs period × section × ISBN item", ("material_costs",), "Stable deterministic 10% section-cluster sample with the full Material Costs payload."),
     "__data_quality_metrics": RelationMetadata("Data quality / 2d_data_quality.sql", "One category × check × metric", ("comprehensive_data", "pricing_historical", "pricing_wide", "${PRICING_CSV}"), "Long-format pipeline quality metrics, including direct raw-pricing deduplication checks."),
     "__data_quality_top_unmatched_ipeds_schools": RelationMetadata("Data quality / 2d_data_quality.sql", "One ranked unmatched catalog school", ("comprehensive_data",), "Top unmatched IPEDS institution diagnostic."),
     "__data_quality_null_isbn_breakdown": RelationMetadata("Data quality / 2d_data_quality.sql", "One ranked catalog school", ("comprehensive_data",), "NULL-ISBN placeholder breakdown diagnostic."),
@@ -127,14 +125,13 @@ RELATION_GROUPS: tuple[tuple[str, str, tuple[str, ...]], ...] = (
         ("panel_email", "section_enrollment", "pricing_wide", "recent_periods"),
     ),
     (
-        "Canonical outputs (15 relations)",
+        "Canonical outputs (13 relations)",
         "Current pipeline outputs and population projections used by the release flow.",
         (
             "comprehensive_data", "course_materials", "course_materials_post_2024",
             "course_materials_use", "course_materials_no_use", "course_materials_canada",
-            "master_mailing", "current_mailing", "material_costs",
-            "section_cost", "master_section", "master_institution", "master_isbn",
-            "sample10_section_ids", "sample10pct_materials",
+            "master_mailing", "current_mailing", "material_costs", "master_section", "master_institution",
+            "master_isbn", "sample10pct_materials",
         ),
     ),
     (
@@ -681,8 +678,6 @@ def _resolve_non_inherited(
         if n == "has_pricing_match":
             return _metadata(column, "`pricing_wide.section_id IS NOT NULL` after the exact `(section_id, isbn13)` LEFT JOIN.",
                              "Every canonical Use item.", "Never NULL; false distinguishes no pricing match.", "joined")
-    if r == "section_cost":
-        return _section_cost_metadata(column)
     if r == "master_section" and n in appendix:
         source, population, null = appendix[n]
         return _metadata(
@@ -703,21 +698,12 @@ def _resolve_non_inherited(
         if base is None:
             raise ValueError(f"missing material_costs metadata for sample field: {n}")
         return FieldMetadata(
-            f"`material_costs.{n}` retained for `sample10_section_ids` membership.",
+            f"`material_costs.{n}` retained after the deterministic section-hash filter.",
             base.values,
             "Material Costs items in selected section clusters.",
             base.null_meaning,
             "passthrough",
         )
-    if r == "sample10_section_ids":
-        rules = {
-            "section_id": ("Distinct `section_enrollment.section_id` group key.", "Not produced."),
-            "period_sortable": ("`ANY_VALUE(section_enrollment.period_sortable)` for the section.", "Not expected for retained section_enrollment rows."),
-            "section_hash": ("Prefix `LEFT(md5(section_id),16)` with `0x`; cast to `UBIGINT`.", "Not produced."),
-            "sample_bucket": ("`section_hash % 10`, cast to UTINYINT.", "Not produced."),
-        }
-        if n in rules:
-            return _metadata(column, rules[n][0], "Distinct complete-population section IDs.", rules[n][1], "derived")
     if r.startswith("__data_quality_"):
         return _dq_metadata(r, column)
     return None
@@ -962,7 +948,7 @@ def _section_enrollment_metadata(column: Column) -> FieldMetadata | None:
 def _mailing_metadata(relation: str, column: Column) -> FieldMetadata | None:
     n = column.name
     if relation == "recent_periods" and n == "period_sortable":
-        return _metadata(column, "Latest 12 distinct nonmissing `master_mailing.period_sortable` values.", "One retained recent term boundary from the persisted master selection.", "Not produced.", "aggregate")
+        return _metadata(column, "Latest 12 distinct nonmissing `course_catalog_20251215.period_sortable` values.", "One retained recent term boundary from the catalog source.", "Not produced.", "aggregate")
     base_fields = {"unit_id", "school", "state", "department", "course_level", "course_subject", "period", "period_sortable", "period_date", "instructor", "first_name", "last_name", "email"}
     if n in base_fields:
         if relation == "master_mailing":
@@ -972,29 +958,10 @@ def _mailing_metadata(relation: str, column: Column) -> FieldMetadata | None:
         if relation == "current_mailing":
             null_meaning = "Not produced; retained current emails are required." if n == "email" else "Selected master row has no value for this field."
             return _metadata(column, f"`master_mailing.{n}` passthrough after `recent_periods` and `opt_out.email` filters.",
-                             "Master-selected emails in the latest 12 selected periods that have no opt_out match.", null_meaning, "passthrough")
+                             "Master-selected emails in the latest 12 catalog periods that have no opt_out match.", null_meaning, "passthrough")
     if relation == "current_mailing" and n == "panel_response_year":
         return _metadata(column, "`panel_email.panel_response_year` LEFT JOINed to `master_mailing` by cleaned email.",
                          "Master-selected emails in recent_periods with no opt_out match.", "No recorded panel response year for the email.", "joined")
-    return None
-
-
-def _section_cost_metadata(column: Column) -> FieldMetadata | None:
-    n = column.name
-    pop = "Distinct canonical Use ISBN items in one section."
-    if n in {"section_id", "course_id", "period_sortable"}:
-        return _metadata(column, f"Group key / constant value from `material_costs.{n}`.", pop, "Not expected for retained material items.", "aggregate")
-    match = re.fullmatch(r"(required|optional)_cost_(total|owned)_(min|max)", n)
-    if match:
-        status, scope, bound = match.groups()
-        price = f"price_{bound}" if scope == "total" else f"price_buy_{bound}"
-        return _metadata(column, f"SUM of distinct `{price}` for {status} canonical ISBN items; {scope} scope.",
-                         f"{status.capitalize()} canonical items with a nonmissing {scope} {bound} price.",
-                         f"No {status} item has a valid {scope} price.", "aggregate")
-    if n in {"required_priced_count", "optional_priced_count"}:
-        status = n.split("_", 1)[0]
-        return _metadata(column, f"Count of {status} canonical ISBN items with non-NULL `price_min`.",
-                         f"All {status} canonical items in the section.", "Never NULL; zero means none priced.", "aggregate")
     return None
 
 
@@ -1036,7 +1003,7 @@ def _master_course_metadata(column: Column) -> FieldMetadata | None:
         sqlagg = {"min": "MIN", "max": "MAX"}[agg]
         return _metadata(
             column,
-            f"`{sqlagg}(section_cost.{n})` across course sections.",
+            f"`{sqlagg}(master_section.{n})` across course sections.",
             pop,
             f"No contributing section has a non-NULL {status} {scope} {agg} bound.",
             "aggregate",
@@ -1049,8 +1016,8 @@ def _master_course_metadata(column: Column) -> FieldMetadata | None:
         }[n]
         return _metadata(
             column,
-            f"`AVG((section_cost.{bounds.split(' + ')[0]} + "
-            f"section_cost.{bounds.split(' + ')[1]}) / 2.0)` across course sections.",
+            f"`AVG((master_section.{bounds.split(' + ')[0]} + "
+            f"master_section.{bounds.split(' + ')[1]}) / 2.0)` across course sections.",
             pop,
             "No contributing section has both scope-specific price bounds.",
             "aggregate",

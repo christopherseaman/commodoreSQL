@@ -9,7 +9,7 @@ notion-sync: push
 ```mermaid
 flowchart LR
     S[course_catalog_20251215] --> M[master_mailing]
-    M --> R[recent_periods]
+    S --> R[recent_periods]
     M --> W[current_mailing]
     R --> W
     H[panel] --> P[panel_email]
@@ -26,7 +26,7 @@ flowchart LR
 | `panel_email` | Email | `MAX(response_year)` → `panel_response_year`; count rows/year variants. Assumes four-digit years. |
 | `opt_out` | Source row | Lowercase/trim email; duplicates allowed. |
 | `master_mailing` | Email | Nonblank only; newest term, largest enrollment, stable IDs/contact/course tie-breakers. No other eligibility filters. |
-| `recent_periods` | Term | Newest 12 distinct non-NULL terms **after Master selection**. |
+| `recent_periods` | Term | Lookup view of newest 12 distinct non-NULL terms from `course_catalog_20251215`. |
 | `current_mailing` | Email | Recent terms; LEFT history join; exclude opt-out existence. Missing history retains contact; duplicate opt-outs cannot multiply rows. |
 
 Catalog email cleaning extracts `email:` text, takes the first space-delimited address from

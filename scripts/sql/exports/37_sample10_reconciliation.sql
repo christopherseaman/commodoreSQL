@@ -1,8 +1,9 @@
 -- Full vs deterministic 10% reconciliation (#53).
 --
--- Every sampled value is restricted through sample10_section_ids; there is no
--- separate sample pipeline. Additive measures may be multiplied by ten because
--- sections have equal inclusion probability. Distinct institution/ISBN domains
+-- Sampled material rows use the same stable section hash as this complete-section
+-- diagnostic sample; there is no separate sample pipeline. Additive measures may
+-- be multiplied by ten because sections have equal inclusion probability.
+-- Distinct institution/ISBN domains
 -- are explicitly non-additive: their sample coverage is reported, but 10x is not
 -- a valid estimator. Tolerances are deterministic drift alarms, not confidence
 -- intervals. The alarm is a two-sided 99.9% normal-reference band (3.2905
@@ -15,7 +16,11 @@
 -- coverage-only. Sample membership itself comes from the complete
 -- section_enrollment population.
 WITH sample AS MATERIALIZED (
-    SELECT period_sortable, section_id FROM sample10_section_ids
+    SELECT
+        period_sortable,
+        section_id
+    FROM section_enrollment
+    WHERE CAST('0x' || LEFT(md5(section_id), 16) AS UBIGINT) % 10 = 0
 ),
 catalog AS (
     SELECT
@@ -192,32 +197,32 @@ material_squares AS (
     FROM sampled_material_by_section
     GROUP BY period_sortable
 ),
-costs AS (
+pricing_counts AS (
     SELECT
-        sc.period_sortable,
-        COUNT(*) AS section_cost_rows_full,
-        COUNT(*) FILTER (WHERE sample.section_id IS NOT NULL) AS section_cost_rows_sample,
-        SUM(sc.required_priced_count) AS required_priced_materials_full,
-        SUM(sc.required_priced_count) FILTER (
+        ms.period_sortable,
+        COUNT(*) AS priced_section_rows_full,
+        COUNT(*) FILTER (WHERE sample.section_id IS NOT NULL) AS priced_section_rows_sample,
+        SUM(ms.required_priced_count) AS required_priced_materials_full,
+        SUM(ms.required_priced_count) FILTER (
             WHERE sample.section_id IS NOT NULL
         ) AS required_priced_materials_sample,
-        SUM(sc.optional_priced_count) AS optional_priced_materials_full,
-        SUM(sc.optional_priced_count) FILTER (
+        SUM(ms.optional_priced_count) AS optional_priced_materials_full,
+        SUM(ms.optional_priced_count) FILTER (
             WHERE sample.section_id IS NOT NULL
         ) AS optional_priced_materials_sample
-    FROM section_cost sc
+    FROM master_section ms
     LEFT JOIN sample USING (period_sortable, section_id)
-    GROUP BY sc.period_sortable
+    GROUP BY ms.period_sortable
 ),
-cost_squares AS (
+pricing_count_squares AS (
     SELECT
-        sc.period_sortable,
-        COUNT(*)::DOUBLE AS section_cost_rows_sum_squares,
-        SUM(POWER(COALESCE(sc.required_priced_count, 0)::DOUBLE, 2)) AS required_priced_sum_squares,
-        SUM(POWER(COALESCE(sc.optional_priced_count, 0)::DOUBLE, 2)) AS optional_priced_sum_squares
-    FROM section_cost sc
+        ms.period_sortable,
+        COUNT(*)::DOUBLE AS priced_section_rows_sum_squares,
+        SUM(POWER(COALESCE(ms.required_priced_count, 0)::DOUBLE, 2)) AS required_priced_sum_squares,
+        SUM(POWER(COALESCE(ms.optional_priced_count, 0)::DOUBLE, 2)) AS optional_priced_sum_squares
+    FROM master_section ms
     JOIN sample USING (period_sortable, section_id)
-    GROUP BY sc.period_sortable
+    GROUP BY ms.period_sortable
 ),
 section_population AS (
     SELECT
@@ -344,20 +349,20 @@ metrics AS (
            section_isbn_rows_full::HUGEINT, COALESCE(section_isbn_rows_sample, 0)::HUGEINT
     FROM materials LEFT JOIN material_squares USING (period_sortable)
     UNION ALL
-    SELECT period_sortable, 'section_cost', 'section_rows',
-           TRUE, section_cost_rows_sum_squares,
-           section_cost_rows_full::HUGEINT, COALESCE(section_cost_rows_sample, 0)::HUGEINT
-    FROM costs LEFT JOIN cost_squares USING (period_sortable)
+    SELECT period_sortable, 'master_section', 'priced_section_rows',
+           TRUE, priced_section_rows_sum_squares,
+           priced_section_rows_full::HUGEINT, COALESCE(priced_section_rows_sample, 0)::HUGEINT
+    FROM pricing_counts LEFT JOIN pricing_count_squares USING (period_sortable)
     UNION ALL
-    SELECT period_sortable, 'section_cost', 'required_priced_materials',
+    SELECT period_sortable, 'master_section', 'required_priced_materials',
            TRUE, required_priced_sum_squares, required_priced_materials_full::HUGEINT,
            COALESCE(required_priced_materials_sample, 0)::HUGEINT
-    FROM costs LEFT JOIN cost_squares USING (period_sortable)
+    FROM pricing_counts LEFT JOIN pricing_count_squares USING (period_sortable)
     UNION ALL
-    SELECT period_sortable, 'section_cost', 'optional_priced_materials',
+    SELECT period_sortable, 'master_section', 'optional_priced_materials',
            TRUE, optional_priced_sum_squares, optional_priced_materials_full::HUGEINT,
            COALESCE(optional_priced_materials_sample, 0)::HUGEINT
-    FROM costs LEFT JOIN cost_squares USING (period_sortable)
+    FROM pricing_counts LEFT JOIN pricing_count_squares USING (period_sortable)
     UNION ALL
     SELECT period_sortable, 'section_enrollment', 'section_rows',
            TRUE, section_rows_sum_squares,

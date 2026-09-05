@@ -11,7 +11,7 @@ notion-sync: push
 - Relation kind: table
 - Grain / key: One material-bearing period × section
 - Pipeline stage: EDA records / 4_merged_records.sql
-- Direct upstream relations: `material_costs`, `section_cost`, `course_materials`
+- Direct upstream relations: `material_costs`, `course_materials`
 - Deep appendix: [Master Section release dictionary](../../MASTER-SECTION-DICTIONARY.md)
 
 | Column | Type | Example / structure | Direct upstream source / derivation | Description |

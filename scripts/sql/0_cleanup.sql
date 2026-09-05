@@ -21,10 +21,12 @@ DROP VIEW IF EXISTS current_mailing_pa;
 DROP VIEW IF EXISTS current_mailing_can;
 DROP VIEW IF EXISTS current_mailing_other;
 
--- Standalone legacy tables
+-- Retired tables
 DROP TABLE IF EXISTS data_quality_unmatched_formats;
 DROP TABLE IF EXISTS email_issues;
 DROP TABLE IF EXISTS section_book_status;
+DROP TABLE IF EXISTS section_cost;
+DROP TABLE IF EXISTS sample10_section_ids;
 
 -- Retired univariate summary views
 DROP VIEW IF EXISTS summary_book_status;
@@ -64,7 +66,7 @@ DROP VIEW IF EXISTS crosstab_formattype_oeria_state;
 
 -- Fail the transaction if any exact retired relation remains in the catalog.
 SELECT CASE
-    WHEN COUNT(*) = 0 THEN 'Legacy relation cleanup verified: 47 relations absent.'
+    WHEN COUNT(*) = 0 THEN 'Legacy relation cleanup verified: 49 relations absent.'
     ELSE error('Legacy relation cleanup failed: retired relations remain.')
 END AS cleanup_postcondition
 FROM information_schema.tables
@@ -76,6 +78,7 @@ WHERE table_schema = 'main'
     'current_mailing_ny', 'current_mailing_pa', 'current_mailing_can',
     'current_mailing_other',
     'data_quality_unmatched_formats', 'email_issues', 'section_book_status',
+    'section_cost', 'sample10_section_ids',
     'summary_book_status', 'summary_control', 'summary_course_level',
     'summary_course_subject', 'summary_format', 'summary_formattype', 'summary_ia',
     'summary_level', 'summary_oer', 'summary_period', 'summary_publisher',

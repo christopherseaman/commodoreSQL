@@ -12,7 +12,7 @@ Generated from canonical `schema.dbml`. Each declared table or view has a separa
 dictionary in schema order. Regenerate with `python3 scripts/generate_data_dictionary.py`.
 The maintained [Master Section deep appendix](MASTER-SECTION-DICTIONARY.md) remains separate.
 
-Declared scope: 36 current, consumed relations and 1,317 fields.
+Declared scope: 34 current, consumed relations and 1,300 fields.
 
 ## External source tables (5 relations)
 
@@ -47,7 +47,7 @@ Current derived helpers used to enrich, select, classify, or aggregate the execu
 | [`pricing_wide`](docs/data-dictionary/pricing_wide.md) | table | One section_id × ISBN13 | IMPORT derived / 2c_pricing_wide.sql |
 | [`recent_periods`](docs/data-dictionary/recent_periods.md) | view | One of the latest 12 distinct non-NULL periods | EDA mailing / 3_mailing_lists.sql |
 
-## Canonical outputs (15 relations)
+## Canonical outputs (13 relations)
 
 Current pipeline outputs and population projections used by the release flow.
 
@@ -60,13 +60,11 @@ Current pipeline outputs and population projections used by the release flow.
 | [`course_materials_no_use`](docs/data-dictionary/course_materials_no_use.md) | view | Filtered course_materials rows | Canonical materials / 2b_course_materials.sql |
 | [`course_materials_canada`](docs/data-dictionary/course_materials_canada.md) | view | Filtered course_materials rows | Canonical materials / 2b_course_materials.sql |
 | [`master_mailing`](docs/data-dictionary/master_mailing.md) | table | One non-NULL, nonblank cleaned email | EDA mailing / 3_mailing_lists.sql |
-| [`current_mailing`](docs/data-dictionary/current_mailing.md) | view | One non-opted-out cleaned email selected in the latest 12 master periods | EDA mailing / 3_mailing_lists.sql |
+| [`current_mailing`](docs/data-dictionary/current_mailing.md) | view | One non-opted-out cleaned email selected in the latest 12 catalog periods | Release / 3_mailing_lists.sql |
 | [`material_costs`](docs/data-dictionary/material_costs.md) | table | One canonical Use period × section × ISBN item | EDA records / 3b_material_costs.sql |
-| [`section_cost`](docs/data-dictionary/section_cost.md) | table | One material-bearing period × section | EDA records / 4_merged_records.sql |
 | [`master_section`](docs/data-dictionary/master_section.md) | table | One material-bearing period × section | EDA records / 4_merged_records.sql |
 | [`master_institution`](docs/data-dictionary/master_institution.md) | table | One period × institution, including an explicit NULL-institution bucket | Release model / models/master_institution.sql |
 | [`master_isbn`](docs/data-dictionary/master_isbn.md) | table | One period × non-NULL ISBN | Release model / models/master_isbn.sql |
-| [`sample10_section_ids`](docs/data-dictionary/sample10_section_ids.md) | table | One selected section_enrollment section | Sampling / models/sample10_section_ids.sql |
 | [`sample10pct_materials`](docs/data-dictionary/sample10pct_materials.md) | table | One sampled Material Costs period × section × ISBN item | Sampling / models/sample10pct_materials.sql |
 
 ## Data-quality sidecars (7 relations)

@@ -9,8 +9,8 @@ notion-sync: push
 # `current_mailing` data dictionary
 
 - Relation kind: view
-- Grain / key: One non-opted-out cleaned email selected in the latest 12 master periods
-- Pipeline stage: EDA mailing / 3_mailing_lists.sql
+- Grain / key: One non-opted-out cleaned email selected in the latest 12 catalog periods
+- Pipeline stage: Release / 3_mailing_lists.sql
 - Direct upstream relations: `master_mailing`, `recent_periods`, `panel_email`, `opt_out`
 
 | Column | Type | Example / structure | Direct upstream source / derivation | Description |

@@ -151,7 +151,7 @@ UNION ALL SELECT 'cross_table', 'pricing_catalog_row_match', 'rows_matched', SUM
 UNION ALL SELECT 'cross_table', 'pricing_catalog_row_match', 'rows_unmatched', SUM(pricing_rows - rows_matched)::BIGINT FROM __data_quality_pricing_match_by_period;
 
 -- Reuse a single pricing-section coverage relation for both scalar metrics and the
--- top-cohort drill-down. Its raw_required flag is the literal source Book Status,
+-- top-cohort drill-down. Its is_required_raw flag is the literal source Book Status,
 -- not catalog-derived required inference.
 CREATE OR REPLACE TEMP TABLE _dq_catalog_sections AS
 SELECT DISTINCT section_id FROM _dq_catalog_pairs;
@@ -162,7 +162,7 @@ WITH pricing_sections AS (
         unit_id,
         period_sortable,
         section_id,
-        COALESCE(BOOL_OR(required), FALSE) AS raw_required
+        COALESCE(BOOL_OR(required), FALSE) AS is_required_raw
     FROM pricing_historical
     GROUP BY unit_id, period_sortable, section_id
 )
@@ -175,8 +175,8 @@ LEFT JOIN _dq_catalog_sections c ON p.section_id = c.section_id;
 INSERT INTO __data_quality_metrics
 SELECT 'cross_table', 'pricing_section_coverage_all', 'pricing_sections', COUNT(*) FROM _dq_pricing_section_coverage
 UNION ALL SELECT 'cross_table', 'pricing_section_coverage_all', 'unmatched', COUNT(*) FILTER (WHERE NOT matched) FROM _dq_pricing_section_coverage
-UNION ALL SELECT 'cross_table', 'pricing_section_coverage_raw_required', 'pricing_sections', COUNT(*) FILTER (WHERE raw_required) FROM _dq_pricing_section_coverage
-UNION ALL SELECT 'cross_table', 'pricing_section_coverage_raw_required', 'unmatched', COUNT(*) FILTER (WHERE raw_required AND NOT matched) FROM _dq_pricing_section_coverage;
+UNION ALL SELECT 'cross_table', 'pricing_section_coverage_raw_required', 'pricing_sections', COUNT(*) FILTER (WHERE is_required_raw) FROM _dq_pricing_section_coverage
+UNION ALL SELECT 'cross_table', 'pricing_section_coverage_raw_required', 'unmatched', COUNT(*) FILTER (WHERE is_required_raw AND NOT matched) FROM _dq_pricing_section_coverage;
 
 DROP TABLE _dq_catalog_sections;
 DROP TABLE _dq_catalog_pairs;

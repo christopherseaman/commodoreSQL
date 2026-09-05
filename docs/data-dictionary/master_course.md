@@ -11,7 +11,7 @@ notion-sync: push
 - Relation kind: view
 - Grain / key: One material-bearing period × course
 - Pipeline stage: EDA records / 4_merged_records.sql
-- Direct upstream relations: `master_section`, `section_cost`
+- Direct upstream relations: `master_section`
 
 | Column | Type | Example / structure | Direct upstream source / derivation | Description |
 |---|---|---|---|---|
@@ -55,14 +55,14 @@ notion-sync: push
 | `has_enrollment_sibling_seats_sections` | `bigint` | sections with a sibling carrying usable seats_taken | `COUNT(*) FILTER (WHERE has_enrollment_sibling_seats)` over `master_section`. | Course sections with sibling occupied-seat evidence. |
 | `all_publishers` | `varchar[][]` | nested LIST of publisher arrays | `LIST(publishers) FILTER (WHERE publishers IS NOT NULL)` over `master_section`. | Publisher lists collected across aggregated course sections. |
 | `unique_required_publishers` | `hugeint` | Sum of per-section distinct required-publisher counts | `SUM(required_publisher_count); sum of per-section distinct counts, not course-wide distinct publishers` over `master_section`. | Sum of section-level distinct required-publisher counts. |
-| `required_cost_total_min` | `decimal(38,2)` | USD amount such as `123.45`; stored as `DECIMAL(38,2)` | `MIN(section_cost.required_cost_total_min)` across course sections. | Lowest section-level required total cost bound. |
-| `required_cost_total_max` | `decimal(38,2)` | USD amount such as `123.45`; stored as `DECIMAL(38,2)` | `MAX(section_cost.required_cost_total_max)` across course sections. | Highest section-level required total cost bound. |
-| `optional_cost_total_min` | `decimal(38,2)` | USD amount such as `123.45`; stored as `DECIMAL(38,2)` | `MIN(section_cost.optional_cost_total_min)` across course sections. | Lowest section-level optional total cost bound. |
-| `optional_cost_total_max` | `decimal(38,2)` | USD amount such as `123.45`; stored as `DECIMAL(38,2)` | `MAX(section_cost.optional_cost_total_max)` across course sections. | Highest section-level optional total cost bound. |
-| `required_cost_owned_min` | `decimal(38,2)` | USD amount such as `123.45`; stored as `DECIMAL(38,2)` | `MIN(section_cost.required_cost_owned_min)` across course sections. | Lowest section-level required buy-only cost bound. |
-| `required_cost_owned_max` | `decimal(38,2)` | USD amount such as `123.45`; stored as `DECIMAL(38,2)` | `MAX(section_cost.required_cost_owned_max)` across course sections. | Highest section-level required buy-only cost bound. |
-| `optional_cost_owned_min` | `decimal(38,2)` | USD amount such as `123.45`; stored as `DECIMAL(38,2)` | `MIN(section_cost.optional_cost_owned_min)` across course sections. | Lowest section-level optional buy-only cost bound. |
-| `optional_cost_owned_max` | `decimal(38,2)` | USD amount such as `123.45`; stored as `DECIMAL(38,2)` | `MAX(section_cost.optional_cost_owned_max)` across course sections. | Highest section-level optional buy-only cost bound. |
-| `required_cost_avg` | `double` | USD mean of section-level total cost midpoints | `AVG((section_cost.required_cost_total_min + section_cost.required_cost_total_max) / 2.0)` across course sections. | Mean required-cost midpoint across contributing course sections. |
-| `required_cost_owned_avg` | `double` | USD mean of section-level buy-only cost midpoints | `AVG((section_cost.required_cost_owned_min + section_cost.required_cost_owned_max) / 2.0)` across course sections. | Mean buy-only required-cost midpoint across course sections. |
-| `optional_cost_avg` | `double` | USD mean of section-level total cost midpoints | `AVG((section_cost.optional_cost_total_min + section_cost.optional_cost_total_max) / 2.0)` across course sections. | Mean optional-cost midpoint across contributing course sections. |
+| `required_cost_total_min` | `decimal(38,2)` | USD amount such as `123.45`; stored as `DECIMAL(38,2)` | `MIN(master_section.required_cost_total_min)` across course sections. | Lowest section-level required total cost bound. |
+| `required_cost_total_max` | `decimal(38,2)` | USD amount such as `123.45`; stored as `DECIMAL(38,2)` | `MAX(master_section.required_cost_total_max)` across course sections. | Highest section-level required total cost bound. |
+| `optional_cost_total_min` | `decimal(38,2)` | USD amount such as `123.45`; stored as `DECIMAL(38,2)` | `MIN(master_section.optional_cost_total_min)` across course sections. | Lowest section-level optional total cost bound. |
+| `optional_cost_total_max` | `decimal(38,2)` | USD amount such as `123.45`; stored as `DECIMAL(38,2)` | `MAX(master_section.optional_cost_total_max)` across course sections. | Highest section-level optional total cost bound. |
+| `required_cost_owned_min` | `decimal(38,2)` | USD amount such as `123.45`; stored as `DECIMAL(38,2)` | `MIN(master_section.required_cost_owned_min)` across course sections. | Lowest section-level required buy-only cost bound. |
+| `required_cost_owned_max` | `decimal(38,2)` | USD amount such as `123.45`; stored as `DECIMAL(38,2)` | `MAX(master_section.required_cost_owned_max)` across course sections. | Highest section-level required buy-only cost bound. |
+| `optional_cost_owned_min` | `decimal(38,2)` | USD amount such as `123.45`; stored as `DECIMAL(38,2)` | `MIN(master_section.optional_cost_owned_min)` across course sections. | Lowest section-level optional buy-only cost bound. |
+| `optional_cost_owned_max` | `decimal(38,2)` | USD amount such as `123.45`; stored as `DECIMAL(38,2)` | `MAX(master_section.optional_cost_owned_max)` across course sections. | Highest section-level optional buy-only cost bound. |
+| `required_cost_avg` | `double` | USD mean of section-level total cost midpoints | `AVG((master_section.required_cost_total_min + master_section.required_cost_total_max) / 2.0)` across course sections. | Mean required-cost midpoint across contributing course sections. |
+| `required_cost_owned_avg` | `double` | USD mean of section-level buy-only cost midpoints | `AVG((master_section.required_cost_owned_min + master_section.required_cost_owned_max) / 2.0)` across course sections. | Mean buy-only required-cost midpoint across course sections. |
+| `optional_cost_avg` | `double` | USD mean of section-level total cost midpoints | `AVG((master_section.optional_cost_total_min + master_section.optional_cost_total_max) / 2.0)` across course sections. | Mean optional-cost midpoint across contributing course sections. |

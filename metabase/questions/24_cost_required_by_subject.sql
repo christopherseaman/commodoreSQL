@@ -1,6 +1,6 @@
 -- name: Required Materials Cost by Subject (2024+)
 -- display: table
--- description: Master Section required costs per section; buy-priced subset for owned. Average required-material cost per section by course subject, with owned (buy-only) comparison and price coverage. Cost from master_section (section_cost).
+-- description: Master Section required costs per section; buy-priced subset for owned. Average required-material cost per section by course subject, with owned (buy-only) comparison and price coverage.
 
 SELECT
     course_subject,
