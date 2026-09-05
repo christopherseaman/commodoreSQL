@@ -19,7 +19,7 @@ Both retain NoUse/Canada/supplies and older terms. Their different grains are in
 All unfinished consolidation changes were reverted; SQL and report queries remain at
 the validated `43e2f8e` implementation checkpoint. Do not resume the former consolidation plan.
 
-[#89](https://github.com/christopherseaman/commodoreSQL/issues/89) checks actual staged
+[#89](https://github.com/christopherseaman/commodoreSQL/issues/89) is complete (`9cd8bd8`): checked actual staged
 table dependencies against the diagram and replaces the flow explanation with Sources,
 Logic (Materials, Pricing, Mailing, Release), and Samples & exports. Independent audit
 found no implemented dependency mismatch; the former #86 note was stale. The rewrite
@@ -108,7 +108,7 @@ Bounded read-only checks of the staged expressions against that snapshot found:
 - [#81](https://github.com/christopherseaman/commodoreSQL/issues/81) — direct `master_material` hash sample staged; rebuild pending
 - [#85](https://github.com/christopherseaman/commodoreSQL/issues/85) — singular relation/sample naming and direct Canada export staged; live migration held
 - [#86](https://github.com/christopherseaman/commodoreSQL/issues/86) — canceled; retain source-row `comprehensive_data` and item-grain `course_material`
-- [#89](https://github.com/christopherseaman/commodoreSQL/issues/89) — verify staged SQL/diagram agreement and rewrite the flow explanation
+- [#89](https://github.com/christopherseaman/commodoreSQL/issues/89) — complete; verified staged SQL/diagram agreement and rewrote the flow explanation
 - [#87](https://github.com/christopherseaman/commodoreSQL/issues/87) — URL carried through Master Section; final Course/Institution definitions pending
 - [#88](https://github.com/christopherseaman/commodoreSQL/issues/88) — shared newest-12-term window approved and staged; full-data count effects unmeasured under rebuild hold
 - [#83](https://github.com/christopherseaman/commodoreSQL/issues/83) — catalog-derived mailing window staged; bounded live-snapshot parity proven; rebuild pending
