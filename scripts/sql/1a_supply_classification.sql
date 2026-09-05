@@ -9,9 +9,8 @@
 -- precision (~0.98) was audited on Fall 2025; titles are period-independent, so
 -- the flag applies to all periods.
 --
--- Placed at Stage 1a (before 1b_section_filter.sql) for #40: has_required must be
--- supply-aware, so section_book_status needs supply_isbn_classification to exist
--- first. Two consumers now — 1b_section_filter.sql (has_required) and
+-- Placed at Stage 1a before section enrollment so direct requiredness can be
+-- supply-aware. Two consumers now — 1b_section_enrollment.sql and
 -- 2_oer_classification.sql (comprehensive_data.is_supply) — hence the index. Depends
 -- only on the raw catalog (built in 0_setup.sql) + the keyword TSV.
 

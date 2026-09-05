@@ -83,8 +83,8 @@ notion-sync: push
 | `has_enrollment_sibling_seats` | `boolean` | TRUE or FALSE | `course_materials_use.has_enrollment_sibling_seats` passthrough. | Whether a sibling section reports usable occupied seats. |
 | `enrollment_assigned` | `integer` | Rounded student count from the ladder; raw negatives can propagate | `course_materials_use.enrollment_assigned` passthrough. | Best available section enrollment from the assignment ladder. |
 | `enrollment_source` | `varchar` | `own`, `own_seats`, `sibling_enroll`, `sibling_seats`, `class_median`, `level_median`, or `none` | `course_materials_use.enrollment_source` passthrough. | Assignment-ladder rung that supplied the section enrollment. |
-| `has_book_status_required` | `boolean` | TRUE or FALSE | `course_materials_use.has_book_status_required` passthrough. | Whether grouped rows include explicit required status. |
-| `has_book_status_optional_recommended` | `boolean` | TRUE or FALSE | `course_materials_use.has_book_status_optional_recommended` passthrough. | Whether grouped rows include optional or recommended status. |
+| `is_required_direct` | `boolean` | TRUE or FALSE | `course_materials_use.is_required_direct` passthrough. | Whether direct required evidence is present at the relation grain. |
+| `is_optional_or_recommended_direct` | `boolean` | TRUE or FALSE | `course_materials_use.is_optional_or_recommended_direct` passthrough. | Whether grouped rows include optional or recommended direct-status evidence. |
 | `source_row_count` | `bigint` | Non-negative whole-number count | `course_materials_use.source_row_count` passthrough. | Catalog rows collapsed into the canonical material item. |
 | `title_variant_count` | `bigint` | Non-negative whole-number count | `course_materials_use.title_variant_count` passthrough. | Distinct title variants found within grouped catalog rows. |
 | `author_variant_count` | `bigint` | Non-negative whole-number count | `course_materials_use.author_variant_count` passthrough. | Distinct author variants found within grouped catalog rows. |
@@ -127,6 +127,7 @@ notion-sync: push
 | `price_buy_min` | `decimal(10,2)` | USD amount such as `123.45`; stored as `DECIMAL(10,2)` | `pricing_wide.price_buy_min` LEFT JOIN on `(section_id, isbn13)`. | Lowest valid purchase price across available material offerings. |
 | `price_buy_max` | `decimal(10,2)` | USD amount such as `123.45`; stored as `DECIMAL(10,2)` | `pricing_wide.price_buy_max` LEFT JOIN on `(section_id, isbn13)`. | Highest valid purchase price across available material offerings. |
 | `has_pricing_match` | `boolean` | TRUE when the LEFT pricing_wide join found a section/ISBN row; independent of whether that row has a valid price_min | `pricing_wide.section_id IS NOT NULL` after the exact `(section_id, isbn13)` LEFT JOIN. | Whether an exact section-and-ISBN pricing match exists. |
+| `is_section_required_direct` | `boolean` | TRUE/FALSE for 2024+ section context; NULL before 2024 | `course_materials_use.is_section_required_direct` passthrough. | Whether the source section has direct required evidence. |
 | `panel_source_row_count` | `bigint` | Non-negative whole-number count | `course_materials_use.panel_source_row_count` passthrough. | Panel-history rows collapsed into the contact lookup. |
 | `panel_response_year_variant_count` | `bigint` | Non-negative whole-number count | `course_materials_use.panel_response_year_variant_count` passthrough. | Distinct campaign labels found among grouped panel-history rows. |
 | `use_source_row_count` | `bigint` | Non-negative whole-number count | `course_materials_use.use_source_row_count` passthrough. | Included catalog rows collapsed into the canonical item. |

@@ -34,14 +34,13 @@ flowchart LR
     subgraph helpers["Helpers"]
         direction TB
         panel_email("panel_email")
-        section_status("section_book_status")
         recent_periods{{"recent_periods"}}
     end
 
     subgraph catalog_flow["Materials"]
         direction TB
-        comprehensive("comprehensive_data")
         section_enrollment("section_enrollment")
+        comprehensive("comprehensive_data")
         course_materials("course_materials")
         materials_post{{"course_materials_post_2024"}}
         materials_use{{"course_materials_use"}}
@@ -87,31 +86,23 @@ flowchart LR
 
     panel --> panel_email
     catalog --> supply
-    catalog --> section_status
-    supply --> section_status
+    catalog --> section_enrollment
+    ipeds --> section_enrollment
+    supply --> section_enrollment
     catalog --> comprehensive
     ipeds --> comprehensive
     optout --> comprehensive
     panel_email --> comprehensive
     format_lookup --> comprehensive
     supply --> comprehensive
-    section_status --> comprehensive
+    section_enrollment --> comprehensive
 
-    comprehensive --> section_enrollment
     comprehensive --> course_materials
-    section_enrollment --> course_materials
     course_materials --> materials_post
-    course_materials --> materials_use
-    course_materials --> materials_nouse
-    course_materials --> materials_canada
 
-    catalog -. "#80" .-> section_enrollment
-    ipeds -.-> section_enrollment
-    supply -.-> section_enrollment
-    section_enrollment -.-> comprehensive
-    materials_post -.-> materials_use
-    materials_post -.-> materials_nouse
-    materials_post -.-> materials_canada
+    materials_post --> materials_use
+    materials_post --> materials_nouse
+    materials_nouse --> materials_canada
 
     pricing_historical --> pricing_wide
     materials_use --> material_costs
@@ -119,13 +110,11 @@ flowchart LR
     material_costs --> section_cost
     material_costs --> master_section
     section_cost --> master_section
-    section_enrollment --> master_section
     course_materials --> master_section
     master_section --> master_course
     section_cost --> master_course
     material_costs --> master_course_material
     master_section --> master_institution
-    section_status --> master_institution
     pricing_wide --> master_institution
     material_costs --> master_isbn
     section_enrollment --> sample10
@@ -277,9 +266,8 @@ Arrows above identify inputs. “Section” includes term; grain means one row p
 | `format_type_classification` | FormatType | Map OER/IA. |
 | `state_region` | State/province | Map reporting region; query-time only. |
 | `supply_isbn_classification` | ISBN | Apply CMM-owned title rules to 2024+ ISBNs. |
-| `section_book_status` | Section | One flag: any required, non-supply item? |
-| `comprehensive_data` | Source row | Add institution, contact, classification, required-inference, population fields. |
-| `section_enrollment` | Section | From `comprehensive_data`; assign enrollment from own values, seats, then medians. |
+| `section_enrollment` | Section | From source catalog/IPEDS/supply classification; direct requiredness and enrollment assignment. |
+| `comprehensive_data` | Source row | Add institution, contact, classification, section context, required-inference, population fields. |
 | `course_materials` | Section × ISBN | Deterministic representative; retain conflicts/counts and one NULL-ISBN row per section. |
 | `course_materials_post_2024` | Section × ISBN | 2024+ export/report boundary. |
 | `course_materials_use` | Section × ISBN | Use filter below. |
@@ -331,7 +319,6 @@ Geographic reports join `state_region` at query time.
 | CMM IA | Campus availability, distinct from FormatType IA; grain/dates/precedence unresolved. |
 | CMM external pricing | Feed the pricing-wide stage; fields/grain await source. |
 | Bookstore-brand lookup | Enrich `pricing_wide`; key and file scope await lookup. |
-| Section flow | #80: move `section_enrollment` upstream; replace `section_book_status` with `is_required_direct`; retain `is_required_inferred`. |
 | `sample10pct_materials` | Material Costs section-cluster sample; #81. |
 | 25 institution list | Feed `sample25id_material_cost` and `sample25id_section_cost`; #60. |
 | Course summaries | #24: retain, rename, or retire; publisher/status seats are non-additive and blank publishers are excluded. |

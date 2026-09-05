@@ -18,7 +18,7 @@ CREATE TABLE __data_quality_metrics (
 );
 
 -- All catalog checks are scoped to is_required_inferred = TRUE (analytical subset:
--- period >= 2024-01-01 with the has_required / book_status logic from 1b_section_filter.sql).
+-- period >= 2024-01-01 with the section directness / book_status fallback logic).
 -- Source-quality of pre-2024 / non-required rows is acknowledged but not surfaced here.
 
 -- Catalog: composite-key UNKNOWN segments + null period

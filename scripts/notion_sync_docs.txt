@@ -39,7 +39,6 @@ docs/data-dictionary/pricing_historical.md
 docs/data-dictionary/pricing_wide.md
 docs/data-dictionary/recent_periods.md
 docs/data-dictionary/sample10_section_ids.md
-docs/data-dictionary/section_book_status.md
 docs/data-dictionary/section_cost.md
 docs/data-dictionary/section_enrollment.md
 docs/data-dictionary/state_region.md

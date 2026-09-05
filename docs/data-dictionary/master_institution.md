@@ -11,7 +11,7 @@ notion-sync: push
 - Relation kind: table
 - Grain / key: One period × institution, including an explicit NULL-institution bucket
 - Pipeline stage: Release model / models/master_institution.sql
-- Direct upstream relations: `master_section`, `section_book_status`, `pricing_wide`
+- Direct upstream relations: `master_section`, `pricing_wide`
 
 | Column | Type | Example / structure | Direct upstream source / derivation | Description |
 |---|---|---|---|---|
@@ -38,7 +38,7 @@ notion-sync: push
 | `uncategorized_section_count` | `bigint` | Non-negative whole-number count | `COUNT(*) FILTER (WHERE course_level = 'Uncategorized')`. | Sections classified as an uncategorized course level. |
 | `course_count` | `bigint` | Non-negative whole-number count | `COUNT(DISTINCT course_id)` across material-bearing sections. | Distinct courses represented by the institution-period group. |
 | `material_section_count` | `bigint` | Sections with at least one canonical Use material; equals section_count under the current Master Section population | `COUNT(*) FILTER` over sections satisfying `material_count > 0`. | Institution sections containing at least one material. |
-| `required_section_count` | `bigint` | Material-bearing sections with supply-aware raw section_book_status.has_required | `COUNT(*) FILTER` over sections satisfying supply-aware raw `section_book_status.has_required`. | Institution sections with raw required-status evidence. |
+| `required_section_count` | `bigint` | Material-bearing sections with supply-aware master_section.is_required_direct | `COUNT(*) FILTER` over sections satisfying supply-aware `master_section.is_required_direct`. | Institution sections with direct required-status evidence. |
 | `inferred_required_section_count` | `bigint` | Sections with master_section.required_count > 0 | `COUNT(*) FILTER` over sections satisfying `required_count > 0`. | Institution sections containing inferred-required materials. |
 | `optional_section_count` | `bigint` | Non-negative whole-number count | `COUNT(*) FILTER` over sections satisfying `optional_count > 0`. | Institution sections containing optional materials. |
 | `supply_section_count` | `bigint` | Non-negative whole-number count | `COUNT(*) FILTER` over sections satisfying `supply_count > 0` sidecar evidence. | Institution sections with classified supply evidence. |

@@ -11,7 +11,7 @@ notion-sync: push
 - Relation kind: table
 - Grain / key: One period × section × ISBN, plus one NULL-ISBN audit row per section when present
 - Pipeline stage: Canonical materials / 2b_course_materials.sql
-- Direct upstream relations: `comprehensive_data`, `section_enrollment`
+- Direct upstream relations: `comprehensive_data`
 
 | Column | Type | Example / structure | Direct upstream source / derivation | Description |
 |---|---|---|---|---|
@@ -38,16 +38,16 @@ notion-sync: push
 | `course_number` | `varchar` | Source course number; zeros/suffixes retained | Representative `comprehensive_data.course_number` from grouped rows. | Catalog number identifying the course within its department. |
 | `section` | `varchar` | Source section code; zeros/punctuation retained | Representative `comprehensive_data.section` from grouped rows. | Source code distinguishing sections of the same course. |
 | `course_title` | `varchar` | Course title; source punctuation/casing retained | Representative `comprehensive_data.course_title` from grouped rows. | Official title assigned to the course. |
-| `course_level` | `varchar` | Category such as `Introductory or general undergraduate` | `COALESCE(section_enrollment.course_level, representative comprehensive_data.course_level)`. | Instructional level assigned to the course. |
+| `course_level` | `varchar` | Category such as `Introductory or general undergraduate` | `COALESCE(comprehensive_data.section_course_level, representative comprehensive_data.course_level)`. | Instructional level assigned to the course. |
 | `course_subject` | `varchar` | Source subject, such as `Biology` | Representative `comprehensive_data.course_subject` from grouped rows. | Subject area assigned to the course. |
 | `period` | `varchar` | Academic term label such as `Fall 2024` | Representative `comprehensive_data.period` from grouped rows. | Human-readable academic term label from the source. |
-| `enrollments` | `integer` | Reported student count; source noise can include negative values | `COALESCE(section_enrollment.enrollments, representative comprehensive_data.enrollments)`. | Enrollment reported directly for the course section. |
-| `seats_taken` | `integer` | Reported occupied seats; `9999` is the source sentinel | `COALESCE(section_enrollment.seats_taken, representative comprehensive_data.seats_taken)`. | Occupied seats reported for the course section. |
+| `enrollments` | `integer` | Reported student count; source noise can include negative values | `COALESCE(comprehensive_data.section_enrollments, representative comprehensive_data.enrollments)`. | Enrollment reported directly for the course section. |
+| `seats_taken` | `integer` | Reported occupied seats; `9999` is the source sentinel | `COALESCE(comprehensive_data.section_seats_taken, representative comprehensive_data.seats_taken)`. | Occupied seats reported for the course section. |
 | `instructor` | `varchar` | Instructor name; source punctuation/casing retained | Representative `comprehensive_data.instructor` from grouped rows. | Instructor name attached to the course section. |
 | `first_name` | `varchar` | Given name; source punctuation/casing retained | Representative `comprehensive_data.first_name` from grouped rows. | Given name of the course instructor. |
 | `last_name` | `varchar` | Family name; source punctuation/casing retained | Representative `comprehensive_data.last_name` from grouped rows. | Family name of the course instructor. |
 | `email` | `varchar` | Lowercase, trimmed email text | Representative `comprehensive_data.email` from grouped rows. | Normalized instructor email used for contact and matching. |
-| `course_id` | `varchar` | `unit_id::department-code::course-number` composite | `COALESCE(section_enrollment.course_id, representative comprehensive_data.course_id)`. | Stable identifier for the institution-level course offering. |
+| `course_id` | `varchar` | `unit_id::department-code::course-number` composite | `COALESCE(comprehensive_data.section_course_id, representative comprehensive_data.course_id)`. | Stable identifier for the institution-level course offering. |
 | `section_id` | `varchar` | period-specific section key | `comprehensive_data.section_id` group key. | Period-specific identifier for the distinct section offering. |
 | `period_sortable` | `varchar` | YYYY-N | `comprehensive_data.period_sortable` group key. | Sortable academic term code used for chronological ordering. |
 | `period_date` | `date` | Canonical date: YYYY-01-01, YYYY-04-01, YYYY-07-01, or YYYY-10-01 | Representative `comprehensive_data.period_date` from grouped rows. | Canonical starting date assigned to the academic term. |
@@ -58,9 +58,9 @@ notion-sync: push
 | `is_supply` | `boolean` | TRUE or FALSE | `BOOL_OR(is_supply)` across grouped `comprehensive_data` rows. | Whether the material is classified as a course supply. |
 | `supply_category` | `varchar` | Supply category label selected by keyword rules | Representative `comprehensive_data.supply_category` from grouped rows. | Supply classification assigned from matched title keywords. |
 | `institution_name` | `varchar` | Official IPEDS institution-name text | Representative `comprehensive_data.institution_name` from grouped rows. | Canonical institution name supplied by IPEDS. |
-| `sector` | `varchar` | IPEDS sector descriptor, such as `Public, 4-year or above` | `COALESCE(section_enrollment.sector, representative comprehensive_data.sector)`. | IPEDS sector classification for the institution. |
-| `level` | `varchar` | IPEDS label such as `Four or more years` | `COALESCE(section_enrollment.level, representative comprehensive_data.level)`. | IPEDS award-level classification for the institution. |
-| `control` | `varchar` | IPEDS label such as `Public` or `Private not-for-profit` | `COALESCE(section_enrollment.control, representative comprehensive_data.control)`. | Institution ownership and governance classification used for reporting. |
+| `sector` | `varchar` | IPEDS sector descriptor, such as `Public, 4-year or above` | `COALESCE(comprehensive_data.section_sector, representative comprehensive_data.sector)`. | IPEDS sector classification for the institution. |
+| `level` | `varchar` | IPEDS label such as `Four or more years` | `COALESCE(comprehensive_data.section_level, representative comprehensive_data.level)`. | IPEDS award-level classification for the institution. |
+| `control` | `varchar` | IPEDS label such as `Public` or `Private not-for-profit` | `COALESCE(comprehensive_data.section_control, representative comprehensive_data.control)`. | Institution ownership and governance classification used for reporting. |
 | `size` | `varchar` | IPEDS size-band label, such as `20,000 and above` | Representative `comprehensive_data.size` from grouped rows. | IPEDS institutional enrollment-size classification used for reporting. |
 | `enrollment_2024` | `integer` | Non-negative 2024 student count; NULL when unavailable | Representative `comprehensive_data.enrollment_2024` from grouped rows. | Total institutional enrollment reported to IPEDS for 2024. |
 | `distance_enrollment_2024` | `integer` | Non-negative 2024 student count; NULL when unavailable | Representative `comprehensive_data.distance_enrollment_2024` from grouped rows. | IPEDS 2024 students enrolled in distance education. |
@@ -74,19 +74,19 @@ notion-sync: push
 | `is_post_2024` | `boolean` | TRUE or FALSE | `BOOL_OR(is_post_2024)` across grouped `comprehensive_data` rows. | Whether the academic term begins during 2024 or later. |
 | `has_isbn` | `boolean` | TRUE or FALSE | Grouped ISBN key `IS NOT NULL`. | Whether the material has a non-NULL ISBN. |
 | `has_formattype` | `boolean` | TRUE or FALSE | `BOOL_OR(has_formattype)` across grouped `comprehensive_data` rows. | Whether the material has a nonblank FormatType classification. |
-| `has_enrollment` | `boolean` | TRUE or FALSE | `COALESCE(section_enrollment.has_enrollment, representative comprehensive_data.has_enrollment)`. | Whether usable enrollment information is available. |
-| `has_enrollment_own_seats` | `boolean` | TRUE or FALSE | `COALESCE(section_enrollment.has_enrollment_own_seats, representative comprehensive_data.has_enrollment_own_seats)`. | Whether the section reports usable occupied seats. |
+| `has_enrollment` | `boolean` | TRUE or FALSE | `COALESCE(comprehensive_data.section_has_enrollment, representative comprehensive_data.has_enrollment)`. | Whether usable enrollment information is available. |
+| `has_enrollment_own_seats` | `boolean` | TRUE or FALSE | `COALESCE(comprehensive_data.section_has_enrollment_own_seats, representative comprehensive_data.has_enrollment_own_seats)`. | Whether the section reports usable occupied seats. |
 | `no_details` | `boolean` | TRUE or FALSE | `BOOL_OR(no_details)` across grouped `comprehensive_data` rows. | Whether the title carries the no-details placeholder. |
 | `no_materials` | `boolean` | TRUE or FALSE | `BOOL_OR(no_materials)` across grouped `comprehensive_data` rows. | Whether the row explicitly indicates no course materials. |
 | `is_canada` | `boolean` | TRUE or FALSE | `BOOL_OR(is_canada)` across grouped `comprehensive_data` rows. | Whether the source row belongs to Canada. |
 | `is_course_material_use` | `boolean` | TRUE or FALSE | Exact alias of grouped `has_use_source_row`. | Whether the material belongs to the analysis population. |
 | `is_course_material_no_use` | `boolean` | TRUE or FALSE | `is_post_2024 AND NOT has_use_source_row` at canonical item grain. | Whether the material belongs to the excluded population. |
-| `has_enrollment_sibling` | `boolean` | TRUE or FALSE | `section_enrollment.has_enrollment_sibling` exact section join. | Whether a sibling section reports enrollment. |
-| `has_enrollment_sibling_seats` | `boolean` | TRUE or FALSE | `section_enrollment.has_enrollment_sibling_seats` exact section join. | Whether a sibling section reports usable occupied seats. |
-| `enrollment_assigned` | `integer` | Rounded student count from the ladder; raw negatives can propagate | `section_enrollment.enrollment_assigned` exact section join. | Best available section enrollment from the assignment ladder. |
-| `enrollment_source` | `varchar` | `own`, `own_seats`, `sibling_enroll`, `sibling_seats`, `class_median`, `level_median`, or `none` | `section_enrollment.enrollment_source` exact section join. | Assignment-ladder rung that supplied the section enrollment. |
-| `has_book_status_required` | `boolean` | TRUE or FALSE | `BOOL_OR(book_status = 'required')` across grouped `comprehensive_data` rows. | Whether grouped rows include explicit required status. |
-| `has_book_status_optional_recommended` | `boolean` | TRUE or FALSE | `BOOL_OR(book_status IN ('option','recommended'))` across grouped `comprehensive_data` rows. | Whether grouped rows include optional or recommended status. |
+| `has_enrollment_sibling` | `boolean` | TRUE or FALSE | `comprehensive_data.section_has_enrollment_sibling` from the upstream section join. | Whether a sibling section reports enrollment. |
+| `has_enrollment_sibling_seats` | `boolean` | TRUE or FALSE | `comprehensive_data.section_has_enrollment_sibling_seats` from the upstream section join. | Whether a sibling section reports usable occupied seats. |
+| `enrollment_assigned` | `integer` | Rounded student count from the ladder; raw negatives can propagate | `comprehensive_data.section_enrollment_assigned` from the upstream section join. | Best available section enrollment from the assignment ladder. |
+| `enrollment_source` | `varchar` | `own`, `own_seats`, `sibling_enroll`, `sibling_seats`, `class_median`, `level_median`, or `none` | `comprehensive_data.section_enrollment_source` from the upstream section join. | Assignment-ladder rung that supplied the section enrollment. |
+| `is_required_direct` | `boolean` | TRUE or FALSE | `BOOL_OR(is_required_direct)` across grouped `comprehensive_data` rows. | Whether direct required evidence is present at the relation grain. |
+| `is_optional_or_recommended_direct` | `boolean` | TRUE or FALSE | `BOOL_OR(book_status IN ('option','recommended'))` across grouped `comprehensive_data` rows. | Whether grouped rows include optional or recommended direct-status evidence. |
 | `source_row_count` | `bigint` | Non-negative whole-number count | Count of all `comprehensive_data` rows. | Catalog rows collapsed into the canonical material item. |
 | `title_variant_count` | `bigint` | Non-negative whole-number count | Distinct nonmissing `title` count in grouped catalog rows. | Distinct title variants found within grouped catalog rows. |
 | `author_variant_count` | `bigint` | Non-negative whole-number count | Distinct nonmissing `author` count in grouped catalog rows. | Distinct author variants found within grouped catalog rows. |
@@ -114,3 +114,4 @@ notion-sync: push
 | `is_null_isbn_audit` | `boolean` | TRUE or FALSE | True when grouped ISBN is NULL. | Whether the row audits a NULL-ISBN source group. |
 | `has_nonnull_isbn_in_section` | `boolean` | TRUE or FALSE | Section-level `BOOL_OR(isbn13 IS NOT NULL)` across grouped items. | Whether the section contains another non-NULL ISBN. |
 | `is_no_adoption_section` | `boolean` | TRUE or FALSE | NULL-ISBN audit row in a section with no non-NULL ISBN. | Whether the section has no non-NULL adopted ISBN. |
+| `is_section_required_direct` | `boolean` | TRUE/FALSE for 2024+ section context; NULL before 2024 | `BOOL_OR(is_section_required_direct)` across grouped `comprehensive_data` rows. | Whether the source section has direct required evidence. |

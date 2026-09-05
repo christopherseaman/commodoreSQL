@@ -1,6 +1,6 @@
 # HANDOFF — CommodoreSQL
 
-State: 2026-09-01. Backlog: GitHub Issues / Project 2.
+State: 2026-09-04. Backlog: GitHub Issues / Project 2.
 
 ## Repository state
 
@@ -8,7 +8,7 @@ State: 2026-09-01. Backlog: GitHub Issues / Project 2.
 - PR: [#62](https://github.com/christopherseaman/commodoreSQL/pull/62), open/non-draft.
 - SQL/database audited at `62479bf`; later documentation edits do not validate new data.
 - Inputs and `duckdb/commodore.duckdb` end at Fall 2025 (`2025-4`).
-- Current-input implementation complete. Spring 2026 and pending lookups remain absent.
+- The validated database remains at the pre-#80 baseline; Spring 2026 and pending lookups remain absent.
 
 ## Current implementation
 
@@ -43,7 +43,7 @@ Raw → canonical → release reconciliation passed:
 
 ### Flow changes
 
-- [#80](https://github.com/christopherseaman/commodoreSQL/issues/80) — upstream section helper; remove `section_book_status`
+- [#80](https://github.com/christopherseaman/commodoreSQL/issues/80) — implementation staged; full rebuild/reconciliation pending
 - [#81](https://github.com/christopherseaman/commodoreSQL/issues/81) — `sample10pct_materials` from `material_costs`
 - [#24](https://github.com/christopherseaman/commodoreSQL/issues/24) — rationalize course summary views
 

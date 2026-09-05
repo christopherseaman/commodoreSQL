@@ -1,4 +1,4 @@
--- Canonical processed Course Materials and section enrollment ownership.
+-- Canonical processed Course Materials.
 --
 -- comprehensive_data remains the enriched source-row table. course_materials
 -- is the first item-grain model: one row per valid period/section/ISBN, plus
@@ -11,166 +11,8 @@ DROP VIEW IF EXISTS course_materials_no_use;
 DROP VIEW IF EXISTS course_materials_use;
 DROP VIEW IF EXISTS course_materials_post_2024;
 
-DROP TABLE IF EXISTS _se_base;
-DROP TABLE IF EXISTS _se_course_level;
-DROP TABLE IF EXISTS _se_signals;
-DROP TABLE IF EXISTS _se_enriched;
-DROP TABLE IF EXISTS _se_reference;
-DROP TABLE IF EXISTS _se_course_agg;
-DROP TABLE IF EXISTS _se_class_agg;
-DROP TABLE IF EXISTS _se_level_agg;
 DROP TABLE IF EXISTS _cm_key_agg;
-DROP TABLE IF EXISTS _cm_section_isbn;
-DROP TABLE IF EXISTS _cm_duplicate_representative;
-DROP TABLE IF EXISTS _cm_duplicate_variants;
-DROP TABLE IF EXISTS _cm_isbn_metadata;
-
-DROP TABLE IF EXISTS section_enrollment;
 DROP TABLE IF EXISTS course_materials;
-
--- Complete valid 2024+ section spine and the established assignment ladder:
--- own enrollment, own valid seats, course medians, control/level median, then
--- level median. This remains independent of material inclusion.
-CREATE TEMP TABLE _se_base AS
-SELECT
-    section_id,
-    ANY_VALUE(course_id) AS course_id,
-    ANY_VALUE(period_sortable) AS period_sortable,
-    ANY_VALUE(control) AS control,
-    ANY_VALUE(level) AS level,
-    ANY_VALUE(sector) AS sector,
-    MAX(enrollments) AS enrollments,
-    MAX(seats_taken) AS seats_taken,
-    (MAX(enrollments) IS NOT NULL) AS has_enrollment,
-    (MAX(seats_taken) IS NOT NULL AND MAX(seats_taken) < 9999)
-        AS has_enrollment_own_seats
-FROM comprehensive_data
-WHERE section_id IS NOT NULL
-  AND period_sortable IS NOT NULL
-  AND period_date >= DATE '2024-01-01'
-GROUP BY section_id;
-
--- Input order is not a contract. Resolve equally frequent source labels
--- lexically so panel/join plan changes cannot alter canonical metadata.
-CREATE TEMP TABLE _se_course_level AS
-SELECT section_id, mode(course_level ORDER BY course_level) AS course_level
-FROM comprehensive_data
-WHERE section_id IS NOT NULL
-  AND period_sortable IS NOT NULL
-  AND period_date >= DATE '2024-01-01'
-GROUP BY section_id;
-
-CREATE TEMP TABLE _se_signals AS
-SELECT
-    course_id,
-    period_sortable,
-    SUM(CASE WHEN has_enrollment THEN 1 ELSE 0 END) AS course_enroll_sections,
-    SUM(CASE WHEN has_enrollment_own_seats THEN 1 ELSE 0 END) AS course_seats_sections
-FROM _se_base
-GROUP BY course_id, period_sortable;
-
-CREATE TEMP TABLE _se_enriched AS
-SELECT
-    b.*,
-    cl.course_level,
-    ((s.course_enroll_sections - CASE WHEN b.has_enrollment THEN 1 ELSE 0 END) > 0)
-        AS has_enrollment_sibling,
-    ((s.course_seats_sections - CASE WHEN b.has_enrollment_own_seats THEN 1 ELSE 0 END) > 0)
-        AS has_enrollment_sibling_seats
-FROM _se_base b
-JOIN _se_course_level cl USING (section_id)
-JOIN _se_signals s
-  ON b.course_id IS NOT DISTINCT FROM s.course_id
- AND b.period_sortable IS NOT DISTINCT FROM s.period_sortable;
-
-DROP TABLE _se_base;
-DROP TABLE _se_course_level;
-DROP TABLE _se_signals;
-
-CREATE TEMP TABLE _se_reference AS
-SELECT course_id, period_sortable, control, level, enrollments, seats_taken
-FROM _se_enriched
-WHERE course_level IN ('Introductory or general undergraduate', 'Intermediate undergraduate',
-                       'Non-degree credit', 'Uncategorized')
-  AND sector IN ('Public, 4-year or above', 'Public, 2-year',
-                 'Private not-for-profit, 4-year or above', 'Private not-for-profit, 2-year',
-                 'Private for-profit, 4-year or above', 'Private for-profit, 2-year');
-
-CREATE TEMP TABLE _se_course_agg AS
-SELECT
-    course_id,
-    period_sortable,
-    quantile_cont(enrollments, 0.5) AS course_enrollment_median,
-    quantile_cont(CASE WHEN seats_taken < 9999 THEN seats_taken END, 0.5)
-        AS course_seats_median
-FROM _se_reference
-GROUP BY course_id, period_sortable;
-
-CREATE TEMP TABLE _se_class_agg AS
-SELECT
-    control,
-    level,
-    period_sortable,
-    quantile_cont(enrollments, 0.5) AS class_enrollment_median
-FROM _se_reference
-GROUP BY control, level, period_sortable;
-
-CREATE TEMP TABLE _se_level_agg AS
-SELECT
-    level,
-    period_sortable,
-    quantile_cont(enrollments, 0.5) AS level_enrollment_median
-FROM _se_reference
-GROUP BY level, period_sortable;
-
-DROP TABLE _se_reference;
-
-CREATE TABLE section_enrollment AS
-SELECT
-    base.section_id,
-    base.course_id,
-    base.period_sortable,
-    base.control,
-    base.level,
-    base.sector,
-    base.course_level,
-    base.enrollments,
-    base.seats_taken,
-    base.has_enrollment,
-    base.has_enrollment_sibling,
-    base.has_enrollment_own_seats,
-    base.has_enrollment_sibling_seats,
-    ROUND(COALESCE(base.enrollments,
-                   CASE WHEN base.seats_taken < 9999 THEN base.seats_taken END,
-                   ca.course_enrollment_median,
-                   ca.course_seats_median,
-                   cla.class_enrollment_median,
-                   lv.level_enrollment_median))::INT AS enrollment_assigned,
-    CASE
-        WHEN base.enrollments IS NOT NULL             THEN 'own'
-        WHEN base.seats_taken < 9999                  THEN 'own_seats'
-        WHEN ca.course_enrollment_median IS NOT NULL  THEN 'sibling_enroll'
-        WHEN ca.course_seats_median IS NOT NULL       THEN 'sibling_seats'
-        WHEN cla.class_enrollment_median IS NOT NULL  THEN 'class_median'
-        WHEN lv.level_enrollment_median IS NOT NULL   THEN 'level_median'
-        ELSE 'none'
-    END AS enrollment_source
-FROM _se_enriched base
-LEFT JOIN _se_course_agg ca
-  ON base.course_id = ca.course_id
- AND base.period_sortable = ca.period_sortable
-LEFT JOIN _se_class_agg cla
-  ON base.control = cla.control
- AND base.level = cla.level
- AND base.period_sortable = cla.period_sortable
-LEFT JOIN _se_level_agg lv
-  ON base.level = lv.level
- AND base.period_sortable = lv.period_sortable;
-
-DROP TABLE _se_enriched;
-DROP TABLE _se_course_agg;
-DROP TABLE _se_class_agg;
-DROP TABLE _se_level_agg;
 
 -- Fixed-size aggregate state is safe for every high-cardinality item key.
 -- Expensive DISTINCT metadata state and representative windows are restricted
@@ -186,6 +28,8 @@ SELECT
     BOOL_OR(is_post_2024) AS is_post_2024,
     BOOL_OR(is_course_material_use) AS has_use_source_row,
     BOOL_OR(is_course_material_no_use) AS has_no_use_source_row,
+    COALESCE(BOOL_OR(is_required_direct), FALSE) AS is_required_direct,
+    BOOL_OR(is_section_required_direct) AS is_section_required_direct,
     BOOL_OR(is_required_inferred) AS is_required_inferred,
     BOOL_OR(is_oer) AS is_oer,
     BOOL_OR(is_ia) AS is_ia,
@@ -194,9 +38,8 @@ SELECT
     BOOL_OR(no_details) AS no_details,
     BOOL_OR(no_materials) AS no_materials,
     BOOL_OR(is_canada) AS is_canada,
-    BOOL_OR(book_status = 'required') AS has_book_status_required,
-    BOOL_OR(book_status IN ('option', 'recommended'))
-        AS has_book_status_optional_recommended,
+    COALESCE(BOOL_OR(book_status IN ('option', 'recommended')), FALSE)
+        AS is_optional_or_recommended_direct,
     BOOL_OR(is_required_inferred) IS DISTINCT FROM BOOL_AND(is_required_inferred)
         AS is_required_inferred_conflict,
     BOOL_OR(is_oer) IS DISTINCT FROM BOOL_AND(is_oer) AS is_oer_conflict,
@@ -363,16 +206,16 @@ SELECT
     r.course_number,
     r.section,
     r.course_title,
-    COALESCE(se.course_level, r.course_level) AS course_level,
+    COALESCE(r.section_course_level, r.course_level) AS course_level,
     r.course_subject,
     r.period,
-    COALESCE(se.enrollments, r.enrollments) AS enrollments,
-    COALESCE(se.seats_taken, r.seats_taken) AS seats_taken,
+    COALESCE(r.section_enrollments, r.enrollments) AS enrollments,
+    COALESCE(r.section_seats_taken, r.seats_taken) AS seats_taken,
     r.instructor,
     r.first_name,
     r.last_name,
     r.email,
-    COALESCE(se.course_id, r.course_id) AS course_id,
+    COALESCE(r.section_course_id, r.course_id) AS course_id,
     r.section_id,
     r.period_sortable,
     r.period_date,
@@ -383,9 +226,9 @@ SELECT
     a.is_supply,
     r.supply_category,
     r.institution_name,
-    COALESCE(se.sector, r.sector) AS sector,
-    COALESCE(se.level, r.level) AS level,
-    COALESCE(se.control, r.control) AS control,
+    COALESCE(r.section_sector, r.sector) AS sector,
+    COALESCE(r.section_level, r.level) AS level,
+    COALESCE(r.section_control, r.control) AS control,
     r.size,
     r.enrollment_2024,
     r.distance_enrollment_2024,
@@ -399,20 +242,20 @@ SELECT
     a.is_post_2024,
     (a.isbn13 IS NOT NULL) AS has_isbn,
     a.has_formattype,
-    COALESCE(se.has_enrollment, r.has_enrollment) AS has_enrollment,
-    COALESCE(se.has_enrollment_own_seats, r.has_enrollment_own_seats)
+    COALESCE(r.section_has_enrollment, r.has_enrollment) AS has_enrollment,
+    COALESCE(r.section_has_enrollment_own_seats, r.has_enrollment_own_seats)
         AS has_enrollment_own_seats,
     a.no_details,
     a.no_materials,
     a.is_canada,
     a.has_use_source_row AS is_course_material_use,
     (a.is_post_2024 AND NOT a.has_use_source_row) AS is_course_material_no_use,
-    se.has_enrollment_sibling,
-    se.has_enrollment_sibling_seats,
-    se.enrollment_assigned,
-    se.enrollment_source,
-    a.has_book_status_required,
-    a.has_book_status_optional_recommended,
+    r.section_has_enrollment_sibling AS has_enrollment_sibling,
+    r.section_has_enrollment_sibling_seats AS has_enrollment_sibling_seats,
+    r.section_enrollment_assigned AS enrollment_assigned,
+    r.section_enrollment_source AS enrollment_source,
+    a.is_required_direct,
+    a.is_optional_or_recommended_direct,
     a.source_row_count,
     COALESCE(v.title_variant_count,
              CASE WHEN NULLIF(TRIM(r."Title"), '') IS NULL THEN 0 ELSE 1 END)
@@ -477,7 +320,8 @@ SELECT
     (a.isbn13 IS NULL) AS is_null_isbn_audit,
     si.has_nonnull_isbn_in_section,
     (a.isbn13 IS NULL AND NOT si.has_nonnull_isbn_in_section)
-        AS is_no_adoption_section
+        AS is_no_adoption_section,
+    a.is_section_required_direct
 FROM representative r
 JOIN _cm_key_agg a
   ON r.period_sortable = a.period_sortable
@@ -490,9 +334,6 @@ LEFT JOIN _cm_duplicate_variants v
   ON a.period_sortable = v.period_sortable
  AND a.section_id = v.section_id
  AND a.isbn13 IS NOT DISTINCT FROM v.isbn13
-LEFT JOIN section_enrollment se
-  ON r.period_sortable = se.period_sortable
- AND r.section_id = se.section_id
 LEFT JOIN _cm_isbn_metadata im
   ON r.period_sortable = im.period_sortable
  AND a.isbn13 = im.isbn13;
@@ -507,15 +348,15 @@ CREATE VIEW course_materials_post_2024 AS
 SELECT * FROM course_materials WHERE is_post_2024;
 
 CREATE VIEW course_materials_use AS
-SELECT * FROM course_materials WHERE is_course_material_use;
+SELECT * FROM course_materials_post_2024 WHERE is_course_material_use;
 
 CREATE VIEW course_materials_no_use AS
-SELECT * FROM course_materials WHERE is_course_material_no_use;
+SELECT * FROM course_materials_post_2024 WHERE is_course_material_no_use;
 
 CREATE VIEW course_materials_canada AS
 SELECT *
-FROM course_materials
-WHERE is_course_material_no_use AND is_canada;
+FROM course_materials_no_use
+WHERE is_canada;
 
 -- Raw rows with invalid canonical keys remain preserved and explicitly reported.
 SELECT
@@ -618,19 +459,4 @@ SELECT
 FROM flag_counts f
 CROSS JOIN view_counts v;
 
-SELECT
-    'section_enrollment grain/key DQ' AS metric,
-    COUNT(*) AS rows,
-    COUNT(*) - COUNT(DISTINCT section_id) AS duplicate_rows,
-    COUNT(*) FILTER (WHERE section_id IS NULL OR period_sortable IS NULL) AS key_null_rows,
-    COUNT(*) FILTER (
-        WHERE has_enrollment IS DISTINCT FROM (enrollments IS NOT NULL)
-           OR has_enrollment_own_seats IS DISTINCT FROM
-              (seats_taken IS NOT NULL AND seats_taken < 9999)
-    ) AS raw_flag_violations,
-    COUNT(*) FILTER (WHERE (enrollment_assigned IS NULL) <> (enrollment_source = 'none'))
-        AS assignment_source_violations
-FROM section_enrollment;
-
-ANALYZE section_enrollment;
 ANALYZE course_materials;

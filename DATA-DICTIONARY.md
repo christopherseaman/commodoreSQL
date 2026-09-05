@@ -12,7 +12,7 @@ Generated from canonical `schema.dbml`. Each declared table or view has a separa
 dictionary in schema order. Regenerate with `python3 scripts/generate_data_dictionary.py`.
 The maintained [Master Section deep appendix](MASTER-SECTION-DICTIONARY.md) remains separate.
 
-Declared scope: 37 current, consumed relations and 1,178 fields.
+Declared scope: 36 current, consumed relations and 1,200 fields.
 
 ## External source tables (5 relations)
 
@@ -43,11 +43,11 @@ Current derived helpers used to enrich, select, classify, or aggregate the execu
 | Relation | Kind | Grain / key | Stage |
 |---|---|---|---|
 | [`panel_email`](docs/data-dictionary/panel_email.md) | table | One cleaned email | IMPORT / 0_setup.sql |
-| [`section_book_status`](docs/data-dictionary/section_book_status.md) | table | One period-specific section_id | IMPORT derived / 1b_section_filter.sql |
+| [`section_enrollment`](docs/data-dictionary/section_enrollment.md) | table | One admitted 2024+ term × section with non-NULL derived IDs; UNKNOWN components remain eligible | IMPORT derived / 1b_section_enrollment.sql |
 | [`pricing_wide`](docs/data-dictionary/pricing_wide.md) | table | One section_id × ISBN13 | IMPORT derived / 2c_pricing_wide.sql |
 | [`recent_periods`](docs/data-dictionary/recent_periods.md) | view | One of the latest 12 distinct non-NULL periods | EDA mailing / 3_mailing_lists.sql |
 
-## Canonical outputs (15 relations)
+## Canonical outputs (14 relations)
 
 Current pipeline outputs and population projections used by the release flow.
 
@@ -59,7 +59,6 @@ Current pipeline outputs and population projections used by the release flow.
 | [`course_materials_use`](docs/data-dictionary/course_materials_use.md) | view | Filtered course_materials rows | Canonical materials / 2b_course_materials.sql |
 | [`course_materials_no_use`](docs/data-dictionary/course_materials_no_use.md) | view | Filtered course_materials rows | Canonical materials / 2b_course_materials.sql |
 | [`course_materials_canada`](docs/data-dictionary/course_materials_canada.md) | view | Filtered course_materials rows | Canonical materials / 2b_course_materials.sql |
-| [`section_enrollment`](docs/data-dictionary/section_enrollment.md) | table | One admitted 2024+ term × section with non-NULL derived IDs; UNKNOWN components remain eligible | Canonical sections / 2b_course_materials.sql |
 | [`master_mailing`](docs/data-dictionary/master_mailing.md) | table | One non-NULL, nonblank cleaned email | EDA mailing / 3_mailing_lists.sql |
 | [`current_mailing`](docs/data-dictionary/current_mailing.md) | view | One non-opted-out cleaned email selected in the latest 12 master periods | EDA mailing / 3_mailing_lists.sql |
 | [`material_costs`](docs/data-dictionary/material_costs.md) | table | One canonical Use period × section × ISBN item | EDA records / 3b_material_costs.sql |

@@ -47,7 +47,7 @@ LEGACY_VIEWS = {
     "crosstab_formattype_oeria_sector",
     "crosstab_formattype_oeria_state",
 }
-LEGACY_TABLES = {"data_quality_unmatched_formats", "email_issues"}
+LEGACY_TABLES = {"data_quality_unmatched_formats", "email_issues", "section_book_status"}
 REPLACEABLE_CURRENT_VIEWS = {
     "current_mailing_ca",
     "current_mailing_tx",
@@ -77,8 +77,8 @@ def main() -> None:
         fail(f"cleanup view target set differs: {dropped_views ^ CLEANUP_VIEWS}")
     if dropped_tables != LEGACY_TABLES:
         fail(f"cleanup table target set differs: {dropped_tables ^ LEGACY_TABLES}")
-    if len(drops) != 45:
-        fail(f"cleanup has {len(drops)} drops, expected 45")
+    if len(drops) != 46:
+        fail(f"cleanup has {len(drops)} drops, expected 46")
     if not re.search(r"^BEGIN TRANSACTION;$", cleanup, re.MULTILINE):
         fail("cleanup does not start a transaction")
     if not re.search(r"^COMMIT;$", cleanup, re.MULTILINE):
@@ -105,7 +105,7 @@ def main() -> None:
         '"0b_state_region.sql"',
         '"1_bookprices_import.sql"',
         '"1a_supply_classification.sql"',
-        '"1b_section_filter.sql"',
+        '"1b_section_enrollment.sql"',
         '"2_oer_classification.sql"',
         '"2b_course_materials.sql"',
         '"2c_pricing_wide.sql"',
@@ -165,7 +165,7 @@ def main() -> None:
     if "| Import | `0_cleanup.sql` |" not in (REPO_ROOT / "CMM-ETL.md").read_text():
         fail("CMM-ETL.md omits the cleanup step")
 
-    print("PASS: 45 exact cleanup relations are targeted with no legacy report references.")
+    print("PASS: 46 exact cleanup relations are targeted with no legacy report references.")
 
 
 if __name__ == "__main__":

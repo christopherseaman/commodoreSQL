@@ -40,7 +40,7 @@ IMPORT_SQL=(
     "0b_state_region.sql"
     "1_bookprices_import.sql"
     "1a_supply_classification.sql"
-    "1b_section_filter.sql"
+    "1b_section_enrollment.sql"
     "2_oer_classification.sql"
     "2b_course_materials.sql"
     "2c_pricing_wide.sql"

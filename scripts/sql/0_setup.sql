@@ -5,7 +5,6 @@ ${CONFIG}
 BEGIN TRANSACTION;
 
 -- Clear existing data structures
-DROP TABLE IF EXISTS comprehensive_data;
 DROP TABLE IF EXISTS survey_data;
 DROP TABLE IF EXISTS ipeds_view;
 DROP TABLE IF EXISTS optout_view;
@@ -210,28 +209,6 @@ COPY (
     FROM raw_emails
 ) TO '${OUTPUT_DIR}/email_issues.tsv' (DELIMITER '\t', HEADER);
 
--- Create comprehensive merged dataset
-CREATE TABLE comprehensive_data AS
-SELECT
-    c.*,
-    i.instnm,
-    i.sector,
-    i.iclevel,
-    i.control,
-    i.instsize,
-    i.enroll_24,
-    i.dist_enroll_24,
-    i.inst_type,
-    CASE WHEN o.email IS NOT NULL THEN 1 ELSE 0 END AS is_opted_out,
-    o.source AS opt_out_source,
-    p.panel_response_year,
-    p.panel_source_row_count,
-    p.panel_response_year_variant_count
-FROM ${SURVEY_TABLE} c
-LEFT JOIN ${IPEDS_TABLE} i ON c.unit_id = i.unitid
-LEFT JOIN ${OPTOUT_TABLE} o ON c.email = o.email
-LEFT JOIN panel_email p ON c.email = p.email;
-
 COMMIT;
 
 -- Update query optimization statistics
@@ -240,7 +217,6 @@ ANALYZE ${IPEDS_TABLE};
 ANALYZE ${OPTOUT_TABLE};
 ANALYZE ${PANEL_TABLE};
 ANALYZE panel_email;
-ANALYZE comprehensive_data;
 
 -- =====================================================================
 -- Data Quality checks (console-only — see TODO.md for persistent logging)
@@ -259,20 +235,13 @@ SELECT
     (SELECT COUNT(*) FROM panel_email WHERE panel_response_year_variant_count > 1)
         AS panel_emails_with_multiple_years;
 
-SELECT
-    'Provisional catalog enrichment one-to-one' AS metric,
-    (SELECT COUNT(*) FROM ${SURVEY_TABLE}) AS catalog_source_rows,
-    (SELECT COUNT(*) FROM comprehensive_data) AS enriched_rows,
-    (SELECT COUNT(*) FROM comprehensive_data)
-      - (SELECT COUNT(*) FROM ${SURVEY_TABLE}) AS row_difference;
-
 -- DQ: 'UNKNOWN' segments in composite IDs (silent missing-source-data signal)
 SELECT
     'Catalog composite-key UNKNOWN segments' AS metric,
     COUNT(*) FILTER (WHERE section_id LIKE '%UNKNOWN%') AS section_id_unknown_rows,
     COUNT(*) FILTER (WHERE course_id  LIKE '%UNKNOWN%') AS course_id_unknown_rows,
     COUNT(*) FILTER (WHERE period_sortable IS NULL)     AS null_period_sortable_rows
-FROM comprehensive_data;
+FROM ${SURVEY_TABLE};
 
 -- DQ: IPEDS match — split unmatched into Canadian (no unit_id) vs closed/consolidated US schools
 -- Background: IPEDS_2024.csv covers US institutions only. ~70% of unmatched is by design (CA schools);

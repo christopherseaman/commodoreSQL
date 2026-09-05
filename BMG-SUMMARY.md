@@ -77,8 +77,8 @@ Subsets A/B (BMG)"*; for the data model see `SCHEMA.md` / `schema.dbml`; for pic
 - **Medians, not means** (resist the right-skew of the enrollment distribution); raw `enrollments`
   is never overwritten.
 
-### `has_required` correctness (#40)
-- **`has_required` made supply-aware:** `BOOL_OR(book_status='required' AND NOT is_supply)`, so a
+### `is_required_direct` correctness (#40)
+- **Direct requiredness is supply-aware:** `BOOL_OR(book_status='required' AND NOT is_supply)`, so a
   supply-only "required" item (e.g. safety goggles) no longer hides a co-listed real textbook.
 - **Supply classifier moved to a new upstream stage `1a_`** so `1b_` can consult it.
 - **Shipped alone**, in its own window, ahead of #34/#41 — it was surfaced by adversarial review
@@ -116,8 +116,8 @@ Subsets A/B (BMG)"*; for the data model see `SCHEMA.md` / `schema.dbml`; for pic
   (renamed from `filter_include`), followed by the canonical #58 population booleans and direct
   post-2024 Use/NoUse/Canada views.
 - **`master_section`** is the material-cost-derived section rollup: one row per section represented
-  by canonical `material_costs` Use items, joined to `section_enrollment` for
-  `enrollment_assigned` + `enrollment_source` (#32). Material counts/costs (`material_count`,
+  by canonical `material_costs` Use items. Section enrollment fields arrive through
+  `comprehensive_data` → `course_materials` → `material_costs` (#32). Material counts/costs (`material_count`,
   `required_count`, `optional_count`, OER/IA, coverage, publishers, and the `section_cost`-joined
   cost columns) therefore share the same material-bearing section population. The independent
   `section_enrollment` table retains the broader valid 2024+ section spine.

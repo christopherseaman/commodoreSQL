@@ -9,12 +9,13 @@ ${CONFIG}
 DROP TABLE IF EXISTS material_costs;
 CREATE TABLE material_costs AS
 SELECT
-    -- Preserve the established 112-column Material Costs order. New canonical
-    -- audit fields are appended after has_pricing_match so positional consumers
-    -- of the prior release columns do not see those columns shift.
+    -- Preserve the established Material Costs prefix through has_pricing_match.
+    -- The renamed direct-status fields occupy the two former literal-status slots;
+    -- new section context and existing audits follow the legacy prefix.
     cm.* EXCLUDE (
         panel_source_row_count,
         panel_response_year_variant_count,
+        is_section_required_direct,
         use_source_row_count,
         no_use_source_row_count,
         has_use_source_row,
@@ -61,6 +62,7 @@ SELECT
     pw.price_buy_min,
     pw.price_buy_max,
     (pw.section_id IS NOT NULL) AS has_pricing_match,
+    cm.is_section_required_direct,
     cm.panel_source_row_count,
     cm.panel_response_year_variant_count,
     cm.use_source_row_count,

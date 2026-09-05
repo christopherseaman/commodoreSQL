@@ -85,8 +85,8 @@ notion-sync: push
 | `has_enrollment_sibling_seats` | `boolean` | TRUE or FALSE | Inherited `course_materials.has_enrollment_sibling_seats` via `SELECT *`. | Whether a sibling section reports usable occupied seats. |
 | `enrollment_assigned` | `integer` | Rounded student count from the ladder; raw negatives can propagate | Inherited `course_materials.enrollment_assigned` via `SELECT *`. | Best available section enrollment from the assignment ladder. |
 | `enrollment_source` | `varchar` | `own`, `own_seats`, `sibling_enroll`, `sibling_seats`, `class_median`, `level_median`, or `none` | Inherited `course_materials.enrollment_source` via `SELECT *`. | Assignment-ladder rung that supplied the section enrollment. |
-| `has_book_status_required` | `boolean` | TRUE or FALSE | Inherited `course_materials.has_book_status_required` via `SELECT *`. | Whether grouped rows include explicit required status. |
-| `has_book_status_optional_recommended` | `boolean` | TRUE or FALSE | Inherited `course_materials.has_book_status_optional_recommended` via `SELECT *`. | Whether grouped rows include optional or recommended status. |
+| `is_required_direct` | `boolean` | TRUE or FALSE | Inherited `course_materials.is_required_direct` via `SELECT *`. | Whether direct required evidence is present at the relation grain. |
+| `is_optional_or_recommended_direct` | `boolean` | TRUE or FALSE | Inherited `course_materials.is_optional_or_recommended_direct` via `SELECT *`. | Whether grouped rows include optional or recommended direct-status evidence. |
 | `source_row_count` | `bigint` | Non-negative whole-number count | Inherited `course_materials.source_row_count` via `SELECT *`. | Catalog rows collapsed into the canonical material item. |
 | `title_variant_count` | `bigint` | Non-negative whole-number count | Inherited `course_materials.title_variant_count` via `SELECT *`. | Distinct title variants found within grouped catalog rows. |
 | `author_variant_count` | `bigint` | Non-negative whole-number count | Inherited `course_materials.author_variant_count` via `SELECT *`. | Distinct author variants found within grouped catalog rows. |
@@ -114,3 +114,4 @@ notion-sync: push
 | `is_null_isbn_audit` | `boolean` | TRUE or FALSE | Inherited `course_materials.is_null_isbn_audit` via `SELECT *`. | Whether the row audits a NULL-ISBN source group. |
 | `has_nonnull_isbn_in_section` | `boolean` | TRUE or FALSE | Inherited `course_materials.has_nonnull_isbn_in_section` via `SELECT *`. | Whether the section contains another non-NULL ISBN. |
 | `is_no_adoption_section` | `boolean` | TRUE or FALSE | Inherited `course_materials.is_no_adoption_section` via `SELECT *`. | Whether the section has no non-NULL adopted ISBN. |
+| `is_section_required_direct` | `boolean` | TRUE/FALSE for 2024+ section context; NULL before 2024 | Inherited `course_materials.is_section_required_direct` via `SELECT *`. | Whether the source section has direct required evidence. |

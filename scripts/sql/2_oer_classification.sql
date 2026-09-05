@@ -25,8 +25,7 @@ FROM read_csv('${LOOKUP_DIR}/format_type_lookup.tsv',
 );
 
 -- Supply (non-course-material) ISBN classification (#36) is built upstream now, in
--- 1a_supply_classification.sql (moved there for #40 so 1b_section_filter.sql's
--- has_required can be supply-aware). This file only READS supply_isbn_classification
+-- 1a_supply_classification.sql. This file only READS supply_isbn_classification
 -- (the LEFT JOIN in comprehensive_data below); it no longer rebuilds it.
 
 -- Validate FormatType coverage before processing
@@ -50,7 +49,6 @@ HAVING COUNT(*) > 0;
 -- Add OER, IA, population-contract, and is_required_inferred fields to
 -- comprehensive_data.  The row flags are authoritative: downstream material
 -- models filter is_course_material_use instead of rebuilding the exclusions.
--- Note: comprehensive_data was created as a table in 0_setup.sql, so we need to recreate it
 DROP VIEW IF EXISTS course_materials_canada;
 DROP VIEW IF EXISTS course_materials_no_use;
 DROP VIEW IF EXISTS course_materials_use;
@@ -86,13 +84,29 @@ SELECT
     -- Opt-out data
     CASE WHEN oo.email IS NOT NULL THEN true ELSE false END AS is_opted_out,
     oo.source AS opt_out_source,
-    -- is_required_inferred: period >= 2024 AND book_status matches has_required logic
+    -- Direct requiredness is row-grain; section context comes from the upstream
+    -- section spine. Inference remains its separate 2024+ fallback rule.
+    COALESCE(c.book_status = 'required' AND si.isbn13 IS NULL, FALSE) AS is_required_direct,
+    se.is_required_direct AS is_section_required_direct,
+    se.course_id AS section_course_id,
+    se.control AS section_control,
+    se.level AS section_level,
+    se.sector AS section_sector,
+    se.course_level AS section_course_level,
+    se.enrollments AS section_enrollments,
+    se.seats_taken AS section_seats_taken,
+    se.has_enrollment AS section_has_enrollment,
+    se.has_enrollment_own_seats AS section_has_enrollment_own_seats,
+    se.has_enrollment_sibling AS section_has_enrollment_sibling,
+    se.has_enrollment_sibling_seats AS section_has_enrollment_sibling_seats,
+    se.enrollment_assigned AS section_enrollment_assigned,
+    se.enrollment_source AS section_enrollment_source,
     CASE
         WHEN c.period_date >= '2024-01-01'
          AND (
-             (s.has_required = TRUE  AND c.book_status = 'required')
+             (se.is_required_direct = TRUE  AND c.book_status = 'required')
              OR
-             (s.has_required = FALSE AND c.book_status IS NULL)
+             (se.is_required_direct = FALSE AND c.book_status IS NULL)
          )
         THEN TRUE
         ELSE FALSE
@@ -103,7 +117,9 @@ LEFT JOIN supply_isbn_classification si ON c."ISBN13" = si.isbn13
 LEFT JOIN ipeds_data i ON c.unit_id = i.unitid
 LEFT JOIN panel_email p ON c.email = p.email
 LEFT JOIN opt_out oo ON c.email = oo.email
-LEFT JOIN section_book_status s ON c.section_id = s.section_id
+LEFT JOIN section_enrollment se
+  ON c.period_sortable = se.period_sortable
+ AND c.section_id = se.section_id
 ),
 row_flags AS (
     SELECT

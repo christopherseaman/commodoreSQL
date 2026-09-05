@@ -14,16 +14,16 @@ counts/booleans are non-NULL. DuckDB’s nullable catalog metadata is not this s
 | Column | Business label | Source / derivation | Population / denominator | NULL meaning |
 |---|---|---|---|---|
 | `section_id` | Section-offering ID | Group key from `material_costs`; includes term | Sections | Never NULL |
-| `course_id` | Course ID | Exact `section_enrollment` value; source composite omits section/term | Sections | Missing segments are `UNKNOWN` |
+| `course_id` | Course ID | Section-canonical value inherited through `material_costs`; source composite omits section/term | Sections | Missing segments are `UNKNOWN` |
 | `period` | Academic period | `ANY_VALUE(period)` from `material_costs` | Sections | Valid sortable period required |
 | `period_sortable` | Sortable term | `material_costs` group key (`YYYY-N`) | Sections | Never NULL |
 | `period_date` | Canonical term date | `ANY_VALUE(period_date)` | Sections, 2024+ | Not NULL in retained scope |
 | `unit_id` | IPEDS institution ID | `ANY_VALUE(unit_id)` from `material_costs` | Sections | Missing institution ID |
 | `state` | State/province | `ANY_VALUE(state)` | Sections | Missing geography |
-| `control` | Institution control | Exact `section_enrollment` value | Sections | No matching IPEDS institution |
-| `level` | Institution level | Exact `section_enrollment` value | Sections | No matching IPEDS institution |
+| `control` | Institution control | Section-canonical value inherited through `material_costs` | Sections | No matching IPEDS institution |
+| `level` | Institution level | Section-canonical value inherited through `material_costs` | Sections | No matching IPEDS institution |
 | `size` | Institution size band | `ANY_VALUE(size)` | Sections | No matching IPEDS institution |
-| `sector` | IPEDS sector | Exact `section_enrollment` value | Sections | No matching IPEDS institution |
+| `sector` | IPEDS sector | Section-canonical value inherited through `material_costs` | Sections | No matching IPEDS institution |
 | `institution_name` | Institution name | `ANY_VALUE(institution_name)` | Sections | No matching IPEDS institution |
 | `institution_type` | Institution type | `ANY_VALUE(institution_type)` | Sections | No matching institution/type |
 | `enrollment_2024` | Institution enrollment | `ANY_VALUE(enrollment_2024)` | Sections | No matching IPEDS value |
@@ -33,7 +33,7 @@ counts/booleans are non-NULL. DuckDB’s nullable catalog metadata is not this s
 | `course_number` | Course number | `mode()` of non-NULL `material_costs` value | Items | No source value |
 | `section` | Source section code | `mode()` of non-NULL `material_costs` value | Items | No source value |
 | `course_title` | Course title | `mode()` of non-NULL `material_costs` value | Items | No source value |
-| `course_level` | BMG course level | Exact `section_enrollment` value | Sections | No source value |
+| `course_level` | BMG course level | Section-canonical value inherited through `material_costs` | Sections | No source value |
 | `course_subject` | Course subject | `mode()` of non-NULL `material_costs` value | Items | No source value |
 
 `mode()` flattens occasional within-section conflicts; the pipeline logs divergent sections by
@@ -46,6 +46,7 @@ descriptor and does not deduplicate underlying catalog rows.
 | `material_count` | Material count | `COUNT(*)` over deduplicated `material_costs` | Items | Never NULL/zero |
 | `required_count` | Required count | Count where `is_required_inferred` | Items | Zero means none |
 | `optional_count` | Optional count | Count where not `is_required_inferred` | Items | Zero means none |
+| `is_required_direct` | Direct-required section | `BOOL_OR(is_section_required_direct)` over retained items | Sections | False means no nonsupply literal-required item in the section |
 | `has_course_material_use` | Has included material | Constant true for retained sections | Sections | Never false |
 | `course_material_use_count` | Included-material audit count | Canonical item count (= `material_count`) | Items | Never zero |
 | `course_material_no_use_count` | Excluded-row audit count | Count of `course_materials.is_course_material_no_use` sidecar rows | Retained sections | Zero means none |
@@ -77,14 +78,14 @@ Supply, Canada, NoUse, and placeholder counts are sidecar evidence for retained 
 
 | Column | Business label | Source / derivation | Population / denominator | NULL meaning |
 |---|---|---|---|---|
-| `enrollments` | Reported enrollment | Exact `section_enrollment` value; computed over full population | Sections | Unavailable |
-| `seats_taken` | Reported seats | Exact `section_enrollment` value; raw 9999 retained | Sections | Unavailable |
-| `has_enrollment` | Own-enrollment flag | Exact `section_enrollment` flag | Sections | Never NULL |
-| `has_enrollment_sibling` | Sibling-enrollment flag | Exact `section_enrollment` flag; full-population search | Sections | Never NULL |
-| `has_enrollment_own_seats` | Usable-own-seats flag | Exact `section_enrollment` flag | Sections | Never NULL |
-| `has_enrollment_sibling_seats` | Usable-sibling-seats flag | Exact `section_enrollment` flag; full-population search | Sections | Never NULL |
+| `enrollments` | Reported enrollment | Section-canonical value inherited through `material_costs` | Sections | Unavailable |
+| `seats_taken` | Reported seats | Section-canonical value inherited through `material_costs`; raw 9999 retained | Sections | Unavailable |
+| `has_enrollment` | Own-enrollment flag | Section-canonical flag inherited through `material_costs` | Sections | Never NULL |
+| `has_enrollment_sibling` | Sibling-enrollment flag | Full-population section flag inherited through `material_costs` | Sections | Never NULL |
+| `has_enrollment_own_seats` | Usable-own-seats flag | Section-canonical flag inherited through `material_costs` | Sections | Never NULL |
+| `has_enrollment_sibling_seats` | Usable-sibling-seats flag | Full-population section flag inherited through `material_costs` | Sections | Never NULL |
 | `enrollment_assigned` | Assigned enrollment | First available own enrollment, own seats, sibling medians, control×level median, level median | Sections | No rung; source is `none` |
-| `enrollment_source` | Enrollment provenance | Exact `section_enrollment` label | Sections | Never NULL; values `own`, `own_seats`, `sibling_enroll`, `sibling_seats`, `class_median`, `level_median`, `none` |
+| `enrollment_source` | Enrollment provenance | Section-canonical label inherited through `material_costs` | Sections | Never NULL; values `own`, `own_seats`, `sibling_enroll`, `sibling_seats`, `class_median`, `level_median`, `none` |
 
 Medians are per-term, use the documented four BMG levels and six sectors, and are rounded to
 integers. Raw enrollment fields remain unchanged.

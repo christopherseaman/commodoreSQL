@@ -7,9 +7,9 @@
 --
 -- Source decisions (the supplied workbook and processing notes disagree in places):
 -- * Every rollup count is over material-bearing Master Section rows. Enrollment
---   fields still come from the complete section_enrollment source; raw required is
---   joined when available, and the comprehensive-data supply audit covers excluded
---   rows co-occurring with retained sections. Keeping raw required separate from
+--   fields are inherited through material_costs; direct required context and the
+--   comprehensive-data supply audit cover excluded
+--   rows co-occurring with retained sections. Keeping direct required separate from
 --   inferred required preserves the source contract and exposes the inference rule.
 -- * required_priced_section_count and optional_priced_section_count follow the actual
 --   required/optional status. The source labels Req_priced_count/Opt_priced_count
@@ -25,22 +25,18 @@
 WITH section_flags AS (
     SELECT
         ms.*,
-        COALESCE(sbs.has_required, FALSE) AS has_required,
-        -- section_book_status is section-grain and applies the supply-aware raw
-        -- required rule from 1b_section_filter.sql.
         (ms.material_count > 0) AS has_material,
-        (ms.required_count > 0) AS has_inferred_required,
-        (ms.optional_count > 0) AS has_optional,
+        (ms.required_count > 0) AS is_required_inferred,
+        (ms.optional_count > 0) AS is_optional,
         (ms.supply_count > 0) AS has_supply,
         (ms.oer_count > 0) AS has_oer,
         (ms.ia_count > 0) AS has_ia,
-        (ms.required_priced_count > 0) AS has_required_priced,
-        (ms.optional_priced_count > 0) AS has_optional_priced,
+        (ms.required_priced_count > 0) AS is_required_priced,
+        (ms.optional_priced_count > 0) AS is_optional_priced,
         (ms.isbn_count > 0) AS has_isbn,
         (ms.enrollment_assigned IS NOT NULL) AS has_assigned_enrollment,
         (ms.seats_taken IS NOT NULL AND ms.seats_taken < 9999) AS has_valid_seats
     FROM master_section ms
-    LEFT JOIN section_book_status sbs USING (section_id)
     WHERE ms.period_sortable IS NOT NULL
 ),
 url_counts AS (
@@ -89,14 +85,14 @@ institution_rollup AS (
         COUNT(*) FILTER (WHERE course_level = 'Uncategorized') AS uncategorized_section_count,
         COUNT(DISTINCT course_id) AS course_count,
         COUNT(*) FILTER (WHERE has_material) AS material_section_count,
-        COUNT(*) FILTER (WHERE has_required) AS required_section_count,
-        COUNT(*) FILTER (WHERE has_inferred_required) AS inferred_required_section_count,
-        COUNT(*) FILTER (WHERE has_optional) AS optional_section_count,
+        COUNT(*) FILTER (WHERE is_required_direct) AS required_section_count,
+        COUNT(*) FILTER (WHERE is_required_inferred) AS inferred_required_section_count,
+        COUNT(*) FILTER (WHERE is_optional) AS optional_section_count,
         COUNT(*) FILTER (WHERE has_supply) AS supply_section_count,
         COUNT(*) FILTER (WHERE has_oer) AS oer_section_count,
         COUNT(*) FILTER (WHERE has_ia) AS ia_section_count,
-        COUNT(*) FILTER (WHERE has_required_priced) AS required_priced_section_count,
-        COUNT(*) FILTER (WHERE has_optional_priced) AS optional_priced_section_count,
+        COUNT(*) FILTER (WHERE is_required_priced) AS required_priced_section_count,
+        COUNT(*) FILTER (WHERE is_optional_priced) AS optional_priced_section_count,
         COUNT(*) FILTER (WHERE has_isbn) AS isbn_section_count,
         COUNT(*) FILTER (WHERE has_assigned_enrollment) AS enrollment_section_count,
         COUNT(*) FILTER (WHERE has_valid_seats) AS seats_taken_section_count,

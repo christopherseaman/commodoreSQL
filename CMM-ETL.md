@@ -38,9 +38,9 @@ Releases record filenames, snapshot dates, pipeline commit, and configuration. S
 | Import | `0b_state_region.sql` | Build lookup; `CAN` maps to `Other`; facts are not materialized with region fields. |
 | Import | `1_bookprices_import.sql` | Deduplicate byte-identical and instructor-only variants; retain latest `pricing_date` at natural key and aggregate instructors. |
 | Import | `1a_supply_classification.sql` | Classify 2024+ ISBNs by title keywords; blank/unmatched ISBNs are not supplies. |
-| Import | `1b_section_filter.sql` | One `section_book_status` row per catalog section; `has_required` is any required non-supply item. |
+| Import | `1b_section_enrollment.sql` | Build valid 2024+ `section_enrollment`: supply-aware section directness and the established enrollment assignment ladder. |
 | Import | `2_oer_classification.sql` | Rebuild `comprehensive_data` at normalized BMG row grain with IPEDS, lookup, panel, opt-out, required, and population flags. |
-| Import | `2b_course_materials.sql` | Build complete 2024+ `section_enrollment` spine, canonical `course_materials`, and population views. |
+| Import | `2b_course_materials.sql` | Build canonical `course_materials` and population views from enriched source rows. |
 | Import | `2c_pricing_wide.sql` | Pivot to one `(section_id,isbn13)` row with 18 price cells and rental bounds. |
 | Import | `2d_data_quality.sql` | Materialize import-state metrics/drill-downs and non-mutating pricing/catalog comparisons; diagnostics are not release denominators. |
 | EDA | `3_mailing_lists.sql` | Build Master and Working mailing relations; seven geographic exports filter `current_mailing` directly. |
@@ -49,7 +49,7 @@ Releases record filenames, snapshot dates, pipeline commit, and configuration. S
 | Models | `scripts/sql/models/*.sql` | Materialize discovered models including `master_institution`, `master_isbn`, and `sample10_section_ids`. |
 | Exports | `scripts/sql/exports/*.sql` | Unless `NO_EXPORT`, run lexical wrappers to `output/<basename>.csv`; standalone exporters are separate. |
 
-The intended database has 37 DBML-managed relations (28 tables, nine views): 27 executable-flow relations, seven DQ sidecars, and three report/export views. Retired relations are removed by cleanup.
+The intended database has 36 DBML-managed relations (27 tables, nine views): 26 executable-flow relations, seven DQ sidecars, and three report/export views. Retired relations are removed by cleanup.
 
 ## Grains and lineage
 
@@ -63,7 +63,7 @@ The intended database has 37 DBML-managed relations (28 tables, nine views): 27 
 | `pricing_wide` | One `(section_id,isbn13)` source-owned pivot; no catalog/IPEDS/OER/IA/required enrichment. |
 | `material_costs` | One canonical Use `(period_sortable,section_id,isbn13)`; catalog spine LEFT-enriched from pricing; unmatched/unpriced remain. |
 | `section_cost` | One material-bearing `(period_sortable,section_id)`; cost bounds from `material_costs`. |
-| `master_section` | One section represented in `material_costs`; dimensions/enrollment from `section_enrollment`, costs from `section_cost`. |
+| `master_section` | One section represented in `material_costs`; inherited section dimensions/enrollment and costs from `section_cost`. |
 | `master_course` | One `(course_id,period_sortable)` material-bearing course rollup. |
 | `master_course_material` | One exact group `(course_id,period,period_sortable,period_date,school,department,course_number,course_title,publisher,book_status)`; filters NULL course, publisher, sortable period. |
 | `master_institution` | One `(period_sortable,unit_id)`, including NULL unit bucket; bookstore URL is same-term pricing exception. |
@@ -80,7 +80,8 @@ The intended database has 37 DBML-managed relations (28 tables, nine views): 27 
 - Use: 2024+, non-Canada, non-NULL ISBN, non-supply, not `*No Book Details*`, and not `*No Books Required*`/`placeholder_no_material`.
 - NoUse is the exact post-2024 complement; both flags are false before 2024. Canada is a separately exposed NoUse subset. Exclusion flags may overlap.
 - `material_costs` preserves every canonical Use item. `master_section` is material-bearing only, not the complete section denominator.
-- Required inference is true for 2024+ rows when a section has a non-supply required item and `book_status='required'`, or has none and `book_status` is NULL. Raw pricing status/required remain source-owned.
+- `is_required_direct` records literal required, non-supply evidence at row/item grain; `is_section_required_direct` carries section context through finer-grain tables.
+- `is_required_inferred` is true for 2024+ rows when a section has direct required evidence and `book_status='required'`, or has none and `book_status` is NULL. Raw pricing status/required remain source-owned.
 - Fall 2025 Set A/B uses four course levels (introductory/general undergraduate, intermediate undergraduate, non-degree credit, uncategorized) and six public/private nonprofit/private for-profit × two-/four-year sector labels. A: `required_count >= 1`; B: `required_count = 0`, optional-only, not no-adoption.
 - `master_section_us_intro_fall2025`: `period_sortable='2025-4'`, `required_count>=1`, introductory/intermediate, and `state NOT IN ('CAN','')`; NULL state excluded. This is a non-Canada/nonblank proxy, not a country test.
 

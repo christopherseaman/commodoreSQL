@@ -179,17 +179,6 @@ Table supply_isbn_classification {
   Note: 'Created by 1a_supply_classification.sql. One row per classified ISBN. A title variant qualifies when lowercase substring matching finds an include pattern and no exclude pattern; any qualifying 2024+ title variant can place the ISBN in this table. Attribution prefers specific rules over generic >supply</>suppy< fallbacks, then longest-pattern and stable lexical tie-breaks; this does not change Use/NoUse membership.'
 }
 
-Table section_book_status {
-  section_id varchar [pk]
-  has_required boolean [note: '#40 supply-aware: TRUE if section has any required-status NON-SUPPLY material (BOOL_OR(book_status=required AND NOT is_supply)). A supply-only required item no longer forces TRUE, so a co-listed blank-status real textbook keeps the required fallback.']
-
-  indexes {
-    section_id [name: 'idx_sbs_section']
-  }
-
-  Note: 'One row per section_id. Drives catalog-side is_required_inferred logic in comprehensive_data only. has_required is supply-aware (#40); built in 1a_/1b_ after supply_isbn_classification.'
-}
-
 Table state_region {
   state varchar [pk, note: '2-letter code (matches catalog/ipeds state)']
   region varchar [note: 'US Census region: Northeast, Midwest, South, West (+ Outlying Areas, Other)']
@@ -294,8 +283,23 @@ Table comprehensive_data {
   panel_response_year_variant_count bigint [note: 'number of distinct response years for this email']
   is_opted_out boolean
   opt_out_source varchar
-  // -- Filter --
-  is_required_inferred boolean [note: 'period>=2024 AND book_status matches has_required logic']
+  // -- Section-owned directness and row flags --
+  is_required_direct boolean [note: 'this row is literal required and nonsupply; pre-2024 rows may be true']
+  is_section_required_direct boolean [note: '2024+ section context from section_enrollment; NULL before 2024']
+  section_course_id varchar
+  section_control varchar
+  section_level varchar
+  section_sector varchar
+  section_course_level varchar
+  section_enrollments integer
+  section_seats_taken integer
+  section_has_enrollment boolean
+  section_has_enrollment_own_seats boolean
+  section_has_enrollment_sibling boolean
+  section_has_enrollment_sibling_seats boolean
+  section_enrollment_assigned integer
+  section_enrollment_source varchar
+  is_required_inferred boolean [note: '2024+ required/blank-status fallback using section directness']
   is_post_2024 boolean [note: 'period_date >= 2024-01-01; NULL dates are false']
   has_isbn boolean [note: 'Row has non-NULL ISBN13 (#20 retains false rows in the section spine)']
   has_formattype boolean [note: 'Row has nonblank FormatType']
@@ -381,8 +385,8 @@ Table course_materials [note: 'table'] {
   has_enrollment_sibling_seats boolean
   enrollment_assigned integer
   enrollment_source varchar
-  has_book_status_required boolean
-  has_book_status_optional_recommended boolean
+  is_required_direct boolean
+  is_optional_or_recommended_direct boolean
   source_row_count bigint
   title_variant_count bigint
   author_variant_count bigint
@@ -410,8 +414,9 @@ Table course_materials [note: 'table'] {
   is_null_isbn_audit boolean
   has_nonnull_isbn_in_section boolean
   is_no_adoption_section boolean
+  is_section_required_direct boolean [note: 'TRUE/FALSE for 2024+ section context; NULL before 2024']
 
-  Note: 'Created by 2b_course_materials.sql. First canonical processed table: 96,663,781 rows, one row per (period_sortable, section_id, isbn13), plus one NULL-ISBN audit row per section when present. Built from comprehensive_data and section_enrollment; retains source/variant/conflict evidence and canonical population flags. The validated source_row_count sum is 102,885,609.'
+  Note: 'Created by 2b_course_materials.sql. First canonical processed table: 96,663,781 rows, one row per (period_sortable, section_id, isbn13), plus one NULL-ISBN audit row per section when present. Built from comprehensive_data; retains source/variant/conflict evidence and canonical population flags. The validated source_row_count sum is 102,885,609.'
 }
 
 // Canonical Course Materials views have the same columns as course_materials.
@@ -486,8 +491,8 @@ Table course_materials_post_2024 [note: 'view'] {
   has_enrollment_sibling_seats boolean
   enrollment_assigned integer
   enrollment_source varchar
-  has_book_status_required boolean
-  has_book_status_optional_recommended boolean
+  is_required_direct boolean
+  is_optional_or_recommended_direct boolean
   source_row_count bigint
   title_variant_count bigint
   author_variant_count bigint
@@ -515,6 +520,7 @@ Table course_materials_post_2024 [note: 'view'] {
   is_null_isbn_audit boolean
   has_nonnull_isbn_in_section boolean
   is_no_adoption_section boolean
+  is_section_required_direct boolean
   Note: 'Direct projection of course_materials WHERE is_post_2024.'
 }
 
@@ -589,8 +595,8 @@ Table course_materials_use [note: 'view'] {
   has_enrollment_sibling_seats boolean
   enrollment_assigned integer
   enrollment_source varchar
-  has_book_status_required boolean
-  has_book_status_optional_recommended boolean
+  is_required_direct boolean
+  is_optional_or_recommended_direct boolean
   source_row_count bigint
   title_variant_count bigint
   author_variant_count bigint
@@ -618,7 +624,8 @@ Table course_materials_use [note: 'view'] {
   is_null_isbn_audit boolean
   has_nonnull_isbn_in_section boolean
   is_no_adoption_section boolean
-  Note: 'Direct projection of course_materials WHERE is_course_material_use.'
+  is_section_required_direct boolean
+  Note: 'Direct projection of course_materials_post_2024 WHERE is_course_material_use.'
 }
 
 Table course_materials_no_use [note: 'view'] {
@@ -692,8 +699,8 @@ Table course_materials_no_use [note: 'view'] {
   has_enrollment_sibling_seats boolean
   enrollment_assigned integer
   enrollment_source varchar
-  has_book_status_required boolean
-  has_book_status_optional_recommended boolean
+  is_required_direct boolean
+  is_optional_or_recommended_direct boolean
   source_row_count bigint
   title_variant_count bigint
   author_variant_count bigint
@@ -721,7 +728,8 @@ Table course_materials_no_use [note: 'view'] {
   is_null_isbn_audit boolean
   has_nonnull_isbn_in_section boolean
   is_no_adoption_section boolean
-  Note: 'Direct projection of course_materials WHERE is_course_material_no_use.'
+  is_section_required_direct boolean
+  Note: 'Direct projection of course_materials_post_2024 WHERE is_course_material_no_use.'
 }
 
 Table course_materials_canada [note: 'view'] {
@@ -795,8 +803,8 @@ Table course_materials_canada [note: 'view'] {
   has_enrollment_sibling_seats boolean
   enrollment_assigned integer
   enrollment_source varchar
-  has_book_status_required boolean
-  has_book_status_optional_recommended boolean
+  is_required_direct boolean
+  is_optional_or_recommended_direct boolean
   source_row_count bigint
   title_variant_count bigint
   author_variant_count bigint
@@ -824,7 +832,8 @@ Table course_materials_canada [note: 'view'] {
   is_null_isbn_audit boolean
   has_nonnull_isbn_in_section boolean
   is_no_adoption_section boolean
-  Note: 'Direct projection of course_materials WHERE is_course_material_no_use AND is_canada.'
+  is_section_required_direct boolean
+  Note: 'Direct projection of course_materials_no_use WHERE is_canada.'
 }
 
 Table section_enrollment {
@@ -835,8 +844,9 @@ Table section_enrollment {
   level varchar [note: 'section-canonical scope dimension reused by material_costs']
   sector varchar [note: 'section-canonical scope dimension reused by material_costs']
   course_level varchar [note: 'section mode with lexical tie-break; reused by material_costs for section-scope consistency']
-  enrollments integer [note: 'raw catalog enrollment; never overwritten']
-  seats_taken integer [note: 'raw catalog seats; 9999 is invalid']
+  enrollments integer [note: 'MAX of raw catalog enrollment within the section; source rows remain unchanged']
+  seats_taken integer [note: 'MAX of raw catalog seats within the section; 9999 is invalid']
+  is_required_direct boolean [note: 'any literal required nonsupply item in the section']
   has_enrollment boolean
   has_enrollment_sibling boolean
   has_enrollment_own_seats boolean
@@ -844,7 +854,7 @@ Table section_enrollment {
   enrollment_assigned integer [note: 'Exact section enrollment after the documented own/seats/sibling/median hierarchy; NULL only when no rung is available']
   enrollment_source varchar [note: '`own`, `own_seats`, `sibling_enroll`, `sibling_seats`, `class_median`, `level_median`, or `none`']
 
-  Note: 'Created by 2b_course_materials.sql. Materialized one row per valid 2024+ (period_sortable, section_id), currently 23,580,550 rows. Owns the complete section population, authoritative raw enrollment/flags, section-scope dimensions, and assigned-enrollment value/provenance. course_materials and material_costs consume its section fields; master_section joins the retained material-bearing subset.'
+  Note: 'Created by 1b_section_enrollment.sql. Materialized one row per valid 2024+ (period_sortable, section_id). Owns the complete section population, supply-aware direct requiredness, authoritative raw enrollment/flags, section-scope dimensions, and assigned-enrollment value/provenance. comprehensive_data inherits its section fields.'
 }
 
 // ---------------------------------------------------------------------------
@@ -969,8 +979,8 @@ Table material_costs {
   has_enrollment_sibling_seats boolean
   enrollment_assigned integer
   enrollment_source varchar
-  has_book_status_required boolean
-  has_book_status_optional_recommended boolean
+  is_required_direct boolean [note: 'item-grain literal required nonsupply evidence']
+  is_optional_or_recommended_direct boolean [note: 'item-grain optional/recommended literal-status evidence']
   source_row_count bigint [note: 'source catalog rows collapsed into this section-term-ISBN item']
   title_variant_count bigint [note: 'distinct nonblank catalog title values; conflict signal']
   author_variant_count bigint [note: 'distinct nonblank catalog author values; conflict signal']
@@ -1013,6 +1023,7 @@ Table material_costs {
   price_buy_min decimal(10,2)
   price_buy_max decimal(10,2)
   has_pricing_match boolean [note: 'TRUE when the LEFT pricing_wide join found a section/ISBN row; independent of whether that row has a valid price_min']
+  is_section_required_direct boolean [note: 'section-grain direct-required context inherited from comprehensive_data']
   panel_source_row_count bigint [note: 'appended canonical panel multiplicity audit from panel_email']
   panel_response_year_variant_count bigint [note: 'appended canonical panel response-year variant audit']
   use_source_row_count bigint [note: 'appended canonical Use source-row count']
@@ -1031,7 +1042,7 @@ Table material_costs {
   has_nonnull_isbn_in_section boolean [note: 'appended section has another non-NULL ISBN']
   is_no_adoption_section boolean [note: 'appended section has no non-NULL ISBN adoption']
 
-  Note: 'Created by 3b_material_costs.sql. TABLE (materialized), one row per (period_sortable, section_id, isbn13) canonical Use item. Built from course_materials_use and LEFT-enriched from source-owned pricing_wide on the current exact section × ISBN join, so items without usable prices remain. Catalog attributes are never sourced from pricing. The 17 canonical panel/audit fields above append after has_pricing_match (129 total columns). Established current baseline: 12,806,060 rows. Detailed matching evidence is centralized in CMM-ETL.md issue #21 limitation.'
+  Note: 'Created by 3b_material_costs.sql. TABLE (materialized), one row per (period_sortable, section_id, isbn13) canonical Use item. Built from course_materials_use and LEFT-enriched from source-owned pricing_wide on the current exact section × ISBN join, so items without usable prices remain. Catalog attributes are never sourced from pricing. Renamed direct-status fields preserve the two former status slots; section context and 17 audit fields append after has_pricing_match (130 total columns). Established current baseline: 12,806,060 rows. Detailed matching evidence is centralized in CMM-ETL.md issue #21 limitation.'
 }
 
 Table section_cost {
@@ -1058,7 +1069,7 @@ Table master_section [note: 'table'] {
   period varchar
   period_sortable varchar
   period_date date
-  // -- material-owned institution fields plus exact section_enrollment dimensions --
+  // -- material-owned institution fields plus inherited section-canonical dimensions --
   unit_id bigint
   state varchar
   control varchar
@@ -1114,6 +1125,7 @@ Table master_section [note: 'table'] {
   //    over the reference population (4 BMG course levels x 6 teaching sectors). --
   enrollment_assigned integer [note: '#32: filled enrollment. own -> own_seats(<9999) -> sibling_enroll -> sibling_seats -> class_median(control x level) -> level_median. NULL only when enrollment_source=none']
   enrollment_source varchar [note: 'Fill rung for enrollment_assigned: `own`, `own_seats`, `sibling_enroll`, `sibling_seats`, `class_median`, `level_median`, or `none`']
+  is_required_direct boolean [note: 'section-grain supply-aware direct requiredness inherited from material_costs context']
   required_cost_total_min decimal(38,2) [note: 'SUM of per-material price_min over distinct required materials (from section_cost)']
   required_cost_total_max decimal(38,2)
   optional_cost_total_min decimal(38,2)
@@ -1128,7 +1140,7 @@ Table master_section [note: 'table'] {
   required_priced_count bigint [note: 'distinct required materials with ANY price (total coverage; NOT owned-only — can be >0 while owned cost is NULL when priced materials are rental-only)']
   optional_priced_count bigint
 
-  Note: 'TABLE (materialized), currently 6,983,049 rows. Exactly one row per distinct (period_sortable, section_id) in material_costs. Material/OER/coverage/publisher fields aggregate canonical material_costs items; price/cost fields join from section_cost; section dimensions and assigned enrollment join from section_enrollment. Supply, NoUse, Canada, and placeholder fields are course_materials sidecar audits limited to retained material-bearing sections. Validated post-#65 canonical sidecar totals: NoUse 78,230; no_details 25,993; no_materials 145; supply 52,237. Complete-population denominators remain in section_enrollment. DATA-DICTIONARY.md is the authoritative full column dictionary; its embedded MASTER-SECTION-DICTIONARY.md appendix owns the detailed business/NULL/denominator contract.'
+  Note: 'TABLE (materialized), currently 6,983,049 rows. Exactly one row per distinct (period_sortable, section_id) in material_costs. Material/OER/coverage/publisher fields aggregate canonical material_costs items; price/cost fields join from section_cost; section fields are inherited through material_costs. Supply, NoUse, Canada, and placeholder fields are course_materials sidecar audits limited to retained material-bearing sections. Validated post-#65 canonical sidecar totals: NoUse 78,230; no_details 25,993; no_materials 145; supply 52,237. Complete-population denominators remain in section_enrollment. DATA-DICTIONARY.md is the authoritative full column dictionary; its embedded MASTER-SECTION-DICTIONARY.md appendix owns the detailed business/NULL/denominator contract.'
 }
 
 Table master_course [note: 'view'] {
@@ -1260,6 +1272,7 @@ Table master_section_us_intro_fall2025 [note: 'view'] {
   has_enrollment_sibling_seats boolean
   enrollment_assigned integer
   enrollment_source varchar
+  is_required_direct boolean
   required_cost_total_min decimal(38,2)
   required_cost_total_max decimal(38,2)
   optional_cost_total_min decimal(38,2)
@@ -1301,7 +1314,7 @@ Table master_institution {
   uncategorized_section_count bigint
   course_count bigint
   material_section_count bigint [note: 'Sections with at least one canonical Use material; equals section_count under the current Master Section population']
-  required_section_count bigint [note: 'Material-bearing sections with supply-aware raw section_book_status.has_required']
+  required_section_count bigint [note: 'Material-bearing sections with supply-aware master_section.is_required_direct']
   inferred_required_section_count bigint [note: 'Sections with master_section.required_count > 0']
   optional_section_count bigint
   supply_section_count bigint
@@ -1384,12 +1397,10 @@ Table sample10_section_ids {
 // catalog → dimension/lookup tables (referenced col is PK)
 Ref: course_catalog_20251215.FormatType > format_type_classification.FormatType
 Ref: course_catalog_20251215.unit_id > ipeds_data.unitid
-Ref: course_catalog_20251215.section_id > section_book_status.section_id
 
 // comprehensive_data → dimension/lookup tables
 Ref: comprehensive_data.FormatType > format_type_classification.FormatType
 Ref: comprehensive_data.unit_id > ipeds_data.unitid
-Ref: comprehensive_data.section_id > section_book_status.section_id
 Ref: comprehensive_data.email > opt_out.email
 Ref: comprehensive_data.email > panel.email
 Ref: comprehensive_data.email > panel_email.email
@@ -1402,14 +1413,11 @@ Ref: current_mailing.period_sortable > recent_periods.period_sortable
 // course_materials is built from comprehensive_data and material_costs is LEFT-enriched by pricing_wide;
 // section_cost and master_isbn consume material_costs. Distinct material_costs
 // (period_sortable, section_id) keys define master_section exactly; master_section then
-// joins section_enrollment on that explicit key and section_cost 1:1.
-Ref: section_enrollment.section_id > section_book_status.section_id
-Ref: course_materials.section_id > section_enrollment.section_id
-Ref: material_costs.section_id > section_book_status.section_id
+// inherits section fields through comprehensive_data and section_cost 1:1.
+Ref: comprehensive_data.section_id > section_enrollment.section_id
 Ref: material_costs.section_id > course_materials.section_id
 
 // aggregated views
-Ref: master_section.section_id > section_book_status.section_id
 Ref: master_section.(course_id, period_sortable) > master_course.(course_id, period_sortable)
 Ref: master_course_material.(course_id, period_sortable) > master_course.(course_id, period_sortable)
 
@@ -1429,9 +1437,9 @@ TableGroup import_sources {
 TableGroup import_derived {
   panel_email
   supply_isbn_classification
-  section_book_status
   state_region
   pricing_wide
+  section_enrollment
   comprehensive_data
   course_materials
   course_materials_post_2024
@@ -1447,7 +1455,6 @@ TableGroup eda_mailing {
 }
 
 TableGroup eda_records {
-  section_enrollment
   material_costs
   section_cost
   master_section

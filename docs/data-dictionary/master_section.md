@@ -11,22 +11,22 @@ notion-sync: push
 - Relation kind: table
 - Grain / key: One material-bearing period × section
 - Pipeline stage: EDA records / 4_merged_records.sql
-- Direct upstream relations: `material_costs`, `section_cost`, `section_enrollment`, `course_materials`
+- Direct upstream relations: `material_costs`, `section_cost`, `course_materials`
 - Deep appendix: [Master Section release dictionary](../../MASTER-SECTION-DICTIONARY.md)
 
 | Column | Type | Example / structure | Direct upstream source / derivation | Description |
 |---|---|---|---|---|
 | `section_id` | `varchar` | `course_id::section-code::period_sortable` composite | Group key from `material_costs.section_id`; includes term | Period-specific identifier for the distinct section offering. |
-| `course_id` | `varchar` | `unit_id::department-code::course-number` composite | Exact `section_enrollment` value; source composite omits section/term | Stable identifier for the institution-level course offering. |
+| `course_id` | `varchar` | `unit_id::department-code::course-number` composite | Section-canonical value inherited through `material_costs`; source composite omits section/term | Stable identifier for the institution-level course offering. |
 | `period` | `varchar` | Academic term label such as `Fall 2024` | `ANY_VALUE(material_costs.period)` | Human-readable academic term label from the source. |
 | `period_sortable` | `varchar` | `YYYY-N`; 1=Winter, 2=Spring, 3=Summer, 4=Fall | `material_costs` group key (`YYYY-N`) | Sortable academic term code used for chronological ordering. |
 | `period_date` | `date` | Canonical date: YYYY-01-01, YYYY-04-01, YYYY-07-01, or YYYY-10-01 | `ANY_VALUE(period_date)` | Canonical starting date assigned to the academic term. |
 | `unit_id` | `bigint` | IPEDS institution identifier | `ANY_VALUE(material_costs.unit_id)` | IPEDS institution identifier used throughout the pipeline. |
 | `state` | `varchar` | Normalized state or province code, such as `CA` or `CAN` | `ANY_VALUE(state)` | State or province code for the institution. |
-| `control` | `varchar` | IPEDS label such as `Public` or `Private not-for-profit` | Exact `section_enrollment` value | Institution ownership and governance classification used for reporting. |
-| `level` | `varchar` | IPEDS label such as `Four or more years` | Exact `section_enrollment` value | IPEDS award-level classification for the institution. |
+| `control` | `varchar` | IPEDS label such as `Public` or `Private not-for-profit` | Section-canonical value inherited through `material_costs` | Institution ownership and governance classification used for reporting. |
+| `level` | `varchar` | IPEDS label such as `Four or more years` | Section-canonical value inherited through `material_costs` | IPEDS award-level classification for the institution. |
 | `size` | `varchar` | IPEDS size-band label, such as `20,000 and above` | `ANY_VALUE(size)` | IPEDS institutional enrollment-size classification used for reporting. |
-| `sector` | `varchar` | IPEDS sector descriptor, such as `Public, 4-year or above` | Exact `section_enrollment` value | IPEDS sector classification for the institution. |
+| `sector` | `varchar` | IPEDS sector descriptor, such as `Public, 4-year or above` | Section-canonical value inherited through `material_costs` | IPEDS sector classification for the institution. |
 | `institution_name` | `varchar` | Official IPEDS institution-name text | `ANY_VALUE(institution_name)` | Canonical institution name supplied by IPEDS. |
 | `institution_type` | `varchar` | Derived institution-type category label | `ANY_VALUE(institution_type)` | Derived institution type used for reporting groups. |
 | `enrollment_2024` | `integer` | Non-negative 2024 student count; NULL when unavailable | `ANY_VALUE(enrollment_2024)` | Total institutional enrollment reported to IPEDS for 2024. |
@@ -36,7 +36,7 @@ notion-sync: push
 | `course_number` | `varchar` | Source course number; zeros/suffixes retained | `mode()` of non-NULL `material_costs` value | Catalog number identifying the course within its department. |
 | `section` | `varchar` | Source section code; zeros/punctuation retained | `mode()` of non-NULL `material_costs` value | Source code distinguishing sections of the same course. |
 | `course_title` | `varchar` | Course title; source punctuation/casing retained | `mode()` of non-NULL `material_costs` value | Official title assigned to the course. |
-| `course_level` | `varchar` | Category such as `Introductory or general undergraduate` | Exact `section_enrollment` value | Instructional level assigned to the course. |
+| `course_level` | `varchar` | Category such as `Introductory or general undergraduate` | Section-canonical value inherited through `material_costs` | Instructional level assigned to the course. |
 | `course_subject` | `varchar` | Source subject, such as `Biology` | `mode()` of non-NULL `material_costs` value | Subject area assigned to the course. |
 | `material_count` | `bigint` | COUNT of canonical material_costs section×ISBN items; always >0 | `COUNT(*)` over deduplicated `material_costs` | Canonical course-material items within the section. |
 | `required_count` | `bigint` | COUNT of material_costs items WHERE is_required_inferred; A/B split key | Count where `is_required_inferred` | Required materials within the canonical section. |
@@ -57,18 +57,19 @@ notion-sync: push
 | `required_publishers` | `varchar[]` | LIST(DISTINCT publisher) WHERE required | Distinct publisher list where required | Distinct publishers of required materials within the section. |
 | `required_publisher_count` | `bigint` | Non-negative whole-number count | Distinct publisher count where required | Distinct publishers of required materials within the section. |
 | `optional_publisher_count` | `bigint` | Non-negative whole-number count | Distinct publisher count where optional | Distinct publishers of optional materials within the section. |
-| `enrollments` | `integer` | Reported student count; source noise can include negative values | Exact `section_enrollment` value; computed over full population | Enrollment reported directly for the course section. |
-| `seats_taken` | `integer` | Reported occupied seats; `9999` is the source sentinel | Exact `section_enrollment` value; raw 9999 retained | Occupied seats reported for the course section. |
+| `enrollments` | `integer` | Reported student count; source noise can include negative values | Section-canonical value inherited through `material_costs` | Enrollment reported directly for the course section. |
+| `seats_taken` | `integer` | Reported occupied seats; `9999` is the source sentinel | Section-canonical value inherited through `material_costs`; raw 9999 retained | Occupied seats reported for the course section. |
 | `has_isbn` | `boolean` | BOOL_OR(has_isbn) over canonical items; true under the current Use contract | `BOOL_OR(has_isbn)` over Items | Whether the material has a non-NULL ISBN. |
 | `has_formattype` | `boolean` | BOOL_OR(FormatType present) over canonical items; OER/IA classifiability flag | `BOOL_OR(has_formattype)` over Items | Whether the material has a nonblank FormatType classification. |
 | `isbn_count` | `bigint` | canonical ISBN items; currently equals material_count | Count of Items with ISBN (= `material_count` currently) | ISBN-bearing materials within the aggregation group. |
 | `classified_count` | `bigint` | canonical items carrying a FormatType | Count of Items with nonblank FormatType | Materials having a nonblank FormatType classification. |
-| `has_enrollment` | `boolean` | section carries its own enrollment | Exact `section_enrollment` flag | Whether usable enrollment information is available. |
-| `has_enrollment_sibling` | `boolean` | another section of the same course+period has enrollment | Exact `section_enrollment` flag; full-population search | Whether a sibling section reports enrollment. |
-| `has_enrollment_own_seats` | `boolean` | this section has usable seats_taken (<9999) | Exact `section_enrollment` flag | Whether the section reports usable occupied seats. |
-| `has_enrollment_sibling_seats` | `boolean` | a sibling section has usable seats_taken | Exact `section_enrollment` flag; full-population search | Whether a sibling section reports usable occupied seats. |
+| `has_enrollment` | `boolean` | section carries its own enrollment | Section-canonical flag inherited through `material_costs` | Whether usable enrollment information is available. |
+| `has_enrollment_sibling` | `boolean` | another section of the same course+period has enrollment | Full-population section flag inherited through `material_costs` | Whether a sibling section reports enrollment. |
+| `has_enrollment_own_seats` | `boolean` | this section has usable seats_taken (<9999) | Section-canonical flag inherited through `material_costs` | Whether the section reports usable occupied seats. |
+| `has_enrollment_sibling_seats` | `boolean` | a sibling section has usable seats_taken | Full-population section flag inherited through `material_costs` | Whether a sibling section reports usable occupied seats. |
 | `enrollment_assigned` | `integer` | Rounded student count from the ladder; raw negatives can propagate | First available own enrollment, own seats, sibling medians, control×level median, level median | Best available section enrollment from the assignment ladder. |
-| `enrollment_source` | `varchar` | Fill rung for enrollment_assigned: `own`, `own_seats`, `sibling_enroll`, `sibling_seats`, `class_median`, `level_median`, or `none` | Exact `section_enrollment` label | Assignment-ladder rung that supplied the section enrollment. |
+| `enrollment_source` | `varchar` | Fill rung for enrollment_assigned: `own`, `own_seats`, `sibling_enroll`, `sibling_seats`, `class_median`, `level_median`, or `none` | Section-canonical label inherited through `material_costs` | Assignment-ladder rung that supplied the section enrollment. |
+| `is_required_direct` | `boolean` | section-grain supply-aware direct requiredness inherited from material_costs context | `BOOL_OR(is_section_required_direct)` over retained items | Whether direct required evidence is present at the relation grain. |
 | `required_cost_total_min` | `decimal(38,2)` | USD amount such as `123.45`; stored as `DECIMAL(38,2)` | Sum required Use ISBN `price_min` | Lower total cost bound for required materials. |
 | `required_cost_total_max` | `decimal(38,2)` | USD amount such as `123.45`; stored as `DECIMAL(38,2)` | Sum required Use ISBN `price_max` | Upper total cost bound for required materials. |
 | `optional_cost_total_min` | `decimal(38,2)` | USD amount such as `123.45`; stored as `DECIMAL(38,2)` | Sum optional Use ISBN `price_min` | Lower total cost bound for optional materials. |

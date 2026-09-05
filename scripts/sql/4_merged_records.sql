@@ -49,7 +49,7 @@ GROUP BY period_sortable, section_id;
 -- material-facing descriptors/aggregates. Cost columns (#2/#3/#4) join 1:1 on the
 -- same explicit key. Enrichment columns live HERE, not in downstream tables:
 -- retained-section canonical Course Materials audits (#58/#36) and enrollment fill
--- (#32: enrollment_assigned / enrollment_source from section_enrollment).
+-- (#32: enrollment_assigned / enrollment_source inherited from material_costs).
 -- Materialized as a TABLE (not a VIEW). The build is deliberately staged through
 -- narrow TEMP tables: keeping multiple mode() states, publisher lists, and scalar
 -- states in one high-cardinality CTAS exceeded host memory. Enrollment medians
@@ -89,6 +89,20 @@ SELECT
     ANY_VALUE(institution_type)         AS institution_type,
     ANY_VALUE(enrollment_2024)          AS enrollment_2024,
     ANY_VALUE(distance_enrollment_2024) AS distance_enrollment_2024,
+    ANY_VALUE(course_id) AS course_id,
+    ANY_VALUE(control) AS control,
+    ANY_VALUE(level) AS level,
+    ANY_VALUE(sector) AS sector,
+    ANY_VALUE(course_level) AS course_level,
+    ANY_VALUE(enrollments) AS enrollments,
+    ANY_VALUE(seats_taken) AS seats_taken,
+    ANY_VALUE(has_enrollment) AS has_enrollment,
+    ANY_VALUE(has_enrollment_sibling) AS has_enrollment_sibling,
+    ANY_VALUE(has_enrollment_own_seats) AS has_enrollment_own_seats,
+    ANY_VALUE(has_enrollment_sibling_seats) AS has_enrollment_sibling_seats,
+    ANY_VALUE(enrollment_assigned) AS enrollment_assigned,
+    ANY_VALUE(enrollment_source) AS enrollment_source,
+    COALESCE(BOOL_OR(is_section_required_direct), FALSE) AS is_required_direct,
     COUNT(*) AS material_count,
     COUNT(*) FILTER (WHERE is_required_inferred)     AS required_count,
     COUNT(*) FILTER (WHERE NOT is_required_inferred) AS optional_count,
@@ -189,16 +203,16 @@ GROUP BY c.period_sortable, c.section_id;
 CREATE TEMP TABLE _ms_enriched AS
 SELECT
     s.section_id,
-    enrollment.course_id,
+    s.course_id,
     s.period,
     s.period_sortable,
     s.period_date,
     s.unit_id,
     s.state,
-    enrollment.control,
-    enrollment.level,
+    s.control,
+    s.level,
     s.size,
-    enrollment.sector,
+    s.sector,
     s.institution_name,
     s.institution_type,
     s.enrollment_2024,
@@ -208,7 +222,7 @@ SELECT
     course_number.course_number,
     section_mode.section,
     course_title.course_title,
-    enrollment.course_level,
+    s.course_level,
     course_subject.course_subject,
     s.material_count,
     s.required_count,
@@ -229,18 +243,19 @@ SELECT
     required_publishers.required_publishers,
     COALESCE(publisher_counts.required_publisher_count, 0) AS required_publisher_count,
     COALESCE(publisher_counts.optional_publisher_count, 0) AS optional_publisher_count,
-    enrollment.enrollments,
-    enrollment.seats_taken,
+    s.enrollments,
+    s.seats_taken,
     s.has_isbn,
     s.has_formattype,
     s.isbn_count,
     s.classified_count,
-    enrollment.has_enrollment,
-    enrollment.has_enrollment_sibling,
-    enrollment.has_enrollment_own_seats,
-    enrollment.has_enrollment_sibling_seats,
-    enrollment.enrollment_assigned,
-    enrollment.enrollment_source
+    s.has_enrollment,
+    s.has_enrollment_sibling,
+    s.has_enrollment_own_seats,
+    s.has_enrollment_sibling_seats,
+    s.enrollment_assigned,
+    s.enrollment_source,
+    s.is_required_direct
 FROM _ms_scalar s
 JOIN _ms_mode_school school
   ON school.period_sortable = s.period_sortable AND school.section_id = s.section_id
@@ -263,9 +278,7 @@ LEFT JOIN _ms_publisher_counts publisher_counts
   ON publisher_counts.period_sortable = s.period_sortable
  AND publisher_counts.section_id = s.section_id
 JOIN _ms_course_material_audit audit
-  ON audit.period_sortable = s.period_sortable AND audit.section_id = s.section_id
-JOIN section_enrollment enrollment
-  ON enrollment.period_sortable = s.period_sortable AND enrollment.section_id = s.section_id;
+  ON audit.period_sortable = s.period_sortable AND audit.section_id = s.section_id;
 
 DROP TABLE _ms_scalar;
 DROP TABLE _ms_mode_school;
@@ -474,14 +487,6 @@ SELECT 'master_section unique per (period_sortable, section_id)' AS metric,
        COUNT(*) AS rows,
        COUNT(*) - COUNT(DISTINCT (period_sortable, section_id)) AS violations
 FROM master_section
-UNION ALL
-SELECT 'master_section keys present in section_enrollment' AS metric,
-       COUNT(*) AS rows,
-       COUNT(*) FILTER (WHERE enrollment.section_id IS NULL) AS violations
-FROM master_section ms
-LEFT JOIN section_enrollment enrollment
-  ON enrollment.period_sortable = ms.period_sortable
- AND enrollment.section_id = ms.section_id
 UNION ALL
 SELECT 'master_section period-key consistency' AS metric,
        COUNT(*) AS rows,

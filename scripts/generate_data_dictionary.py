@@ -75,26 +75,25 @@ RELATION_METADATA: dict[str, RelationMetadata] = {
     "format_type_classification": RelationMetadata("IMPORT / 2_oer_classification.sql", "One FormatType", ("format_type_lookup.tsv",), "OER and inclusive-access classification lookup."),
     "pricing_historical": RelationMetadata("IMPORT step 3 / 1_bookprices_import.sql", "One latest section × ISBN × option × condition × format × rental-term row", ("BMG BookPricing.Historical_20260224.csv",), "Deduplicated BMG-owned raw pricing/cost history in a compatibility-named table."),
     "supply_isbn_classification": RelationMetadata("IMPORT derived / 1a_supply_classification.sql", "One classified ISBN", ("course_catalog_20251215", "supply_keywords.tsv"), "Precision-oriented supply classification audit."),
-    "section_book_status": RelationMetadata("IMPORT derived / 1b_section_filter.sql", "One period-specific section_id", ("course_catalog_20251215", "supply_isbn_classification"), "Supply-aware required-status fallback lookup."),
     "state_region": RelationMetadata("IMPORT derived / 0b_state_region.sql", "One state or province code", ("0b_state_region.sql static values",), "Census region and division lookup."),
     "pricing_wide": RelationMetadata("IMPORT derived / 2c_pricing_wide.sql", "One section_id × ISBN13", ("pricing_historical",), "BMG-owned wide price and availability pivot."),
-    "comprehensive_data": RelationMetadata("IMPORT derived / 2_oer_classification.sql", "One normalized catalog source row", ("course_catalog_20251215", "format_type_classification", "ipeds_data", "section_book_status", "supply_isbn_classification", "opt_out", "panel_email"), "Authoritative enriched source-row table and canonical-material/DQ source."),
-    "course_materials": RelationMetadata("Canonical materials / 2b_course_materials.sql", "One period × section × ISBN, plus one NULL-ISBN audit row per section when present", ("comprehensive_data", "section_enrollment"), "First canonical processed item spine with variant and conflict evidence."),
+    "section_enrollment": RelationMetadata("IMPORT derived / 1b_section_enrollment.sql", "One admitted 2024+ term × section with non-NULL derived IDs; UNKNOWN components remain eligible", ("course_catalog_20251215", "ipeds_data", "supply_isbn_classification"), "Complete section population, supply-aware direct requiredness, and authoritative enrollment assignment."),
+    "comprehensive_data": RelationMetadata("IMPORT derived / 2_oer_classification.sql", "One normalized catalog source row", ("course_catalog_20251215", "format_type_classification", "ipeds_data", "section_enrollment", "supply_isbn_classification", "opt_out", "panel_email"), "Authoritative enriched source-row table and canonical-material/DQ source."),
+    "course_materials": RelationMetadata("Canonical materials / 2b_course_materials.sql", "One period × section × ISBN, plus one NULL-ISBN audit row per section when present", ("comprehensive_data",), "First canonical processed item spine with variant and conflict evidence."),
     "course_materials_post_2024": RelationMetadata("Canonical materials / 2b_course_materials.sql", "Filtered course_materials rows", ("course_materials",), "Post-2024 canonical material projection.", "All columns inherited from course_materials; filter: is_post_2024."),
-    "course_materials_use": RelationMetadata("Canonical materials / 2b_course_materials.sql", "Filtered course_materials rows", ("course_materials",), "Canonical Use material projection.", "All columns inherited from course_materials; filter: is_course_material_use."),
-    "course_materials_no_use": RelationMetadata("Canonical materials / 2b_course_materials.sql", "Filtered course_materials rows", ("course_materials",), "Canonical NoUse audit projection.", "All columns inherited from course_materials; filter: is_course_material_no_use."),
-    "course_materials_canada": RelationMetadata("Canonical materials / 2b_course_materials.sql", "Filtered course_materials rows", ("course_materials",), "Canadian NoUse audit projection.", "All columns inherited from course_materials; filter: is_course_material_no_use AND is_canada."),
-    "section_enrollment": RelationMetadata("Canonical sections / 2b_course_materials.sql", "One admitted 2024+ term × section with non-NULL derived IDs; UNKNOWN components remain eligible", ("comprehensive_data",), "Complete section population and authoritative enrollment assignment."),
+    "course_materials_use": RelationMetadata("Canonical materials / 2b_course_materials.sql", "Filtered course_materials rows", ("course_materials_post_2024",), "Canonical Use material projection.", "All columns inherited from course_materials_post_2024; filter: is_course_material_use."),
+    "course_materials_no_use": RelationMetadata("Canonical materials / 2b_course_materials.sql", "Filtered course_materials rows", ("course_materials_post_2024",), "Canonical NoUse audit projection.", "All columns inherited from course_materials_post_2024; filter: is_course_material_no_use."),
+    "course_materials_canada": RelationMetadata("Canonical materials / 2b_course_materials.sql", "Filtered course_materials rows", ("course_materials_no_use",), "Canadian NoUse audit projection.", "All columns inherited from course_materials_no_use; filter: is_canada."),
     "master_mailing": RelationMetadata("EDA mailing / 3_mailing_lists.sql", "One non-NULL, nonblank cleaned email", ("course_catalog_20251215",), "Persisted canonical deterministic mailing selection; independent of opt-out and panel history."),
     "recent_periods": RelationMetadata("EDA mailing / 3_mailing_lists.sql", "One of the latest 12 distinct non-NULL periods", ("master_mailing",), "Period boundary used by current_mailing.", "Declared one-column projection from persisted master_mailing."),
     "current_mailing": RelationMetadata("EDA mailing / 3_mailing_lists.sql", "One non-opted-out cleaned email selected in the latest 12 master periods", ("master_mailing", "recent_periods", "panel_email", "opt_out"), "Whiteboard Mailing Working view with panel response enrichment.", "Master fields pass through; panel_response_year is LEFT-joined; recent-period and opt-out filters define population."),
     "material_costs": RelationMetadata("EDA records / 3b_material_costs.sql", "One canonical Use period × section × ISBN item", ("course_materials_use", "pricing_wide"), "Approved item-level input with optional LEFT pricing enrichment."),
     "section_cost": RelationMetadata("EDA records / 4_merged_records.sql", "One material-bearing period × section", ("material_costs",), "Section-level price-bound aggregates used by release rollups."),
-    "master_section": RelationMetadata("EDA records / 4_merged_records.sql", "One material-bearing period × section", ("material_costs", "section_cost", "section_enrollment", "course_materials"), "Canonical materialized per-term section release table."),
+    "master_section": RelationMetadata("EDA records / 4_merged_records.sql", "One material-bearing period × section", ("material_costs", "section_cost", "course_materials"), "Canonical materialized per-term section release table."),
     "master_course": RelationMetadata("EDA records / 4_merged_records.sql", "One material-bearing period × course", ("master_section", "section_cost"), "Course-level section and cost rollup.", "Declared aggregate projection; no inherited base schema."),
     "master_course_material": RelationMetadata("EDA records / 4_merged_records.sql", "One (course_id, period_sortable, period, period_date, school, department, course_number, course_title, publisher, book_status) group", ("material_costs",), "Course material distribution rollup.", "Declared aggregate projection from material_costs."),
     "master_section_us_intro_fall2025": RelationMetadata("EDA records / 4_merged_records.sql", "Filtered master_section rows", ("master_section",), "Fall 2025 required intro/intermediate scope using the executable non-Canada/nonblank-state proxy.", "All columns inherited from master_section; filtered projection only."),
-    "master_institution": RelationMetadata("Release model / models/master_institution.sql", "One period × institution, including an explicit NULL-institution bucket", ("master_section", "section_book_status", "pricing_wide"), "Canonical materialized per-term institution release table."),
+    "master_institution": RelationMetadata("Release model / models/master_institution.sql", "One period × institution, including an explicit NULL-institution bucket", ("master_section", "pricing_wide"), "Canonical materialized per-term institution release table."),
     "master_isbn": RelationMetadata("Release model / models/master_isbn.sql", "One period × non-NULL ISBN", ("material_costs",), "Canonical materialized per-term ISBN release table."),
     "sample10_section_ids": RelationMetadata("Sampling / models/sample10_section_ids.sql", "One selected section_enrollment section", ("section_enrollment",), "Stable deterministic 10% section-membership lookup."),
     "__data_quality_metrics": RelationMetadata("Data quality / 2d_data_quality.sql", "One category × check × metric", ("comprehensive_data", "pricing_historical", "pricing_wide", "${PRICING_CSV}"), "Long-format pipeline quality metrics, including direct raw-pricing deduplication checks."),
@@ -125,15 +124,15 @@ RELATION_GROUPS: tuple[tuple[str, str, tuple[str, ...]], ...] = (
     (
         "Processing helpers (4 relations)",
         "Current derived helpers used to enrich, select, classify, or aggregate the executable flow.",
-        ("panel_email", "section_book_status", "pricing_wide", "recent_periods"),
+        ("panel_email", "section_enrollment", "pricing_wide", "recent_periods"),
     ),
     (
-        "Canonical outputs (15 relations)",
+        "Canonical outputs (14 relations)",
         "Current pipeline outputs and population projections used by the release flow.",
         (
             "comprehensive_data", "course_materials", "course_materials_post_2024",
             "course_materials_use", "course_materials_no_use", "course_materials_canada",
-            "section_enrollment", "master_mailing", "current_mailing", "material_costs",
+            "master_mailing", "current_mailing", "material_costs",
             "section_cost", "master_section", "master_institution", "master_isbn",
             "sample10_section_ids",
         ),
@@ -163,9 +162,9 @@ RELATION_GROUPS: tuple[tuple[str, str, tuple[str, ...]], ...] = (
 # lets tests prevent DBML and generated documentation from silently drifting.
 INHERITED_VIEW_BASES: dict[str, str] = {
     "course_materials_post_2024": "course_materials",
-    "course_materials_use": "course_materials",
-    "course_materials_no_use": "course_materials",
-    "course_materials_canada": "course_materials",
+    "course_materials_use": "course_materials_post_2024",
+    "course_materials_no_use": "course_materials_post_2024",
+    "course_materials_canada": "course_materials_no_use",
     "master_section_us_intro_fall2025": "master_section",
 }
 
@@ -405,7 +404,7 @@ COURSE_MATERIAL_DERIVED_FIELDS = {
     "isbn_book_title", "isbn_author", "isbn_publisher", "isbn_title_variant_count",
     "isbn_author_variant_count", "isbn_publisher_variant_count", "has_enrollment_sibling",
     "has_enrollment_sibling_seats", "enrollment_assigned", "enrollment_source",
-    "has_book_status_required", "has_book_status_optional_recommended", "source_row_count",
+    "is_required_direct", "is_section_required_direct", "is_optional_or_recommended_direct", "source_row_count",
     "title_variant_count", "author_variant_count", "publisher_variant_count",
     "imprint_variant_count", "book_format_variant_count", "format_type_variant_count",
     "book_status_variant_count", "catalog_metadata_conflict", "is_required_inferred_conflict",
@@ -655,10 +654,6 @@ def _resolve_non_inherited(
         if n in rules:
             null = "Not produced." if n in {"isbn13", "n_rows", "matched_pattern", "category"} else "No representative nonmissing title."
             return _metadata(column, rules[n], "One classified non-NULL ISBN in the 2024+ catalog.", null, "aggregate")
-    if r == "section_book_status" and n in {"section_id", "has_required"}:
-        source = "`course_catalog_20251215.section_id` group key." if n == "section_id" else "`BOOL_OR(book_status='required' AND NOT is_supply)` over catalog rows."
-        null = "Not produced." if n == "section_id" else "Never NULL; false means no nonsupply required-status row."
-        return _metadata(column, source, "All catalog rows for the period-specific section.", null, "aggregate")
     if r == "state_region" and n in {"state", "region", "division"}:
         return _metadata(column, f"Maintained static `{n}` value in `0b_state_region.sql`.", "One state/province code lookup row.", "Not produced by the static lookup.", "explicit")
     if r == "pricing_wide":
@@ -792,6 +787,21 @@ def _comprehensive_metadata(column: Column) -> FieldMetadata | None:
         "panel_response_year_variant_count": "`panel_email.panel_response_year_variant_count` joined on cleaned email.",
         "is_opted_out": "True when cleaned email matches `opt_out.email`; otherwise false.",
         "opt_out_source": "`opt_out.source` joined on cleaned email.",
+        "is_required_direct": "`course_catalog_20251215.book_status = 'required'` with no supply-classification match.",
+        "is_section_required_direct": "`section_enrollment.is_required_direct` joined on period_sortable and section_id; NULL before 2024.",
+        "section_course_id": "`section_enrollment.course_id` joined on period_sortable and section_id.",
+        "section_control": "`section_enrollment.control` joined on period_sortable and section_id.",
+        "section_level": "`section_enrollment.level` joined on period_sortable and section_id.",
+        "section_sector": "`section_enrollment.sector` joined on period_sortable and section_id.",
+        "section_course_level": "`section_enrollment.course_level` joined on period_sortable and section_id.",
+        "section_enrollments": "`section_enrollment.enrollments` joined on period_sortable and section_id.",
+        "section_seats_taken": "`section_enrollment.seats_taken` joined on period_sortable and section_id.",
+        "section_has_enrollment": "`section_enrollment.has_enrollment` joined on period_sortable and section_id.",
+        "section_has_enrollment_own_seats": "`section_enrollment.has_enrollment_own_seats` joined on period_sortable and section_id.",
+        "section_has_enrollment_sibling": "`section_enrollment.has_enrollment_sibling` joined on period_sortable and section_id.",
+        "section_has_enrollment_sibling_seats": "`section_enrollment.has_enrollment_sibling_seats` joined on period_sortable and section_id.",
+        "section_enrollment_assigned": "`section_enrollment.enrollment_assigned` joined on period_sortable and section_id.",
+        "section_enrollment_source": "`section_enrollment.enrollment_source` joined on period_sortable and section_id.",
         "is_required_inferred": "True for 2024+ rows satisfying supply-aware section required-status fallback.",
         "is_post_2024": "`COALESCE(period_date >= DATE '2024-01-01', FALSE)`.",
         "has_isbn": "`ISBN13 IS NOT NULL`.", "has_formattype": "`FormatType` is non-NULL and nonblank.",
@@ -805,7 +815,7 @@ def _comprehensive_metadata(column: Column) -> FieldMetadata | None:
     }
     if n not in joins:
         return None
-    nullable_join = n in {"is_oer", "is_ia", "supply_category", "institution_name", "sector", "level", "control", "size", "enrollment_2024", "distance_enrollment_2024", "institution_type", "panel_response_year", "panel_source_row_count", "panel_response_year_variant_count", "opt_out_source"}
+    nullable_join = n in {"is_oer", "is_ia", "supply_category", "institution_name", "sector", "level", "control", "size", "enrollment_2024", "distance_enrollment_2024", "institution_type", "panel_response_year", "panel_source_row_count", "panel_response_year_variant_count", "opt_out_source", "is_section_required_direct", "section_course_id", "section_control", "section_level", "section_sector", "section_course_level", "section_enrollments", "section_seats_taken", "section_has_enrollment", "section_has_enrollment_own_seats", "section_has_enrollment_sibling", "section_has_enrollment_sibling_seats", "section_enrollment_assigned", "section_enrollment_source"}
     null = "No matching lookup row or the matched lookup value is missing." if nullable_join else "Never NULL; false represents absence or exclusion."
     return _metadata(column, joins[n], pop, null, "joined" if nullable_join else "derived")
 
@@ -823,18 +833,23 @@ def _course_materials_metadata(column: Column, by_name: dict[str, Relation]) -> 
     definitive = {
         "is_required_inferred", "is_oer", "is_ia", "is_supply", "is_post_2024",
         "has_formattype", "no_details", "no_materials", "is_canada",
-        "has_book_status_required", "has_book_status_optional_recommended",
+        "is_required_direct", "is_section_required_direct", "is_optional_or_recommended_direct",
         "has_use_source_row", "has_no_use_source_row",
     }
     if n in definitive:
         expression = {
-            "has_book_status_required": "book_status = 'required'",
-            "has_book_status_optional_recommended": "book_status IN ('option','recommended')",
+            "is_required_direct": "is_required_direct",
+            "is_section_required_direct": "is_section_required_direct",
+            "is_optional_or_recommended_direct": "book_status IN ('option','recommended')",
             "has_use_source_row": "is_course_material_use",
             "has_no_use_source_row": "is_course_material_no_use",
         }.get(n, n)
-        return _metadata(column, f"`BOOL_OR({expression})` across grouped `comprehensive_data` rows.", pop,
-                         "Never NULL under the normalized row-flag contract; false means no grouped row qualifies.", "aggregate")
+        null = (
+            "NULL before 2024 when no upstream section context exists."
+            if n == "is_section_required_direct"
+            else "Never NULL under the normalized row-flag contract; false means no grouped row qualifies."
+        )
+        return _metadata(column, f"`BOOL_OR({expression})` across grouped `comprehensive_data` rows.", pop, null, "aggregate")
     if n == "has_isbn":
         return _metadata(column, "Grouped ISBN key `IS NOT NULL`.", pop,
                          "Never NULL; false identifies the NULL-ISBN audit group.", "derived")
@@ -844,9 +859,19 @@ def _course_materials_metadata(column: Column, by_name: dict[str, Relation]) -> 
     if n == "is_course_material_no_use":
         return _metadata(column, "`is_post_2024 AND NOT has_use_source_row` at canonical item grain.", pop,
                          "Never NULL; false includes pre-2024 groups and Use groups.", "derived")
-    section_owned = {"course_level", "enrollments", "seats_taken", "course_id", "sector", "level", "control", "has_enrollment", "has_enrollment_own_seats"}
+    section_owned = {
+        "course_level": "section_course_level",
+        "enrollments": "section_enrollments",
+        "seats_taken": "section_seats_taken",
+        "course_id": "section_course_id",
+        "sector": "section_sector",
+        "level": "section_level",
+        "control": "section_control",
+        "has_enrollment": "section_has_enrollment",
+        "has_enrollment_own_seats": "section_has_enrollment_own_seats",
+    }
     if n in section_owned:
-        return _metadata(column, f"`COALESCE(section_enrollment.{n}, representative comprehensive_data.{source_name})`.", pop,
+        return _metadata(column, f"`COALESCE(comprehensive_data.{section_owned[n]}, representative comprehensive_data.{source_name})`.", pop,
                          "Neither the section-canonical value nor representative source row has a value.", "joined")
     if source_name in comprehensive and n not in COURSE_MATERIAL_DERIVED_FIELDS:
         return _metadata(column, f"Representative `comprehensive_data.{source_name}` from grouped rows.", pop,
@@ -861,8 +886,14 @@ def _course_materials_metadata(column: Column, by_name: dict[str, Relation]) -> 
         attr = {"isbn_book_title": "Title", "isbn_author": "Author", "isbn_publisher": "Publisher"}[n]
         return _metadata(column, f"Lexical `MIN(NULLIF(TRIM({attr}),''))` across Use catalog rows for `(period_sortable, isbn13)`.",
                          "All catalog rows for the term×ISBN.", "No nonmissing metadata value for the term×ISBN.", "aggregate")
-    if n == "enrollment_assigned" or n == "enrollment_source" or n.startswith("has_enrollment_sibling"):
-        return _metadata(column, f"`section_enrollment.{n}` exact section join.", pop,
+    inherited_section = {
+        "has_enrollment_sibling": "section_has_enrollment_sibling",
+        "has_enrollment_sibling_seats": "section_has_enrollment_sibling_seats",
+        "enrollment_assigned": "section_enrollment_assigned",
+        "enrollment_source": "section_enrollment_source",
+    }
+    if n in inherited_section:
+        return _metadata(column, f"`comprehensive_data.{inherited_section[n]}` from the upstream section join.", pop,
                          "Only `enrollment_assigned` is nullable: no assignment ladder rung produced a value; flags/source are non-NULL.", "joined")
     if n.endswith("_variant_count"):
         attr = n.removesuffix("_variant_count")
@@ -901,13 +932,20 @@ def _course_materials_metadata(column: Column, by_name: dict[str, Relation]) -> 
 def _section_enrollment_metadata(column: Column) -> FieldMetadata | None:
     n = column.name
     pop = "All valid 2024+ catalog rows for one period-specific section; independent of material inclusion."
-    if n in {"section_id", "course_id", "period_sortable", "control", "level", "sector", "course_level"}:
+    if n in {"section_id", "course_id", "period_sortable", "course_level"}:
         func = "group key" if n == "section_id" else "deterministic section value (`ANY_VALUE` or lexical `mode` as defined in SQL)"
-        return _metadata(column, f"{func.capitalize()} from `comprehensive_data.{n}`.", pop,
-                         "Missing upstream descriptor; section and sortable-period keys are required.", "aggregate")
+        return _metadata(column, f"{func.capitalize()} from `course_catalog_20251215.{n}`.", pop,
+                         "Missing catalog descriptor; section and sortable-period keys are required.", "aggregate")
+    if n in {"control", "level", "sector"}:
+        source = "iclevel" if n == "level" else n
+        return _metadata(column, f"`ANY_VALUE(ipeds_data.{source})` after the catalog institution join.", pop,
+                         "No matching IPEDS institution or missing descriptor.", "aggregate")
     if n in {"enrollments", "seats_taken"}:
-        return _metadata(column, f"`MAX(comprehensive_data.{n})` for the section; raw 9999 seats sentinel retained.", pop,
+        return _metadata(column, f"`MAX(course_catalog_20251215.{n})` for the section; raw 9999 seats sentinel retained.", pop,
                          f"No reported {n.replace('_', ' ')}.", "aggregate")
+    if n == "is_required_direct":
+        return _metadata(column, "`BOOL_OR(book_status='required' AND NOT is_supply)` over source catalog rows.", pop,
+                         "Never NULL; false means no nonsupply literal-required row.", "aggregate")
     flag_expr = {
         "has_enrollment": "section MAX(enrollments) is non-NULL",
         "has_enrollment_own_seats": "section MAX(seats_taken) is non-NULL and below 9999",
@@ -1070,7 +1108,7 @@ def _master_institution_metadata(column: Column) -> FieldMetadata | None:
                          "Never NULL; zero means no section in this exact course-level category.", "aggregate")
     predicates = {
         "section_count": "all material-bearing sections", "course_count": "distinct `course_id` values",
-        "material_section_count": "`material_count > 0`", "required_section_count": "supply-aware raw `section_book_status.has_required`",
+        "material_section_count": "`material_count > 0`", "required_section_count": "supply-aware `master_section.is_required_direct`",
         "inferred_required_section_count": "`required_count > 0`", "optional_section_count": "`optional_count > 0`",
         "supply_section_count": "`supply_count > 0` sidecar evidence", "oer_section_count": "`oer_count > 0`",
         "ia_section_count": "`ia_count > 0`", "required_priced_section_count": "`required_priced_count > 0`",
@@ -1311,6 +1349,19 @@ _STABLE_FIELD_DESCRIPTIONS = {
     "school": "Institution or school name attached to the course.",
     "seats_taken": "Occupied seats reported for the course section.",
     "section": "Source code distinguishing sections of the same course.",
+    "section_course_id": "Section-canonical course identifier from the upstream section spine.",
+    "section_control": "Section-canonical institutional control from the upstream section spine.",
+    "section_course_level": "Section-canonical instructional level from the upstream section spine.",
+    "section_enrollments": "Section-canonical raw enrollment from the upstream section spine.",
+    "section_enrollment_assigned": "Best available enrollment assigned to the source section.",
+    "section_enrollment_source": "Assignment rung used for the source section.",
+    "section_has_enrollment": "Whether the source section reports enrollment.",
+    "section_has_enrollment_own_seats": "Whether the source section reports usable occupied seats.",
+    "section_has_enrollment_sibling": "Whether a sibling source section reports enrollment.",
+    "section_has_enrollment_sibling_seats": "Whether a sibling section reports usable occupied seats.",
+    "section_level": "Section-canonical institutional level from the upstream section spine.",
+    "section_seats_taken": "Section-canonical occupied seats from the upstream section spine.",
+    "section_sector": "Section-canonical institutional sector from the upstream section spine.",
     "section_code": "Section code supplied by the pricing source.",
     "section_hash": "Stable hash used for deterministic section sampling.",
     "section_id": "Period-specific identifier for the distinct section offering.",
@@ -1371,7 +1422,7 @@ _COUNT_FIELD_DESCRIPTIONS = {
     "required_priced_count": "Required materials having at least one valid price.",
     "required_priced_section_count": "Institution sections containing priced required materials.",
     "required_publisher_count": "Distinct publishers of required materials within the section.",
-    "required_section_count": "Institution sections with raw required-status evidence.",
+    "required_section_count": "Institution sections with direct required-status evidence.",
     "rows_matched": "Pricing observations matching an exact catalog section and ISBN.",
     "seats_taken_section_count": "Institution sections reporting valid occupied-seat values.",
     "seats_taken_tot": "Valid occupied seats summed across institution sections.",
@@ -1393,8 +1444,9 @@ _COUNT_FIELD_DESCRIPTIONS = {
 }
 
 _FLAG_FIELD_DESCRIPTIONS = {
-    "has_book_status_optional_recommended": "Whether grouped rows include optional or recommended status.",
-    "has_book_status_required": "Whether grouped rows include explicit required status.",
+    "is_optional_or_recommended_direct": "Whether grouped rows include optional or recommended direct-status evidence.",
+    "is_required_direct": "Whether direct required evidence is present at the relation grain.",
+    "is_section_required_direct": "Whether the source section has direct required evidence.",
     "has_buy": "Whether any purchase offer exists for the material.",
     "has_course_material_use": "Whether the section contains retained canonical materials.",
     "has_enrollment": "Whether usable enrollment information is available.",
@@ -1407,7 +1459,6 @@ _FLAG_FIELD_DESCRIPTIONS = {
     "has_nonnull_isbn_in_section": "Whether the section contains another non-NULL ISBN.",
     "has_pricing_match": "Whether an exact section-and-ISBN pricing match exists.",
     "has_rent": "Whether any rental offer exists for the material.",
-    "has_required": "Whether the section has nonsupply required-status evidence.",
     "has_use_source_row": "Whether grouped rows include retained-population evidence.",
     "is_canada": "Whether the source row belongs to Canada.",
     "is_canada_conflict": "Whether grouped rows disagree on Canadian classification.",
@@ -1512,6 +1563,12 @@ _TEXT_VALUE_STRUCTURES = {
     "publisher": "Publisher name; original spelling/casing retained",
     "response_year": "Campaign label shaped `OER_YYYY`, such as `OER_2018`",
     "school": "Institution name; source spelling/casing retained",
+    "section_course_id": "Section-canonical course identifier with source segments retained",
+    "section_control": "IPEDS control label from the section-canonical join",
+    "section_course_level": "Section-canonical course-level category label",
+    "section_enrollment_source": "One of `own`, `own_seats`, `sibling_enroll`, `sibling_seats`, `class_median`, `level_median`, or `none`",
+    "section_level": "IPEDS level label from the section-canonical join",
+    "section_sector": "IPEDS sector label from the section-canonical join",
     "section": "Source section code; zeros/punctuation retained",
     "section_code": "Pricing-source section code; leading zeros retained",
     "sector": "IPEDS sector descriptor, such as `Public, 4-year or above`",
@@ -1526,8 +1583,11 @@ _INTEGER_VALUE_STRUCTURES = {
     "distance_enrollment_2024": "Non-negative 2024 student count; NULL when unavailable",
     "enrollment_2024": "Non-negative 2024 student count; NULL when unavailable",
     "enrollment_assigned": "Rounded student count from the ladder; raw negatives can propagate",
+    "section_enrollment_assigned": "Rounded student count from the ladder; raw negatives can propagate",
     "enrollment_total": "Sum of reported section enrollment; source negatives may propagate",
     "enrollments": "Reported student count; source noise can include negative values",
+    "section_enrollments": "Section-canonical reported student count; source noise can include negative values",
+    "section_seats_taken": "Section-canonical occupied seats; `9999` is the source sentinel",
     "seats_taken": "Reported occupied seats; `9999` is the source sentinel",
     "enroll_tot": "Sum of assigned enrollment; negative source values may propagate",
     "enrollments_tot": "Sum of assigned enrollment; negative source values may propagate",

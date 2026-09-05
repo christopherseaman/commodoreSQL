@@ -47,5 +47,5 @@ CREATE INDEX idx_state_region ON state_region (state);
 SELECT 'state_region coverage' AS metric,
        COUNT(*)                                   AS catalog_states,
        COUNT(*) FILTER (WHERE sr.state IS NULL)    AS unmapped_states
-FROM (SELECT DISTINCT state FROM comprehensive_data WHERE state IS NOT NULL) c
+FROM (SELECT DISTINCT state FROM ${SURVEY_TABLE} WHERE state IS NOT NULL) c
 LEFT JOIN state_region sr ON c.state = sr.state;
