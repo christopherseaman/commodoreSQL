@@ -12,7 +12,6 @@ notion-sync: push
 - Grain / key: One material-bearing period × section
 - Pipeline stage: EDA records / 4_merged_records.sql
 - Direct upstream relations: `master_material`
-- Deep appendix: [Master Section release dictionary](../../MASTER-SECTION-DICTIONARY.md)
 
 | Column | Type | Example / structure | Direct upstream source / derivation | Description |
 |---|---|---|---|---|

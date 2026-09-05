@@ -25,7 +25,7 @@ Enum source_files {
   "data/2025.12.15/panel_20260108.csv" [note: 'BVA panel history → aggregated panel_email enrichment']
   "data/2025.12.15/format_type_lookup.tsv" [note: '→ format_type_classification (69 rows)']
   "data/BookPricing.Historical_20260224.csv" [note: 'BMG raw pricing/cost observations → compatibility table pricing_historical (~27.3M current rows)']
-  "scripts/sql/lookups/supply_keywords.tsv" [note: 'CMM-owned → supply_isbn_classification; 97 include + 26 exclude title patterns']
+  "scripts/sql/lookups/supply_keywords.tsv" [note: 'CMM-owned supply title rules (supply_keywords.tsv) → derived supply_isbn_classification']
 }
 
 // ---------------------------------------------------------------------------
@@ -958,7 +958,7 @@ Table master_material {
   is_section_supply boolean [note: 'appended canonical per-section supply indicator']
   section_supply_count bigint [note: 'appended canonical per-section supply item count']
 
-  Note: 'Created by 3b_master_material.sql. TABLE (materialized), one row per (period_sortable, section_id, isbn13) canonical Use item. Built from course_material_use and LEFT-enriched from source-owned pricing_wide on the current exact section × ISBN join, so items without usable prices remain. Catalog attributes are never sourced from pricing. Renamed direct-status fields preserve the two former status slots; section context and audit fields append after has_pricing_match. Established current baseline: 12,806,060 rows. Detailed matching evidence is centralized in CMM-ETL.md issue #21 limitation.'
+  Note: 'Created by 3b_master_material.sql. TABLE (materialized), one row per (period_sortable, section_id, isbn13) canonical Use item. Built from course_material_use and LEFT-enriched from source-owned pricing_wide on the current exact section × ISBN join, so items without usable prices remain. Catalog attributes are never sourced from pricing. Renamed direct-status fields preserve the two former status slots; section context and audit fields append after has_pricing_match. Detailed matching evidence is centralized in PRICING-CATALOG-MATCHING.md.'
 }
 
 Table master_section [note: 'table'] {
@@ -1039,7 +1039,7 @@ Table master_section [note: 'table'] {
   optional_priced_count bigint
   bookstore_url varchar [note: 'deterministic modal nonblank master_material URL; count descending then lexical ascending']
 
-  Note: 'TABLE (materialized), currently 6,983,049 rows. Exactly one row per distinct (period_sortable, section_id) in master_material. Material/OER/coverage/publisher/price/cost fields aggregate canonical master_material items; section fields are inherited through master_material. Six public audit fields are ANY_VALUE selections of canonical per-section values repeated on master_material, so no sidecar join occurs. bookstore_url is the deterministic modal nonblank master_material URL. Complete-population denominators remain in section_enrollment. DATA-DICTIONARY.md is the authoritative full column dictionary; its embedded MASTER-SECTION-DICTIONARY.md appendix owns the detailed business/NULL/denominator contract.'
+  Note: 'TABLE (materialized). Exactly one row per distinct (period_sortable, section_id) in master_material. Material/OER/coverage/publisher/price/cost fields aggregate canonical master_material items; section fields are inherited through master_material. Six public audit fields are ANY_VALUE selections of canonical per-section values repeated on master_material, so no sidecar join occurs. bookstore_url is the deterministic modal nonblank master_material URL. Complete-population denominators remain in section_enrollment.'
 }
 
 Table master_course [note: 'view'] {
@@ -1400,7 +1400,7 @@ Table sample_material_10pct {
   is_section_supply boolean [note: 'appended canonical per-section supply indicator']
   section_supply_count bigint [note: 'appended canonical per-section supply item count']
 
-  Note: 'Issue #81. Materialized by models/sample_material_10pct.sql from master_material using md5-prefix64-mod10-v1 on section_id. Preserves all Material Costs columns and one row per sampled (period_sortable, section_id, isbn13). Reconciliation applies the same predicate to the complete section population. Current baseline: 1,282,423 rows across 698,578 material-bearing sections.'
+  Note: 'Issue #81. Materialized by models/sample_material_10pct.sql from master_material using md5-prefix64-mod10-v1 on section_id. Preserves all Material Costs columns and one row per sampled (period_sortable, section_id, isbn13). Reconciliation applies the same predicate to the complete section population.'
 }
 
 // ---------------------------------------------------------------------------

@@ -18,7 +18,7 @@ flowchart LR
         subgraph lookup_sources["Lookups"]
             direction TB
             format_lookup("format_type_classification<br/>(format_type_lookup.tsv)")
-            supply_rules["supply_keywords.tsv"]
+            supply_rules["Supply title rules<br/>(supply_keywords.tsv)"]
             region_lookup("state_region<br/>(0b_state_region.sql)")
         end
         subgraph expected_sources["Pending"]
@@ -139,8 +139,10 @@ flowchart LR
 
 ### Lookups
 
-`format_type_classification` maps FormatType to OER/IA. `supply_keywords.tsv` contains title
-rules, not ISBN assignments. `state_region` maps catalog state codes to reporting regions at query time.
+`format_type_classification` maps FormatType to OER/IA. CMM's `supply_keywords.tsv` contains
+include/exclude title patterns and supply categories. The derived `supply_isbn_classification`
+assigns those categories to catalog ISBNs. `state_region` maps state codes to reporting regions
+at query time; `CAN` maps to Other.
 
 ### Pending inputs
 
@@ -159,21 +161,30 @@ Source refreshes reuse existing boxes. History retention is a separate pending d
 ### Materials
 
 1. `recent_period` selects the newest 12 distinct non-NULL catalog terms. Materials and mailing share this window; older terms remain upstream.
-2. `supply_isbn_classification` applies the title rules to recent catalog ISBN/title variants, producing one classified row per ISBN.
+2. `supply_isbn_classification` applies supply title rules to recent catalog ISBN/title variants, producing one classified row per ISBN. Blank/unmatched ISBNs are not supplies.
 3. `section_enrollment` groups recent catalog sections, including those without materials. It takes maximum reported enrollment/seats and finds sibling availability; no IPEDS or supply dependency.
 4. `comprehensive_data` enriches every source row with lookups, institution/contact history, section enrollment, and classification flags. Contact history does not filter materials.
 5. `course_material` groups by term × section × ISBN. Require non-NULL term/section; retain `UNKNOWN` ID components and one NULL-ISBN group per section when present. Keep source counts and metadata/contact conflicts; choose a deterministic representative. Both tables remain: source-row and item grain serve different reports.
+
+`section_id` combines UNITID, department, course number, section, and term; `course_id`
+omits section and term. Missing components become `UNKNOWN`. Terms encode
+Winter/Spring/Summer/Fall as `YYYY-1/2/3/4`, dated Jan/Apr/Jul/Oct 1.
+Rows rejected by canonical admission remain in `comprehensive_data` and DQ.
 
 Enrollment assignment happens in `comprehensive_data`: own enrollment → own usable seats
 (`<9999`) → course/term medians (enrollment, then seats) → control/level/term median →
 level/term median → NULL. Reference medians use intro/intermediate/non-degree/uncategorized
 courses at public, nonprofit, or for-profit two-/four-year institutions.
-Carry `enrollment_assigned` and `enrollment_source` downstream.
+Round medians to integers. Carry `enrollment_assigned` and `enrollment_source` downstream;
+source labels are `own`, `own_seats`, `sibling_enroll`, `sibling_seats`, `class_median`,
+`level_median`, or `none`. Preserve raw values.
 
 `is_required_direct` means literal required, non-supply evidence. Within recent terms,
 `is_required_inferred` selects required rows when their section has direct evidence;
 otherwise it selects NULL-status rows. Item booleans combine source evidence with `BOOL_OR`;
-conflict flags record disagreement.
+conflict flags record disagreement. `is_section_required_direct` carries the section context
+through item tables. Missing IPEDS means unmatched metadata; NULL OER/IA means absent or
+unclassifiable FormatType.
 
 `course_material_recent` applies the shared window. `course_material_use` keeps keys with
 any source row that is non-Canada, ISBN-present, non-supply, and not `*No Book Details*`,
@@ -191,6 +202,11 @@ It retains source status and identifiers; catalog-derived classifications do not
 18 offer cells uses `MAX(price)`. Preserve rental-term bounds, offered-format counts,
 buy/rent availability, and bookstore URL. `price_avg = (price_min + price_max) / 2`, not mean offer price.
 
+`format_count` counts distinct buy/rental option × condition × format tuples regardless of
+price validity. `has_buy`/`has_rent` mean offer presence. Rental lengths remain distinct
+upstream and collapse only in the pivot. Pricing retains the latest observation within the
+configured source snapshot; cross-snapshot history is not implemented.
+
 ### Mailing
 
 `master_mailing` selects one raw catalog row per nonblank email: newest term, largest
@@ -200,13 +216,19 @@ adds `panel_email` history, and excludes any matching `opt_out` email.
 
 ### Release
 
-- `master_material`: LEFT-enrich every Use item from `pricing_wide` by exact section × ISBN; retain unmatched/unpriced items. [Encoding mismatch remains unresolved](PRICING-CATALOG-MATCHING.md).
+- `master_material`: LEFT-enrich every Use item from `pricing_wide` by exact section × ISBN; retain unmatched/unpriced items. `has_pricing_match` distinguishes a missing match from a matched row without valid prices. Encoding mismatch remains unresolved (#21); no fallback join is active.
 - `master_section`: group `master_material` by section; count materials/classifications and sum per-item price bounds, split by inferred required/optional and all-offer/buy-only cost. NULL price/cost is not zero. Inherit enrollment and section audit values once, never sum their repeated copies.
 - `master_isbn`: group `master_material` by term × ISBN; summarize adoptions, institutions, enrollment, metadata conflicts, and price-cell availability.
 - Dashed `master_course`, `master_institution`: executable provisional section rollups by term × course/institution; final definitions remain pending (#87).
 
+Section `*_cost_avg` is the midpoint of its cost bounds. `master_course` uses arithmetic
+averages of section midpoints, with MIN/MAX bounds and raw enrollment sums.
+Owned-cost reporting retains the current buy-priced subset until #26 is decided.
+
 Section bookstore URL is the most frequent nonblank item URL; institution URL is the
 most frequent section URL. Ties resolve lexically; NULL-institution URLs remain NULL.
+Pricing-only observations cannot determine release URLs; coverage and modal selection can
+differ from the previous direct-pricing institution lookup.
 
 ## Samples & exports
 
@@ -215,6 +237,12 @@ most frequent section URL. Ties resolve lexically; NULL-institution URLs remain 
 | `sample_material_10pct` | Direct `master_material` sample: first 64 MD5 bits of section ID modulo 10 = 0; keep whole sections. |
 | `sample_section_us_intro_fall2025` | `master_section`: Fall 2025, required-bearing, intro/intermediate, nonblank non-Canada state. |
 | `sample_material_25id`, `sample_section_25id` | Pending: filter masters by imported `sample_unit_25id`. |
+
+The 10% predicate is `md5-prefix64-mod10-v1`; expand only additive section-cluster totals.
+The intro/intermediate sample excludes NULL, blank, and `CAN` states; it is a geographic proxy.
+Fall 2025 Set A/B includes intro/general undergraduate, intermediate, non-degree credit, and
+uncategorized courses at public/nonprofit/for-profit two-/four-year institutions.
+A requires `required_count >= 1`; B requires zero required materials (optional-only).
 
 ### Files
 
@@ -322,6 +350,29 @@ outputs do not exist yet.
 | Populations | `course_material` and its routing views; `section_enrollment` |
 | Source-row lineage/diagnostics | `comprehensive_data`, raw catalog, `pricing_historical`, DQ snapshots |
 
-Geographic reports join `state_region` at query time.
+Geographic reports join `state_region` at query time. Complete-section denominators use
+`section_enrollment`, including no-adoption sections; assigned values come from distinct
+`comprehensive_data` section context. Release denominators contain material-bearing sections.
+Separate exact-match, valid-price, all-offer, and buy-only coverage. OER/IA rates identify
+the item/section population and report FormatType coverage. Enrollment-weighted reports
+distinguish raw/assigned enrollment and assignment source.
 
-The diagram describes staged SQL, not the live database. Deployment is held.
+`30_faculty_records.csv` requires instructor, course number, section, and title. It groups
+by faculty ID/instructor/school/email/department and counts rows/sections by term; faculty ID
+uses email, falling back to instructor + school.
+
+The flow is implemented in the database rebuilt on 2026-09-05. Dashed sources/definitions
+remain pending. DQ snapshots measure conservation, uniqueness, classification, enrollment,
+and pricing coverage; release and sample reconciliations are separate QA outputs.
+
+### Refresh and release checks
+
+Record input filenames/dates, commit, and configuration. Validate source schemas, terms,
+lookup uniqueness, grains, and join policy on refresh. Prove raw/canonical conservation,
+Use/NoUse partition, release keys/costs, and mailing partitions. DQ snapshots are diagnostics,
+not release denominators. Pipeline wrappers export automatically; standalone exports require
+their own invocation and validation.
+
+<page url="https://app.notion.com/p/3ced9fdd1a1a81cf979cc0c82e965b1e">Course-material populations</page>
+<page url="https://app.notion.com/p/3ced9fdd1a1a815fae7debf66b76d4ef">Mailing flow</page>
+<page url="https://app.notion.com/p/3ced9fdd1a1a818db34ef52788da8997">Pricing-to-catalog matching</page>

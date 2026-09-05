@@ -3,6 +3,8 @@
 
 from __future__ import annotations
 
+import csv
+import io
 import importlib.util
 import re
 import subprocess
@@ -17,6 +19,7 @@ SCHEMA = REPO_ROOT / "schema.dbml"
 APPENDIX = REPO_ROOT / "MASTER-SECTION-DICTIONARY.md"
 OUTPUT = REPO_ROOT / "DATA-DICTIONARY.md"
 DOCS_DIRECTORY = REPO_ROOT / "docs/data-dictionary"
+TSV_OUTPUT = REPO_ROOT / "docs/data-dictionary.tsv"
 GENERATOR_PATH = REPO_ROOT / "scripts/generate_data_dictionary.py"
 SPEC = importlib.util.spec_from_file_location("generate_data_dictionary", GENERATOR_PATH)
 if SPEC is None or SPEC.loader is None:
@@ -68,6 +71,11 @@ class DataDictionaryTest(unittest.TestCase):
             path.stem: path.read_text(encoding="utf-8")
             for path in DOCS_DIRECTORY.glob("*.md")
         }
+        cls.tsv = TSV_OUTPUT.read_text(encoding="utf-8")
+        cls.relation_tsvs = {
+            path.stem: path.read_text(encoding="utf-8")
+            for path in DOCS_DIRECTORY.glob("*.tsv")
+        }
         cls.appendix_body = APPENDIX.read_text(encoding="utf-8")
         cls.field_metadata = generator.resolve_field_metadata(
             cls.relations, cls.appendix_body
@@ -89,34 +97,18 @@ class DataDictionaryTest(unittest.TestCase):
             {f"{name}.md" for name in expected_names},
         )
 
-    def test_index_is_concise_and_links_every_relation_once(self) -> None:
+    def test_index_is_concise_and_links_only_golden_path_downloads(self) -> None:
         body = _body(self.index)
-        self.assertEqual(body.count("| Relation | Kind | Grain / key | Stage |"), 7)
-        self.assertIn("## External sources (5 relations)", body)
-        self.assertIn("## Lookup/reference inputs (2 relations)", body)
-        self.assertIn("## Processing helpers (4 relations)", body)
-        self.assertIn("## Canonical outputs (11 relations)", body)
-        self.assertIn("## Data-quality sidecars (7 relations)", body)
-        self.assertIn("## Release outputs (2 relations)", body)
-        self.assertIn("## Report/export views (1 relation)", body)
-        self.assertIn("not database relations or dictionary pages", body)
-        self.assertEqual(
-            {name for _, _, names in generator.RELATION_GROUPS for name in names},
-            {relation.name for relation in self.relations},
-        )
-        self.assertNotIn("## Relation columns", body)
-        self.assertNotIn("Population / denominator", body)
-        for relation in self.relations:
-            metadata = generator.RELATION_METADATA[relation.name]
-            link = (
-                f"| [`{relation.name}`](docs/data-dictionary/{relation.name}.md) | "
-                f"{relation.kind} | {metadata.grain} | {metadata.stage} |"
+        self.assertIn("<details>\n<summary>Downloads</summary>", body)
+        self.assertEqual(body.count("[All fields](docs/data-dictionary.tsv)"), 1)
+        self.assertIn("Declared scope: 25 relations and 1,201 fields.", body)
+        self.assertNotIn("| Relation | Kind | Grain / key | Stage |", body)
+        self.assertNotIn(generator.NOTION_CHILD_CONTAINER, body)
+        for name in generator.DICTIONARY_RELATIONS:
+            self.assertEqual(
+                body.count(f"[`{name}`](docs/data-dictionary/{name}.tsv)"), 1
             )
-            with self.subTest(relation=relation.name):
-                self.assertEqual(body.count(link), 1)
-        self.assertEqual(body.count(generator.NOTION_CHILD_CONTAINER), 1)
-        self.assertTrue(body.rstrip().endswith(generator.NOTION_CHILD_CONTAINER))
-        self.assertNotIn(generator.NOTION_CHILD_CONTAINER, "\n".join(self.docs.values()))
+        self.assertNotIn("__data_quality_", body)
 
     def test_each_relation_document_has_metadata_and_exactly_one_table(self) -> None:
         for relation in self.relations:
@@ -302,13 +294,62 @@ class DataDictionaryTest(unittest.TestCase):
         ):
             self.assertNotIn(f"| {old_header} |", generated)
 
-    def test_master_section_appendix_is_linked_and_not_embedded(self) -> None:
+    def test_appendix_links_and_redundant_intro_are_absent(self) -> None:
         index_body = _body(self.index)
         master_body = _body(self.docs["master_section"])
-        self.assertIn("(MASTER-SECTION-DICTIONARY.md)", index_body)
-        self.assertIn("(../../MASTER-SECTION-DICTIONARY.md)", master_body)
+        self.assertNotIn("MASTER-SECTION-DICTIONARY.md", index_body)
+        self.assertNotIn("MASTER-SECTION-DICTIONARY.md", master_body)
+        self.assertNotIn("Regenerate with", index_body)
         self.assertNotIn("# Master Section release dictionary", index_body)
         self.assertNotIn("## Reading rules", master_body)
+
+    def test_tsv_round_trips_every_field_in_schema_order(self) -> None:
+        rows = list(csv.reader(io.StringIO(self.tsv), dialect="excel-tab"))
+        self.assertEqual(
+            rows[0],
+            [
+                "relation", "kind", "ordinal", "column", "type",
+                "example / structure", "direct upstream source / derivation",
+                "description", "null meaning",
+            ],
+        )
+        expected = []
+        for relation in self.relations:
+            if relation.name not in generator.DICTIONARY_RELATIONS:
+                continue
+            for ordinal, column in enumerate(relation.columns, 1):
+                contract = self.field_metadata[(relation.name, column.name)]
+                expected.append(
+                    [
+                        relation.name, relation.kind, str(ordinal), column.name,
+                        column.data_type, contract.values, contract.source,
+                        contract.description, contract.null_meaning,
+                    ]
+                )
+        self.assertEqual(rows[1:], expected)
+        self.assertEqual(len(rows) - 1, 1_201)
+
+    def test_per_relation_tsvs_are_exact_global_slices(self) -> None:
+        self.assertEqual(set(self.relation_tsvs), set(generator.DICTIONARY_RELATIONS))
+        global_rows = list(csv.reader(io.StringIO(self.tsv), dialect="excel-tab"))
+        header = global_rows[0]
+        for name in generator.DICTIONARY_RELATIONS:
+            rows = list(
+                csv.reader(io.StringIO(self.relation_tsvs[name]), dialect="excel-tab")
+            )
+            with self.subTest(relation=name):
+                self.assertEqual(rows[0], header)
+                self.assertEqual(rows[1:], [row for row in global_rows[1:] if row[0] == name])
+                self.assertTrue(rows[1:])
+
+    def test_dictionary_allowlist_is_all_and_only_non_dq_relations(self) -> None:
+        expected = {
+            relation.name
+            for relation in self.relations
+            if not relation.name.startswith("__data_quality_")
+        }
+        self.assertEqual(set(generator.DICTIONARY_RELATIONS), expected)
+        self.assertEqual(len(generator.DICTIONARY_RELATIONS), 25)
 
     def test_registry_and_field_contract_exactly_cover_schema(self) -> None:
         expected_relations = {relation.name for relation in self.relations}
@@ -460,6 +501,8 @@ class DataDictionaryTest(unittest.TestCase):
         rendered = generator.generate_documents(SCHEMA, APPENDIX, OUTPUT, DOCS_DIRECTORY)
         self.assertEqual(rendered.index, self.index)
         self.assertEqual(rendered.relation_docs, self.docs)
+        self.assertEqual(rendered.tsv, self.tsv)
+        self.assertEqual(rendered.relation_tsvs, self.relation_tsvs)
         self.assertEqual(generator.check_documents(rendered, OUTPUT, DOCS_DIRECTORY), [])
         result = subprocess.run(
             ["python3", str(GENERATOR_PATH), "--check"],
@@ -500,6 +543,19 @@ class DataDictionaryTest(unittest.TestCase):
             )
             self.assertEqual(result.returncode, 0, result.stderr)
             self.assertFalse(stale.exists())
+
+    def test_check_detects_stale_tsv(self) -> None:
+        with tempfile.TemporaryDirectory() as temporary_directory:
+            root = Path(temporary_directory)
+            output = root / "DATA-DICTIONARY.md"
+            docs = root / "docs/data-dictionary"
+            tsv = root / "docs/data-dictionary.tsv"
+            rendered = generator.generate_documents(SCHEMA, APPENDIX, output, docs)
+            generator.write_documents(rendered, output, docs, tsv_output=tsv)
+            tsv.write_text(rendered.tsv + "stale\n", encoding="utf-8")
+            self.assertEqual(
+                generator.check_documents(rendered, output, docs, tsv), [tsv]
+            )
 
     def test_validated_frontmatter_is_preserved_without_generating_new_ids(self) -> None:
         with tempfile.TemporaryDirectory() as temporary_directory:

@@ -1,9 +1,9 @@
 # Master Section release dictionary
 
-Contract for release-facing `master_section`, embedded by `DATA-DICTIONARY.md`. Grain: one
+Business/NULL appendix for release-facing `master_section`. Grain: one
 distinct `(period_sortable, section_id)` represented by rolling recent-period canonical `master_material`.
 `section_enrollment` retains every valid section, including no-ISBN/no-adoption sections. “Use” is
-the issue-#58 population in `CMM-ETL.md`.
+the population defined in `COURSE-MATERIAL-POPULATIONS.md`.
 
 All rows below use the following defaults unless overridden: Population/denominator is **Sections**
 (material-bearing `master_section` rows); **Items** means canonical items in that section; derived

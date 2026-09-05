@@ -11,7 +11,7 @@ notion-sync: push
 - Relation kind: table
 - Grain / key: One classified ISBN
 - Pipeline stage: IMPORT derived / 1a_supply_classification.sql
-- Direct upstream relations: `course_catalog_20251215`, `recent_period`, `supply_keywords.tsv`
+- Direct upstream relations: `course_catalog_20251215`, `recent_period`, `supply title rules (supply_keywords.tsv)`
 
 | Column | Type | Example / structure | Direct upstream source / derivation | Description |
 |---|---|---|---|---|

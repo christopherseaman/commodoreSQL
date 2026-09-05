@@ -159,8 +159,8 @@ def main() -> None:
         fail("legacy report reference(s): " + ", ".join(references))
 
     canonical_docs = [
-        REPO_ROOT / "SCHEMA.md",
-        REPO_ROOT / "CMM-ETL.md",
+        REPO_ROOT / "CMM-DATA-FLOW.md",
+        REPO_ROOT / "README.md",
         REPO_ROOT / "DATA-DICTIONARY.md",
         REPO_ROOT / "MAILING-FLOW.md",
     ]
@@ -171,18 +171,22 @@ def main() -> None:
         if match := retired_geography_pattern.search(path.read_text()):
             fail(f"retired mailing relation in {path.name}: {match.group(1)}")
 
-    schema_doc = (REPO_ROOT / "SCHEMA.md").read_text()
-    required_execution_markers = (
-        "| IMPORT | 11 fixed SQL files |",
-        'i0c["01 · 0_cleanup.sql"]',
-        'i2d["11 · 2d_data_quality.sql"]',
-        'e30["12 · 3_mailing_lists.sql"]',
-        'm03["17 · models/sample_material_10pct.sql"]',
-    )
-    if any(marker not in schema_doc for marker in required_execution_markers):
-        fail("SCHEMA.md does not show the exact 17-step processing order")
-    if "| Import | `0_cleanup.sql` |" not in (REPO_ROOT / "CMM-ETL.md").read_text():
-        fail("CMM-ETL.md omits the cleanup step")
+    operations = (REPO_ROOT / "README.md").read_text()
+    documented_order = []
+    for stage in ("Import", "EDA", "Models"):
+        row = next(line for line in operations.splitlines() if line.startswith(f"| {stage} |"))
+        documented_order.extend(name for name in re.findall(r"`([^`]+)`", row) if "/" not in name)
+    actual_order = []
+    for stage in ("IMPORT_SQL", "EDA_SQL"):
+        entries = re.search(rf"{stage}=\((.*?)\n\)", runner, re.DOTALL)
+        if entries is None:
+            fail(f"runner lacks {stage}")
+        actual_order.extend(Path(path).stem for path in re.findall(r'"([^"]+)"', entries.group(1)))
+    actual_order.extend(path.stem for path in sorted((REPO_ROOT / "scripts/sql/models").glob("*.sql")))
+    if documented_order != actual_order:
+        fail("README.md processing order does not match the runner")
+    if "fails if any remain" not in operations:
+        fail("README.md omits the cleanup failure contract")
 
     print(f"PASS: {len(CLEANUP_RELATIONS)} exact cleanup relations are targeted with no legacy report references.")
 

@@ -1,0 +1,6 @@
+relation	kind	ordinal	column	type	example / structure	direct upstream source / derivation	description	null meaning
+format_type_classification	table	1	FormatType	varchar	Catalog FormatType label; original spelling retained	Lookup TSV field `format_type`; direct tab-delimited import.	Catalog classification label for the material format.	Lookup cell missing.
+format_type_classification	table	2	is_oer	boolean	TRUE or FALSE	Lookup TSV field `is_oer`; direct tab-delimited import cast to BOOLEAN.	Whether the material is an open educational resource.	Lookup cell missing.
+format_type_classification	table	3	oer_category	varchar	Category such as `book_oer`, `pure_oer`, or `non_oer`	Lookup TSV field `oer_category`; direct tab-delimited import.	Open-resource category assigned to the material format.	Lookup cell missing.
+format_type_classification	table	4	is_ia	boolean	TRUE or FALSE	Lookup TSV field `is_ia`; direct tab-delimited import cast to BOOLEAN.	Whether the material uses inclusive access.	Lookup cell missing.
+format_type_classification	table	5	ia_category	varchar	Category such as `book_ia`, `ebook_ia`, or `non_ia`	Lookup TSV field `ia_category`; direct tab-delimited import.	Inclusive-access category assigned to the material format.	Lookup cell missing.

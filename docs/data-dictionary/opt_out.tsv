@@ -1,0 +1,3 @@
+relation	kind	ordinal	column	type	example / structure	direct upstream source / derivation	description	null meaning
+opt_out	table	1	email	varchar	Lowercase, trimmed email text	BVA opt-out field `Email`; lowercase + trim.	Normalized email address listed for mailing opt-out.	External field absent or normalized from a configured null token.
+opt_out	table	2	source	varchar	BVA source-system label text	BVA opt-out field `Source`; direct import.	BVA source label explaining the opt-out entry.	External field absent or normalized from a configured null token.

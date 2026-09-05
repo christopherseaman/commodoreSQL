@@ -6,7 +6,7 @@ notion-sync: push
 
 # Course-material populations
 
-Flags: `2_oer_classification.sql`. Grouping/enrollment: `2b_course_material.sql`.
+Flags/enrollment assignment: `2_oer_classification.sql`. Canonical grouping: `2b_course_material.sql`.
 
 ## Source and canonical grains
 
@@ -75,7 +75,7 @@ Excluded rows contribute only labeled audit counts; they cannot add release sect
 `section_enrollment` owns catalog enrollment/seats and availability; raw values use
 `MAX`, and course-level ties resolve lexically. `comprehensive_data` adds IPEDS context
 and assignment once; material/release tables inherit it. Never re-impute downstream.
-[Assignment ladder](CMM-ETL.md#population-and-enrollment).
+The assignment ladder is documented in CMM Data Flow.
 
 ## Checks
 

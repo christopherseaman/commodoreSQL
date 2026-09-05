@@ -4,6 +4,8 @@
 from __future__ import annotations
 
 import argparse
+import csv
+import io
 import re
 import sys
 from dataclasses import dataclass, field
@@ -62,10 +64,12 @@ class GeneratedDocuments:
 
     index: str
     relation_docs: dict[str, str]
+    tsv: str
+    relation_tsvs: dict[str, str]
 
 
 # This registry is deliberately explicit. schema.dbml owns relation/column shape; the
-# named SQL stages and CMM-ETL.md own the conservative relation-level lineage below.
+# named SQL stages and CMM-DATA-FLOW.md own the relation-level lineage below.
 RELATION_METADATA: dict[str, RelationMetadata] = {
     "course_catalog_20251215": RelationMetadata("IMPORT / 0_setup.sql", "One normalized Discovery Extract source row", ("BMG DiscoveryExtract.20251215.csv",), "Raw normalized course-materials and adoption source in a compatibility-named table."),
     "ipeds_data": RelationMetadata("IMPORT / 0_setup.sql", "One IPEDS institution (unitid)", ("IPEDS IPEDS_2024.csv",), "Institutional characteristics lookup."),
@@ -73,7 +77,7 @@ RELATION_METADATA: dict[str, RelationMetadata] = {
     "panel_email": RelationMetadata("IMPORT / 0_setup.sql", "One cleaned email", ("BVA panel_20260108.csv",), "Direct BVA panel-CSV enrichment aggregated to prevent source-row multiplication."),
     "format_type_classification": RelationMetadata("IMPORT / 2_oer_classification.sql", "One FormatType", ("format_type_lookup.tsv",), "OER and inclusive-access classification lookup."),
     "pricing_historical": RelationMetadata("IMPORT step 3 / 1_bookprices_import.sql", "One latest section × ISBN × option × condition × format × rental-term row", ("BMG BookPricing.Historical_20260224.csv",), "Deduplicated BMG-owned raw pricing/cost history in a compatibility-named table."),
-    "supply_isbn_classification": RelationMetadata("IMPORT derived / 1a_supply_classification.sql", "One classified ISBN", ("course_catalog_20251215", "recent_period", "supply_keywords.tsv"), "Precision-oriented rolling-window supply classification audit."),
+    "supply_isbn_classification": RelationMetadata("IMPORT derived / 1a_supply_classification.sql", "One classified ISBN", ("course_catalog_20251215", "recent_period", "supply title rules (supply_keywords.tsv)"), "Precision-oriented rolling-window supply classification audit."),
     "state_region": RelationMetadata("IMPORT derived / 0b_state_region.sql", "One state or province code", ("0b_state_region.sql static values",), "Census region and division lookup."),
     "pricing_wide": RelationMetadata("IMPORT derived / 2c_pricing_wide.sql", "One section_id × ISBN13", ("pricing_historical",), "BMG-owned wide price and availability pivot."),
     "section_enrollment": RelationMetadata("IMPORT derived / 1b_section_enrollment.sql", "One admitted recent-period section with non-NULL derived IDs; UNKNOWN components remain eligible", ("course_catalog_20251215", "recent_period"), "Rolling catalog section population with raw enrollment availability signals."),
@@ -114,7 +118,7 @@ RELATION_GROUPS: tuple[tuple[str, str, tuple[str, ...]], ...] = (
     ),
     (
         "Lookup/reference inputs (2 relations)",
-        "Imported reference mappings; supply title rules feed the classification helper below.",
+        "Imported reference mappings used by the derived classification helpers.",
         ("state_region", "format_type_classification"),
     ),
     (
@@ -157,6 +161,20 @@ RELATION_GROUPS: tuple[tuple[str, str, tuple[str, ...]], ...] = (
             "sample_section_us_intro_fall2025",
         ),
     ),
+)
+
+
+# Notion's fields database and downloadable TSVs cover the implemented flow only.
+# Keep this explicit so adding a schema relation cannot silently publish it.
+DICTIONARY_RELATIONS: tuple[str, ...] = (
+    "course_catalog_20251215", "ipeds_data", "opt_out", "panel_email",
+    "pricing_historical", "state_region", "format_type_classification",
+    "supply_isbn_classification", "section_enrollment", "pricing_wide",
+    "recent_period", "comprehensive_data", "course_material",
+    "course_material_recent", "course_material_use", "course_material_no_use",
+    "master_mailing", "current_mailing", "master_material", "master_section",
+    "master_isbn", "sample_material_10pct", "master_course",
+    "master_institution", "sample_section_us_intro_fall2025",
 )
 
 
@@ -1754,44 +1772,28 @@ def render_index(relations: list[Relation]) -> str:
     _validate_registry(relations)
     _validate_relation_groups(relations)
 
+    selected_names = set(DICTIONARY_RELATIONS)
+    selected = [relation for relation in relations if relation.name in selected_names]
     lines = [
         GENERATED_MARKER,
         "",
         "# CommodoreSQL data dictionary",
         "",
-        "Generated from canonical `schema.dbml`. Each declared table or view has a separate field",
-        "dictionary in schema order. Regenerate with `python3 scripts/generate_data_dictionary.py`.",
-        "The maintained [Master Section deep appendix](MASTER-SECTION-DICTIONARY.md) remains separate.",
+        "Canonical field definitions for the implemented data flow, generated from `schema.dbml`.",
         "",
-        f"Declared scope: {len(relations)} current, consumed relations and "
-        f"{sum(len(relation.columns) for relation in relations):,} fields.",
+        f"Declared scope: {len(selected)} relations and "
+        f"{sum(len(relation.columns) for relation in selected):,} fields.",
         "",
+        "<details>",
+        "<summary>Downloads</summary>",
+        "",
+        "- [All fields](docs/data-dictionary.tsv)",
     ]
-    by_name = {relation.name: relation for relation in relations}
-    for heading, description, names in RELATION_GROUPS:
-        lines.extend(
-            [
-                f"## {heading}", "", description, "",
-                "| Relation | Kind | Grain / key | Stage |", "|---|---|---|---|",
-            ]
-        )
-        for name in names:
-            relation = by_name[name]
-            metadata = RELATION_METADATA[name]
-            doc_path = (RELATION_DOC_DIRECTORY / f"{name}.md").as_posix()
-            lines.append(
-                "| "
-                + " | ".join(
-                    _cell(value)
-                    for value in (
-                        f"[`{name}`]({doc_path})", relation.kind,
-                        metadata.grain, metadata.stage,
-                    )
-                )
-                + " |"
-            )
-        lines.append("")
-    lines.extend(["", NOTION_CHILD_CONTAINER, ""])
+    lines.extend(
+        f"- [`{relation.name}`](docs/data-dictionary/{relation.name}.tsv)"
+        for relation in selected
+    )
+    lines.extend(["", "</details>", ""])
     return "\n".join(lines)
 
 
@@ -1810,11 +1812,6 @@ def render_relation_document(
         f"- Pipeline stage: {_cell(metadata.stage)}",
         f"- Direct upstream relations: {_upstream(metadata)}",
     ]
-    if relation.name == "master_section":
-        lines.append(
-            "- Deep appendix: [Master Section release dictionary]"
-            "(../../MASTER-SECTION-DICTIONARY.md)"
-        )
     lines.extend(
         [
             "",
@@ -1841,6 +1838,45 @@ def render_relation_document(
     return "\n".join(lines)
 
 
+def render_tsv(
+    relations: list[Relation],
+    field_metadata: dict[tuple[str, str], FieldMetadata],
+) -> str:
+    """Render every relation field as a deterministic spreadsheet-friendly TSV."""
+    output = io.StringIO(newline="")
+    writer = csv.writer(output, dialect="excel-tab", lineterminator="\n")
+    writer.writerow(
+        (
+            "relation",
+            "kind",
+            "ordinal",
+            "column",
+            "type",
+            "example / structure",
+            "direct upstream source / derivation",
+            "description",
+            "null meaning",
+        )
+    )
+    for relation in relations:
+        for ordinal, column in enumerate(relation.columns, 1):
+            contract = field_metadata[(relation.name, column.name)]
+            writer.writerow(
+                (
+                    relation.name,
+                    relation.kind,
+                    ordinal,
+                    column.name,
+                    column.data_type,
+                    contract.values,
+                    contract.source,
+                    contract.description,
+                    contract.null_meaning,
+                )
+            )
+    return output.getvalue()
+
+
 def generate_documents(
     schema_path: Path,
     appendix_path: Path,
@@ -1852,6 +1888,7 @@ def generate_documents(
     _validate_registry(relations)
     appendix_body = appendix_path.read_text(encoding="utf-8")
     field_metadata = resolve_field_metadata(relations, appendix_body)
+    _validate_dictionary_relations(relations)
     index_body = render_index(relations)
     existing_index = output_path.read_text(encoding="utf-8") if output_path.exists() else None
     index = _with_preserved_frontmatter(index_body, existing_index, output_path)
@@ -1862,7 +1899,30 @@ def generate_documents(
         relation_docs[relation.name] = _with_preserved_frontmatter(
             render_relation_document(relation, field_metadata), existing, path
         )
-    return GeneratedDocuments(index, relation_docs)
+    selected_names = set(DICTIONARY_RELATIONS)
+    selected = [relation for relation in relations if relation.name in selected_names]
+    return GeneratedDocuments(
+        index,
+        relation_docs,
+        render_tsv(selected, field_metadata),
+        {
+            relation.name: render_tsv([relation], field_metadata)
+            for relation in selected
+        },
+    )
+
+
+def _validate_dictionary_relations(relations: list[Relation]) -> None:
+    declared = {relation.name for relation in relations}
+    selected = list(DICTIONARY_RELATIONS)
+    duplicates = sorted({name for name in selected if selected.count(name) > 1})
+    missing = sorted(set(selected) - declared)
+    dq_relations = sorted(name for name in selected if name.startswith("__data_quality_"))
+    if duplicates or missing or dq_relations:
+        raise ValueError(
+            "dictionary allowlist invalid; "
+            f"duplicates={duplicates}, missing={missing}, data_quality={dq_relations}"
+        )
 
 
 def _expected_relation_paths(
@@ -1871,6 +1931,15 @@ def _expected_relation_paths(
     return {
         docs_directory / f"{name}.md": content
         for name, content in documents.relation_docs.items()
+    }
+
+
+def _expected_tsv_paths(
+    documents: GeneratedDocuments, docs_directory: Path
+) -> dict[Path, str]:
+    return {
+        docs_directory / f"{name}.tsv": content
+        for name, content in documents.relation_tsvs.items()
     }
 
 
@@ -1899,8 +1968,10 @@ def write_documents(
     output_path: Path,
     docs_directory: Path,
     *,
+    tsv_output: Path | None = None,
     prune: bool = False,
 ) -> None:
+    tsv_output = tsv_output or docs_directory.parent / "data-dictionary.tsv"
     expected_paths = _expected_relation_paths(documents, docs_directory)
     stale_paths = _stale_relation_paths(expected_paths, docs_directory)
     unowned = [path for path in stale_paths if not _is_generated_document(path)]
@@ -1914,18 +1985,27 @@ def write_documents(
         )
     docs_directory.mkdir(parents=True, exist_ok=True)
     output_path.write_text(documents.index, encoding="utf-8")
+    tsv_output.parent.mkdir(parents=True, exist_ok=True)
+    tsv_output.write_text(documents.tsv, encoding="utf-8", newline="")
     for path, content in expected_paths.items():
         path.write_text(content, encoding="utf-8")
+    for path, content in _expected_tsv_paths(documents, docs_directory).items():
+        path.write_text(content, encoding="utf-8", newline="")
     for path in stale_paths:
         path.unlink()
 
 
 def check_documents(
-    documents: GeneratedDocuments, output_path: Path, docs_directory: Path
+    documents: GeneratedDocuments,
+    output_path: Path,
+    docs_directory: Path,
+    tsv_output: Path | None = None,
 ) -> list[Path]:
     """Return missing, changed, or stale generated output paths."""
-    expected_paths = {output_path: documents.index}
+    tsv_output = tsv_output or docs_directory.parent / "data-dictionary.tsv"
+    expected_paths = {output_path: documents.index, tsv_output: documents.tsv}
     expected_paths.update(_expected_relation_paths(documents, docs_directory))
+    expected_paths.update(_expected_tsv_paths(documents, docs_directory))
     stale = _stale_relation_paths(
         _expected_relation_paths(documents, docs_directory), docs_directory
     )
@@ -1945,6 +2025,7 @@ def main(argv: list[str] | None = None) -> int:
         "--appendix", type=Path, default=repo_root / "MASTER-SECTION-DICTIONARY.md"
     )
     parser.add_argument("--output", type=Path, default=repo_root / "DATA-DICTIONARY.md")
+    parser.add_argument("--tsv-output", type=Path)
     parser.add_argument(
         "--docs-directory",
         type=Path,
@@ -1964,15 +2045,22 @@ def main(argv: list[str] | None = None) -> int:
     documents = generate_documents(
         args.schema, args.appendix, args.output, args.docs_directory
     )
+    tsv_output = args.tsv_output or args.docs_directory.parent / "data-dictionary.tsv"
     if args.check:
-        stale = check_documents(documents, args.output, args.docs_directory)
+        stale = check_documents(
+            documents, args.output, args.docs_directory, tsv_output
+        )
         if stale:
             for path in stale:
                 print(f"stale generated file: {path}", file=sys.stderr)
             return 1
         return 0
     write_documents(
-        documents, args.output, args.docs_directory, prune=args.prune
+        documents,
+        args.output,
+        args.docs_directory,
+        tsv_output=tsv_output,
+        prune=args.prune,
     )
     return 0
 

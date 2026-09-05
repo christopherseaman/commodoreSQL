@@ -9,30 +9,32 @@
 
 ## Documentation hierarchy
 
-- `SCHEMA.md` — current data model overview (tables, pipeline stages, lineage diagram)
-- `CMM-DATA-FLOW.md` — stakeholder-oriented source-to-report flow and step logic
-- `DATA-DICTIONARY.md` — generated concise project-wide relation index (from `schema.dbml`)
-- `docs/data-dictionary/<relation>.md` — one generated five-column field dictionary page per declared table/view
+- `CMM-DATA-FLOW.md` — source-to-report flow, processing logic, filters, and export inventory
+- `DATA-DICTIONARY.md` — schema home, generated relation index, and downloadable TSV
+- `docs/data-dictionary.tsv` — generated golden-path schema, one row per relation/column
+- `docs/data-dictionary/<relation>.tsv` — downloadable slices of the global TSV
+- `docs/data-dictionary/<relation>.md` — generated repo-only reference pages, including DQ
 - `schema.dbml` — canonical machine-readable column definitions, types, and relationships (load in dbdiagram.io)
-- `CMM-ETL.md` — canonical release-facing ETL contract and processing semantics
-- `MASTER-SECTION-DICTIONARY.md` — separate linked repo-level Master Section business/NULL/denominator appendix
+- `SCHEMA.md`, `CMM-ETL.md` — repo-only pointers retained for older references
+- `MASTER-SECTION-DICTIONARY.md` — repo-only Master Section business/NULL/denominator appendix
 - `DASHBOARDS-REPORTS.md` — dashboard, report, and Metabase question inventory
 - `CLAUDE.md` (this file) — naming standards and conventions
 - `HANDOFF.md` — current work status, how to run things, gotchas (read first when picking up)
-- `README.md` — high-level project + pipeline overview
+- `README.md` — project overview, execution order, runner configuration, and export commands
 
-Notion sync reads the explicit `scripts/notion_sync_docs.txt` manifest (40
-documents): five canonical documents, three top-level issue-detail documents,
-and 32 generated relation pages. The relation index groups current/consumed
-relations as sources, lookup/reference inputs, processing helpers, canonical
-outputs, DQ sidecars, and report views. Geographic mailing is seven direct
-`current_mailing` export filters, not relation pages.
-The three issue-detail pages are children of the CMM ETL page; relation pages
-live under the stable Relation dictionaries container beneath Data Dictionary.
-There is no recursive repository sweep.
-Use `NOTION_KEYRING=0` with the sync helper; run its read-only manifest
-preflight before `--apply` when publishing changes. Repo-only guidance,
-historical notes, and `comms/` source captures are not synced.
+Notion prose sync uses `scripts/notion_sync_docs.txt`: flow, reports, and three issue-detail
+pages beneath CMM Data Flow. It strips ordinary repository-relative links and preserves
+native child pages. No recursive repository sweep.
+
+Data Dictionary uses dedicated field and download publishers, configured by
+`scripts/notion_dictionary.json`. One inline database holds the implemented flow's columns;
+table-filtered views and a collapsed Downloads section expose global/per-table TSVs.
+DQ and off-flow relations are excluded. Generated TSVs flow one-way into Notion;
+publishers detect remote edits and retain stable row/file-block IDs.
+Local sync state lives in ignored `.notion/`; preserve it between runs.
+
+Use `NOTION_KEYRING=0`; preview before `--apply` (commands in README.md).
+Repo-only guidance, historical notes, and `comms/` captures are not synced.
 
 ## Naming standards
 

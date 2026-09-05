@@ -23,6 +23,7 @@ docker/pgadmin/
 *.duckdb
 *.zip
 .cache/
+.notion/
 
 # Data and database files
 data/

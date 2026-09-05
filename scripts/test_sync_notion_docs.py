@@ -6,7 +6,6 @@ import shutil
 import subprocess
 import tempfile
 import unittest
-from unittest import mock
 import importlib.util
 
 
@@ -118,14 +117,15 @@ if sys.argv[1:3] == ['pages', 'get']:
             self.env.pop(variable)
 
     def test_apply_order_and_body(self):
-        result = self.invoke("--apply", self.doc())
+        result = self.invoke("--apply", self.doc(body="# Doc title\n\n[hello](README.md) and [web](https://example.com)\n"))
         self.assertEqual(result.returncode, 0, result.stderr)
         entries = self.entries()
         self.assertEqual([e["argv"][0] for e in entries], ["pages", "api", "pages"])
         request = json.loads(entries[1]["stdin"])
         self.assertIs(request["allow_async"], False)
         self.assertIn("replace_content", request)
-        self.assertIn("hello", entries[1]["stdin"])
+        self.assertIn("hello and [web](https://example.com)", entries[1]["stdin"])
+        self.assertNotIn("README.md", entries[1]["stdin"])
         self.assertEqual(entries[1]["keyring"], "0")
 
     def test_synchronous_success(self):
@@ -196,15 +196,39 @@ if sys.argv[1:3] == ['pages', 'get']:
         self.docs.append(two)
         self.assertNotEqual(self.invoke(one, two).returncode, 0)
 
-    def test_manifest_is_explicit_and_has_40_entries(self):
+    def test_manifest_is_explicit_and_has_five_non_dictionary_documents(self):
         names = SYNC.load_manifest(Path("scripts/notion_sync_docs.txt"), ROOT)
-        self.assertEqual(len(names), 40)
+        self.assertEqual(len(names), 5)
         self.assertEqual(len(names), len(set(names)))
-        self.assertEqual(names[:8], [
-            "CMM-DATA-FLOW.md", "SCHEMA.md", "CMM-ETL.md", "DATA-DICTIONARY.md", "DASHBOARDS-REPORTS.md",
+        self.assertEqual(names, [
+            "CMM-DATA-FLOW.md", "DASHBOARDS-REPORTS.md",
             "COURSE-MATERIAL-POPULATIONS.md", "MAILING-FLOW.md", "PRICING-CATALOG-MATCHING.md",
         ])
-        self.assertTrue(all(name.startswith("docs/data-dictionary/") for name in names[8:]))
+
+    def test_publication_removes_only_local_links_outside_fences(self):
+        markdown = b"""# Doc title
+
+[Flow](CMM-DATA-FLOW.md) and [`report`](metabase/report.json), [web](https://example.com/x), [section](#part).
+
+<page url=\"{{child}}\">Child</page>
+
+```md
+[literal](local.md)
+```
+"""
+        published = SYNC.publication_markdown(markdown).decode()
+        self.assertIn("Flow and `report`", published)
+        self.assertIn("[web](https://example.com/x)", published)
+        self.assertIn("[section](#part)", published)
+        self.assertIn('<page url="{{child}}">Child</page>', published)
+        self.assertIn("[literal](local.md)", published)
+
+    def test_explicit_dictionary_publication_is_rejected_before_network(self):
+        result = self.invoke(ROOT / "DATA-DICTIONARY.md")
+        self.assertEqual(result.returncode, 2)
+        self.assertIn("sync_notion_dictionary.py", result.stderr)
+        self.assertIn("sync_notion_dictionary_downloads.py", result.stderr)
+        self.assertFalse(self.log.exists())
 
     def test_direct_dictionary_child_is_allowed(self):
         path = self.data_dictionary_doc_path("allowed.md")

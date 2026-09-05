@@ -1,6 +1,6 @@
 -- Exact raw -> canonical Course Materials -> Material Costs reconciliation (#65).
 -- Pricing-match interpretation and alternative join designs are documented once,
--- in the CMM-ETL.md issue #21 limitation. Bare SELECT by export convention.
+-- in PRICING-CATALOG-MATCHING.md. Bare SELECT by export convention.
 WITH canonical_use_keys AS MATERIALIZED (
     SELECT
         period_sortable,

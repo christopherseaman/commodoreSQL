@@ -1,0 +1,33 @@
+{
+  "page_id": "3cbd9fdd-1a1a-8082-b697-ca7f5ef1d6ed",
+  "database_id": "2e2adc49-1d62-4524-b397-bdc79c2ac20f",
+  "data_source_id": "c987ec06-e8d3-4025-8f6e-49b0db2de150",
+  "views": {
+    "All fields": "eb7182ea-0990-4b6d-ab4a-5f2c841f5c6d",
+    "comprehensive_data": "3d2d9fdd-1a1a-81e2-8717-000c100407bf",
+    "course_catalog_20251215": "3d2d9fdd-1a1a-8176-aaf3-000cd3ae8f48",
+    "course_material": "3d2d9fdd-1a1a-81e2-afde-000cfeb92cc9",
+    "course_material_no_use": "3d2d9fdd-1a1a-81a1-bc86-000ca0fdc77d",
+    "course_material_recent": "3d2d9fdd-1a1a-81d5-a1ff-000c06800a80",
+    "course_material_use": "3d2d9fdd-1a1a-81e9-bb5c-000c0d81e312",
+    "current_mailing": "3d2d9fdd-1a1a-81c5-9ee4-000cf073baae",
+    "format_type_classification": "3d2d9fdd-1a1a-81d6-8d14-000cf724994d",
+    "ipeds_data": "3d2d9fdd-1a1a-8149-b3e0-000c40f6f94c",
+    "master_course": "3d2d9fdd-1a1a-8119-b0d2-000c355172f9",
+    "master_institution": "3d2d9fdd-1a1a-8176-9e75-000cced1591d",
+    "master_isbn": "3d2d9fdd-1a1a-8124-b5c6-000cb87b65de",
+    "master_mailing": "3d2d9fdd-1a1a-814a-a9b4-000c97313164",
+    "master_material": "3d2d9fdd-1a1a-81f2-9c8a-000c0c74d485",
+    "master_section": "3d2d9fdd-1a1a-8106-a427-000c9ff4f0e3",
+    "opt_out": "3d2d9fdd-1a1a-8108-96c2-000c802e66f5",
+    "panel_email": "3d2d9fdd-1a1a-81df-90d9-000ce9b8999a",
+    "pricing_historical": "3d2d9fdd-1a1a-8127-8818-000ca6f07b4e",
+    "pricing_wide": "3d2d9fdd-1a1a-8121-a302-000ca550bc4b",
+    "recent_period": "3d2d9fdd-1a1a-815c-baff-000c383df093",
+    "sample_material_10pct": "3d2d9fdd-1a1a-8186-b543-000cf6a90bef",
+    "sample_section_us_intro_fall2025": "3d2d9fdd-1a1a-81dd-b1f3-000cd514ab37",
+    "section_enrollment": "3d2d9fdd-1a1a-81fa-8cdc-000c89a4ba04",
+    "state_region": "3d2d9fdd-1a1a-818f-b252-000c1c6672bf",
+    "supply_isbn_classification": "3d2d9fdd-1a1a-81e6-afb7-000cab60b507"
+  }
+}

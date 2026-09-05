@@ -8,7 +8,7 @@ Command: `MEM_LIMIT=16GB NUM_THREADS=1 scripts/run_sql.sh`
 
 The 40-file import, EDA, model, and export run completed successfully. Metabase was
 stopped before the database write and restarted afterward. No Metabase publication or
-external data release was performed.
+external data release was performed during the rebuild.
 
 ## Results
 
@@ -23,7 +23,8 @@ external data release was performed.
 | `pricing_wide` | 11,917,462 rows; tall/wide parity difference 0 |
 | mailing geographic partition | 1,374,828 rows in each side; exact match |
 | `master_section` / `master_course` | 10,514,319 / 5,206,159; reconciliation violations 0 |
-| `sample_material_10pct` / sample sections | 1,937,043 / 773,613 |
+| `sample_material_10pct` / distinct sections | 1,937,043 / 1,050,536 |
+| `sample_section_us_intro_fall2025` | 773,613 |
 
 The generated current exports are timestamped 2026-09-05, including
 `40_master_material_by_term.csv` (18.3 GB) and the release reconciliation files.
@@ -36,6 +37,33 @@ The generated current exports are timestamped 2026-09-05, including
 - Metabase dry-run resolved 70 questions, 4 models, and 14 dashboards without publishing.
 - `master_material` has no duplicate or NULL keys; 7,476,130 pricing keys matched and
   7,476,127 had a non-NULL `price_min`.
+
+Post-run review checked the exported reconciliations: 216 release, 12 release-key,
+and 13 material checks passed. Sample checks: 254 passed, zero failed, 34 not applicable
+(empty/sparse populations). Live schema matches all 32 declared relations and 1,231 columns,
+including types and order. The shared 12-term window intentionally expands release totals
+relative to the former fixed-2024+ baseline.
+
+### Report migration after review
+
+Published 26 changed Metabase cards, preserving IDs, filters, collections, and dashboard
+layouts. All 74 tracked SQL definitions match the repository and bind against the rebuilt
+database; zero old `course_materials`/`material_costs` references remain. Live requests for
+cards 78, 85, 88, and 159 passed. Renamed card 88's parameter sidecar to restore its UNITID
+filter. No further ETL rebuild or external file delivery was needed.
+
+### Documentation follow-up
+
+The golden-path dictionary matches live DuckDB: 25 relations / 1,201 fields, excluding
+seven DQ sidecars. All Notion field values were read back and matched; two unchanged
+field applies made zero writes. All 26 TSV attachments matched local SHA-256 hashes;
+unchanged preview/apply made zero uploads or writes. The inline database has an
+all-fields view and 25 exact table filters, sorted by source column order.
+All five flow/report/detail pages were published and verified. Sync conflict/recovery
+tests and the complete 96-test suite pass; no additional ETL rebuild was run.
+Duplicate Data Lineage/CMM ETL pages and the old container with 33 static dictionaries
+were moved to recoverable Notion trash after content checks. The dictionary home now
+contains only Downloads followed by the inline fields database.
 
 ## Small fixes made after the run
 

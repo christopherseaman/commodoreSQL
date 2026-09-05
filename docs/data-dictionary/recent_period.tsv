@@ -1,0 +1,2 @@
+relation	kind	ordinal	column	type	example / structure	direct upstream source / derivation	description	null meaning
+recent_period	view	1	period_sortable	varchar	YYYY-N	Latest 12 distinct nonmissing `course_catalog_20251215.period_sortable` values.	Sortable academic term code used for chronological ordering.	Not produced.
