@@ -1,4 +1,4 @@
--- name: OER/IA Rate Among Classified Materials (2024+)
+-- name: OER/IA Rate Among Classified Materials (Recent)
 -- display: line
 -- description: Canonical Use items with FormatType; unclassified items excluded. OER/IA as a share of canonical Use materials that HAVE a FormatType classification (denominator excludes unclassified).
 

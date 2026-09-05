@@ -11,11 +11,11 @@ notion-sync: push
 - Relation kind: table
 - Grain / key: One cleaned email
 - Pipeline stage: IMPORT / 0_setup.sql
-- Direct upstream relations: `panel`
+- Direct upstream relations: `BVA panel_20260108.csv`
 
 | Column | Type | Example / structure | Direct upstream source / derivation | Description |
 |---|---|---|---|---|
-| `email` | `varchar` | Lowercase, trimmed email text | Normalized `panel.email` group key. | Normalized contact email used for panel-history matching. |
-| `panel_response_year` | `varchar` | Campaign label shaped `OER_YYYY`, such as `OER_2025` | `MAX(panel.response_year)`. | Latest recorded panel response campaign label. |
-| `panel_source_row_count` | `bigint` | Non-negative whole-number count | `COUNT(*)` of retained panel rows. | Panel-history rows collapsed into the contact lookup. |
-| `panel_response_year_variant_count` | `bigint` | Non-negative whole-number count | `COUNT(DISTINCT panel.response_year)`. | Distinct campaign labels found among grouped panel-history rows. |
+| `email` | `varchar` | Lowercase, trimmed email text | Normalized BVA panel CSV field `Unique` group key. | Normalized contact email used for panel-history matching. |
+| `panel_response_year` | `varchar` | Campaign label shaped `OER_YYYY`, such as `OER_2025` | `MAX` of normalized BVA panel CSV field `Year`. | Latest recorded panel response campaign label. |
+| `panel_source_row_count` | `bigint` | Non-negative whole-number count | `COUNT(*)` of normalized BVA panel CSV rows. | Panel-history rows collapsed into the contact lookup. |
+| `panel_response_year_variant_count` | `bigint` | Non-negative whole-number count | `COUNT(DISTINCT Year)` of normalized BVA panel CSV rows. | Distinct campaign labels found among grouped panel-history rows. |

@@ -1,6 +1,6 @@
--- name: Lineage 7 — Master Course (rollup)
+-- name: Lineage 7 — Master Course (draft)
 -- display: table
--- description: Course rollups for selected school. Raw enrollment is summed; assigned enrollment remains on master_section.
+-- description: Draft course/term rollups for selected school. Definition pending. Raw enrollment is summed; assigned enrollment remains on master_section.
 SELECT *
 FROM master_course
 WHERE 1=1

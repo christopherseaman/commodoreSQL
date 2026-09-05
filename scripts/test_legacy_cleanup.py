@@ -12,6 +12,7 @@ CLEANUP_SQL = REPO_ROOT / "scripts/sql/0_cleanup.sql"
 LEGACY_VIEWS = {
     "recent_periods",
     "course_materials_post_2024",
+    "course_material_post_2024",
     "course_materials_use",
     "course_materials_no_use",
     "course_materials_canada",
@@ -120,6 +121,7 @@ def main() -> None:
         '"0_cleanup.sql"',
         '"0_setup.sql"',
         '"0b_state_region.sql"',
+        '"0c_recent_period.sql"',
         '"1_bookprices_import.sql"',
         '"1a_supply_classification.sql"',
         '"1b_section_enrollment.sql"',
@@ -171,14 +173,14 @@ def main() -> None:
 
     schema_doc = (REPO_ROOT / "SCHEMA.md").read_text()
     required_execution_markers = (
-        "| IMPORT | 10 fixed SQL files |",
+        "| IMPORT | 11 fixed SQL files |",
         'i0c["01 · 0_cleanup.sql"]',
-        'i2d["10 · 2d_data_quality.sql"]',
-        'e30["11 · 3_mailing_lists.sql"]',
-        'm03["16 · models/sample_material_10pct.sql"]',
+        'i2d["11 · 2d_data_quality.sql"]',
+        'e30["12 · 3_mailing_lists.sql"]',
+        'm03["17 · models/sample_material_10pct.sql"]',
     )
     if any(marker not in schema_doc for marker in required_execution_markers):
-        fail("SCHEMA.md does not show the exact 16-step processing order")
+        fail("SCHEMA.md does not show the exact 17-step processing order")
     if "| Import | `0_cleanup.sql` |" not in (REPO_ROOT / "CMM-ETL.md").read_text():
         fail("CMM-ETL.md omits the cleanup step")
 

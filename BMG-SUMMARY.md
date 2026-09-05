@@ -50,8 +50,8 @@ Subsets A/B (BMG)"*; for the data model see `SCHEMA.md` / `schema.dbml`; for pic
 - **Precision over recall (~0.98)** — a false positive would drop a real textbook, so broad
   keywords are kept with explicit *exclude* overrides (e.g. `calculator` kept, not dropped)
   rather than removed. Recall is intentionally keyword-bounded.
-- **Classify once over all 2024+ title variants** of an ISBN (not per-analysis-window), so the
-  flag is stable and reusable across periods.
+- **Classify once over recent-term title variants** of an ISBN; the shared 12-term
+  catalog window applies before reporting filters.
 - **In-place exclusion, not parallel columns** — supplies are excluded from the canonical
   `master_material` item spine, and `master_section` consumes that spine. Any
   all-source supply audit belongs to `comprehensive_data`, not to the material-bearing section
@@ -71,7 +71,7 @@ Subsets A/B (BMG)"*; for the data model see `SCHEMA.md` / `schema.dbml`; for pic
   analysis-layer query — per the enrichment principle (derived columns live on the model).
 - **6-rung hierarchy, own-before-borrowed:** own → own_seats (<9999) → sibling_enroll →
   sibling_seats → class_median (control×level) → level_median. Provenance in `enrollment_source`.
-- **Medians per period over the `section_enrollment` scope reference population** (4 course levels
+- **Medians computed inside `comprehensive_data` from catalog-only `section_enrollment` plus IPEDS** (4 course levels
   × 6 teaching sectors), while the current reported assignment metrics below are for the
   material-bearing BMG section population.
 - **Medians, not means** (resist the right-skew of the enrollment distribution); raw `enrollments`
@@ -80,7 +80,7 @@ Subsets A/B (BMG)"*; for the data model see `SCHEMA.md` / `schema.dbml`; for pic
 ### `is_required_direct` correctness (#40)
 - **Direct requiredness is supply-aware:** `BOOL_OR(book_status='required' AND NOT is_supply)`, so a
   supply-only "required" item (e.g. safety goggles) no longer hides a co-listed real textbook.
-- **Supply classifier moved to a new upstream stage `1a_`** so `1b_` can consult it.
+- **Supply classification feeds requiredness in `2_oer_classification.sql`**, not the enrollment helper.
 - **Shipped alone**, in its own window, ahead of #34/#41 — it was surfaced by adversarial review
   of the #32/#36 diff and the fix is a correctness change, not a rename.
 
@@ -111,16 +111,16 @@ Subsets A/B (BMG)"*; for the data model see `SCHEMA.md` / `schema.dbml`; for pic
 
 ### A. Data model (pipeline / DuckDB)
 - **New pipeline stage `1a_supply_classification.sql`** → table `supply_isbn_classification`
-  (ISBN-level, 2024+ title variants; currently **2,520 supply ISBNs** / 96,685 catalog rows).
+  (ISBN-level, recent-term title variants; prior fixed-2024+ baseline: **2,520 supply ISBNs** / 96,685 catalog rows).
 - **`comprehensive_data`** gained `is_supply`, `supply_category`, and `is_required_inferred`
   (renamed from `filter_include`), followed by the canonical #58 population booleans and direct
-  post-2024 Use/NoUse/Canada views.
+  recent-term Use/NoUse views; Canada is a direct NoUse export filter.
 - **`master_section`** is the material-cost-derived section rollup: one row per section represented
   by canonical `master_material` Use items. Section enrollment fields arrive through
   `comprehensive_data` → `course_material` → `master_material` (#32). Material counts/costs (`material_count`,
   `required_count`, `optional_count`, OER/IA, coverage, publishers, and cost columns therefore
   share the same material-bearing section population. The independent
-  `section_enrollment` table retains the broader valid 2024+ section spine.
+  `section_enrollment` table retains the broader valid recent-term section spine.
 - **`master_course`** is retained for the requested course×term rollup (export 32); its `enrollment_total` sums raw
   `master_section.enrollments`, while `master_section.enrollment_assigned` remains available upstream.
 - **`master_course_material` and export 33 are retired:** the tentative publisher/status output had

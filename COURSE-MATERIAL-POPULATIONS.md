@@ -22,19 +22,22 @@ Each section keeps its ISBN items plus at most one NULL-ISBN row; all-NULL secti
 
 | Flag | Exact row rule |
 |---|---|
-| `is_post_2024` | `period_date >= DATE '2024-01-01'`, with NULL treated as false. |
+| `is_recent` | Term appears in `recent_period`; NULL is false. |
 | `has_isbn` | `ISBN13 IS NOT NULL`; blanks become NULL, numeric pseudo-SKUs remain. |
 | `has_formattype` | `FormatType IS NOT NULL AND TRIM(FormatType) <> ''`. |
-| `is_supply` | 2024+ ISBN matches title classifier; unmatched/blank is false. |
+| `is_supply` | recent-term ISBN matches title classifier; unmatched/blank is false. |
 | `no_details` | title exactly `*No Book Details*`. |
 | `no_materials` | title exactly `*No Books Required*` or `supply_category='placeholder_no_material'`. |
 | `is_canada` | state exactly `CAN`. |
-| `is_course_material_use` | post-2024 AND not Canada AND has ISBN AND not supply AND not no-details AND not no-materials. |
-| `is_course_material_no_use` | post-2024 AND NOT the Use predicate. |
+| `is_course_material_use` | recent-term AND not Canada AND has ISBN AND not supply AND not no-details AND not no-materials. |
+| `is_course_material_no_use` | recent-term AND NOT the Use predicate. |
 
-Use/NoUse partition 2024+ rows; both are false earlier. Canada is NoUse. Exclusions may overlap.
+Use/NoUse partition recent-term rows; both are false outside the window. Canada is NoUse. Exclusions may overlap.
 
-2024+ required inference is true when:
+`recent_period` selects the newest 12 distinct non-NULL catalog terms, shared with mailing.
+Supply classification, requiredness inference, and enrollment context cover that same window.
+
+recent-term required inference is true when:
 
 - a section has a required non-supply row and this row is required; or
 - no such row exists and this row's `book_status` is NULL.
@@ -44,7 +47,7 @@ Otherwise false. Pricing status/required fields remain independent.
 ## Canonical aggregation and conflicts
 
 Booleans use `BOOL_OR`; OR/AND differences flag conflicts. Any Use source row routes its key to
-Use; NoUse is `is_post_2024 AND NOT has_use_source_row`. Retain:
+Use; NoUse is `is_recent AND NOT has_use_source_row`. Retain:
 
 - `use_source_row_count`, `no_use_source_row_count`;
 - `has_use_source_row`, `has_no_use_source_row`;
@@ -57,20 +60,21 @@ use lexical `MIN` plus variant counts.
 
 | Table / view | Population |
 |---|---|
-| `course_material_post_2024` | `is_post_2024` |
+| `course_material_recent` | `is_recent` |
 | `course_material_use` | `is_course_material_use` |
 | `course_material_no_use` | `is_course_material_no_use` |
 | Canada export | NoUse AND `is_canada`; direct filter, no relation |
 | `master_material` | Every Use item, LEFT-enriched with pricing |
 | `master_section` | Sections represented in `master_material` |
-| `section_enrollment` | All valid 2024+ sections, independent of ISBN/Use |
+| `section_enrollment` | All valid recent-term sections, independent of ISBN/Use |
 
 Excluded rows contribute only labeled audit counts; they cannot add release sections.
 
 ## Enrollment ownership
 
-`section_enrollment` owns dimensions, raw values, coverage, and assignments. Raw values use `MAX`;
-tied course-level labels resolve lexically. Join by period/section; never re-impute downstream.
+`section_enrollment` owns catalog enrollment/seats and availability; raw values use
+`MAX`, and course-level ties resolve lexically. `comprehensive_data` adds IPEDS context
+and assignment once; material/release tables inherit it. Never re-impute downstream.
 [Assignment ladder](CMM-ETL.md#population-and-enrollment).
 
 ## Checks

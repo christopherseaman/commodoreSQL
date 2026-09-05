@@ -1,7 +1,7 @@
 # Master Section release dictionary
 
 Contract for release-facing `master_section`, embedded by `DATA-DICTIONARY.md`. Grain: one
-distinct `(period_sortable, section_id)` represented by 2024+ canonical `master_material`.
+distinct `(period_sortable, section_id)` represented by rolling recent-period canonical `master_material`.
 `section_enrollment` retains every valid section, including no-ISBN/no-adoption sections. “Use” is
 the issue-#58 population in `CMM-ETL.md`.
 
@@ -17,7 +17,7 @@ counts/booleans are non-NULL. DuckDB’s nullable catalog metadata is not this s
 | `course_id` | Course ID | Section-canonical value inherited through `master_material`; source composite omits section/term | Sections | Missing segments are `UNKNOWN` |
 | `period` | Academic period | `ANY_VALUE(period)` from `master_material` | Sections | Valid sortable period required |
 | `period_sortable` | Sortable term | `master_material` group key (`YYYY-N`) | Sections | Never NULL |
-| `period_date` | Canonical term date | `ANY_VALUE(period_date)` | Sections, 2024+ | Not NULL in retained scope |
+| `period_date` | Canonical term date | `ANY_VALUE(period_date)` | Recent-period sections | Not NULL in retained scope |
 | `unit_id` | IPEDS institution ID | `ANY_VALUE(unit_id)` from `master_material` | Sections | Missing institution ID |
 | `state` | State/province | `ANY_VALUE(state)` | Sections | Missing geography |
 | `control` | Institution control | Section-canonical value inherited through `master_material` | Sections | No matching IPEDS institution |
@@ -35,6 +35,7 @@ counts/booleans are non-NULL. DuckDB’s nullable catalog metadata is not this s
 | `course_title` | Course title | `mode()` of non-NULL `master_material` value | Items | No source value |
 | `course_level` | BMG course level | Section-canonical value inherited through `master_material` | Sections | No source value |
 | `course_subject` | Course subject | `mode()` of non-NULL `master_material` value | Items | No source value |
+| `bookstore_url` | Bookstore URL | Deterministic modal nonblank `master_material.bookstore_url`: count DESC, URL ASC | Items | No nonblank item URL |
 
 `mode()` flattens occasional within-section conflicts; the pipeline logs divergent sections by
 descriptor and does not deduplicate underlying catalog rows.
@@ -49,12 +50,12 @@ descriptor and does not deduplicate underlying catalog rows.
 | `is_required_direct` | Direct-required section | `BOOL_OR(is_section_required_direct)` over retained items | Sections | False means no nonsupply literal-required item in the section |
 | `has_course_material_use` | Has included material | Constant true for retained sections | Sections | Never false |
 | `course_material_use_count` | Included-material audit count | Canonical item count (= `material_count`) | Items | Never zero |
-| `course_material_no_use_count` | Excluded-row audit count | Count of `course_material.is_course_material_no_use` sidecar rows | Retained sections | Zero means none |
-| `no_details_count` | No-details audit count | Exact `*No Book Details*` sidecar rows | Retained sections; reasons overlap | Zero means marker absent |
-| `no_materials_count` | No-material audit count | Exact `*No Books Required*`/`placeholder_no_material` sidecar rows | Retained sections; reasons overlap | Zero means marker absent |
-| `is_canada` | Canadian-row indicator | `BOOL_OR(state='CAN')` in sidecar | Retained sections | False means no Canadian row |
-| `is_supply` | Classified-supply indicator | `BOOL_OR(is_supply)` in sidecar | Retained sections | False means no supply |
-| `supply_count` | Supply-row count | Count of supply rows in sidecar | Retained sections | Zero means none |
+| `course_material_no_use_count` | Excluded-item audit count | `ANY_VALUE(master_material.section_course_material_no_use_count)` | Retained sections | Zero means none |
+| `no_details_count` | No-details audit count | `ANY_VALUE(master_material.section_no_details_count)` | Retained sections | Zero means marker absent |
+| `no_materials_count` | No-material audit count | `ANY_VALUE(master_material.section_no_materials_count)` | Retained sections | Zero means marker absent |
+| `is_canada` | Canadian-section indicator | `ANY_VALUE(master_material.is_section_canada)` | Retained sections | False means no Canadian item |
+| `is_supply` | Classified-supply indicator | `ANY_VALUE(master_material.is_section_supply)` | Retained sections | False means no supply item |
+| `supply_count` | Supply-item count | `ANY_VALUE(master_material.section_supply_count)` | Retained sections | Zero means none |
 | `is_oer` | OER indicator | `BOOL_OR(is_oer)` over `master_material`, coalesced false | Items | False means no classified OER |
 | `is_ia` | Inclusive-access indicator | `BOOL_OR(is_ia)` over `master_material`, coalesced false | Items | False means no classified IA |
 | `oer_count` | OER count | Count of Items with `is_oer=true` | Items | Zero means none |
@@ -69,10 +70,8 @@ descriptor and does not deduplicate underlying catalog rows.
 | `classified_count` | Classified item count | Count of Items with nonblank FormatType | Items | Zero means none |
 
 Checked invariant: `required_count + optional_count = material_count = course_material_use_count`.
-Supply, Canada, NoUse, and placeholder counts are sidecar evidence for retained sections; use
-`comprehensive_data`/`section_enrollment` for complete-population analysis. Validated #65 totals:
-`course_material_no_use_count=78,230`, `no_details_count=25,993`, `no_materials_count=145`,
-`supply_count=52,237`.
+The six audit values are canonical section-key aggregates repeated on `master_material` and selected
+with `ANY_VALUE`; use `comprehensive_data`/`section_enrollment` for complete-population analysis.
 
 ## Enrollment and fill provenance
 

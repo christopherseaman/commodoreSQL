@@ -1,6 +1,6 @@
 -- Canonical Master ISBN model query (issue #55).
 --
--- Grain: exactly one row per (period_sortable, isbn13), for 2024+ catalog
+-- Grain: exactly one row per (period_sortable, isbn13), for recent catalog
 -- rows in the canonical issue-#58 Use population. The Fall-2025
 -- row set is therefore period_sortable = '2025-4'; no term literal is baked in.
 --

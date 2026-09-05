@@ -1,4 +1,4 @@
--- name: FormatType Classification Coverage Over Time (2024+)
+-- name: FormatType Classification Coverage Over Time (Recent)
 -- display: line
 -- description: All canonical master_material items; fraction with FormatType. Share of canonical deduplicated master_material items that carry a FormatType (and are thus OER/IA-classifiable). Pair with "OER/IA Rate Among Classified Materials".
 

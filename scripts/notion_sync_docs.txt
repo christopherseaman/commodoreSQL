@@ -18,7 +18,7 @@ docs/data-dictionary/comprehensive_data.md
 docs/data-dictionary/course_catalog_20251215.md
 docs/data-dictionary/course_material.md
 docs/data-dictionary/course_material_no_use.md
-docs/data-dictionary/course_material_post_2024.md
+docs/data-dictionary/course_material_recent.md
 docs/data-dictionary/course_material_use.md
 docs/data-dictionary/current_mailing.md
 docs/data-dictionary/format_type_classification.md
@@ -31,7 +31,6 @@ docs/data-dictionary/master_section.md
 docs/data-dictionary/sample_section_us_intro_fall2025.md
 docs/data-dictionary/master_material.md
 docs/data-dictionary/opt_out.md
-docs/data-dictionary/panel.md
 docs/data-dictionary/panel_email.md
 docs/data-dictionary/pricing_historical.md
 docs/data-dictionary/pricing_wide.md

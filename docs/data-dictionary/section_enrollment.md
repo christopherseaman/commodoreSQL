@@ -9,24 +9,20 @@ notion-sync: push
 # `section_enrollment` data dictionary
 
 - Relation kind: table
-- Grain / key: One admitted 2024+ term × section with non-NULL derived IDs; UNKNOWN components remain eligible
+- Grain / key: One admitted recent-period section with non-NULL derived IDs; UNKNOWN components remain eligible
 - Pipeline stage: IMPORT derived / 1b_section_enrollment.sql
-- Direct upstream relations: `course_catalog_20251215`, `ipeds_data`
+- Direct upstream relations: `course_catalog_20251215`, `recent_period`
 
 | Column | Type | Example / structure | Direct upstream source / derivation | Description |
 |---|---|---|---|---|
 | `section_id` | `varchar` | period-specific section key; period_sortable is embedded in the key | Group key from `course_catalog_20251215.section_id`. | Period-specific identifier for the distinct section offering. |
-| `course_id` | `varchar` | `unit_id::department-code::course-number` composite | Deterministic section value (`any_value` or lexical `mode` as defined in sql) from `course_catalog_20251215.course_id`. | Stable identifier for the institution-level course offering. |
-| `period_sortable` | `varchar` | YYYY-N | Deterministic section value (`any_value` or lexical `mode` as defined in sql) from `course_catalog_20251215.period_sortable`. | Sortable academic term code used for chronological ordering. |
-| `control` | `varchar` | IPEDS label such as `Public` or `Private not-for-profit` | `ANY_VALUE(ipeds_data.control)` after the catalog institution join. | Institution ownership and governance classification used for reporting. |
-| `level` | `varchar` | IPEDS label such as `Four or more years` | `ANY_VALUE(ipeds_data.iclevel)` after the catalog institution join. | IPEDS award-level classification for the institution. |
-| `sector` | `varchar` | IPEDS sector descriptor, such as `Public, 4-year or above` | `ANY_VALUE(ipeds_data.sector)` after the catalog institution join. | IPEDS sector classification for the institution. |
-| `course_level` | `varchar` | Category such as `Introductory or general undergraduate` | Deterministic section value (`any_value` or lexical `mode` as defined in sql) from `course_catalog_20251215.course_level`. | Instructional level assigned to the course. |
+| `unit_id` | `bigint` | deterministic catalog institution identifier for the section | `ANY_VALUE(course_catalog_20251215.unit_id)` for the section. | IPEDS institution identifier used throughout the pipeline. |
+| `course_id` | `varchar` | `unit_id::department-code::course-number` composite | `ANY_VALUE(course_catalog_20251215.course_id)` for the section. | Stable identifier for the institution-level course offering. |
+| `period_sortable` | `varchar` | YYYY-N | `ANY_VALUE(course_catalog_20251215.period_sortable)` for the section. | Sortable academic term code used for chronological ordering. |
+| `course_level` | `varchar` | Category such as `Introductory or general undergraduate` | Lexical `mode(course_catalog_20251215.course_level ORDER BY course_level)` for the section. | Instructional level assigned to the course. |
 | `enrollments` | `integer` | Reported student count; source noise can include negative values | `MAX(course_catalog_20251215.enrollments)` for the section; raw 9999 seats sentinel retained. | Enrollment reported directly for the course section. |
 | `seats_taken` | `integer` | Reported occupied seats; `9999` is the source sentinel | `MAX(course_catalog_20251215.seats_taken)` for the section; raw 9999 seats sentinel retained. | Occupied seats reported for the course section. |
 | `has_enrollment` | `boolean` | TRUE or FALSE | Section max(enrollments) is non-null. | Whether usable enrollment information is available. |
 | `has_enrollment_sibling` | `boolean` | TRUE or FALSE | Another same-course/same-term section has enrollment. | Whether a sibling section reports enrollment. |
 | `has_enrollment_own_seats` | `boolean` | TRUE or FALSE | Section max(seats_taken) is non-null and below 9999. | Whether the section reports usable occupied seats. |
 | `has_enrollment_sibling_seats` | `boolean` | TRUE or FALSE | Another same-course/same-term section has valid seats. | Whether a sibling section reports usable occupied seats. |
-| `enrollment_assigned` | `integer` | Rounded student count from the ladder; raw negatives can propagate | Rounded first available: own enrollment, own valid seats, course enrollment median, course seats median, control×level median, level median. | Best available section enrollment from the assignment ladder. |
-| `enrollment_source` | `varchar` | `own`, `own_seats`, `sibling_enroll`, `sibling_seats`, `class_median`, `level_median`, or `none` | Label for the first successful enrollment-assignment ladder rung. | Assignment-ladder rung that supplied the section enrollment. |

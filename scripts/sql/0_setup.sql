@@ -142,8 +142,10 @@ FROM read_csv('${OPTOUT_CSV}',
     delim=',',
     nullstr=['N/A', '', 'Not applicable']);
 
--- Import panel response data
-CREATE TABLE ${PANEL_TABLE} AS
+-- Import panel response data into a connection-local staging table. The raw
+-- response history is only needed to build the one-row-per-email lookup;
+-- persisting it duplicates the source and invites accidental many-to-one joins.
+CREATE TEMP TABLE ${PANEL_TABLE} AS
 SELECT
     LOWER(TRIM("Unique")) AS email,
     "Year" AS response_year
@@ -153,10 +155,10 @@ FROM read_csv('${PANEL_CSV}',
     delim=',',
     nullstr=['N/A', '', 'Not applicable']);
 
--- Preserve the mailing-history source at source-row grain, and expose a
--- one-row-per-email lookup for catalog enrichment. Joining the raw history
--- directly can multiply catalog rows when an email has responses in multiple
--- years.
+-- Preserve response multiplicity in this connection-local source while
+-- exposing a one-row-per-email lookup for catalog enrichment. Joining the raw
+-- history directly can multiply catalog rows when an email has responses in
+-- multiple years.
 CREATE TABLE panel_email AS
 SELECT
     email,

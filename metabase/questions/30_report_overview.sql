@@ -9,7 +9,7 @@ SELECT
     ROUND(100.0 * COUNT(*) FILTER (WHERE master_section.is_ia)  / NULLIF(COUNT(*), 0), 2) AS pct_ia_sections
 FROM master_section
 LEFT JOIN state_region ON master_section.state = state_region.state
-WHERE master_section.period_date >= '2024-01-01'
+WHERE TRUE
   [[ AND {{state}} ]]
   [[ AND {{region}} ]]
   [[ AND {{unit_id}} ]]

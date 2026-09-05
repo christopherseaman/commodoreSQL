@@ -1,10 +1,10 @@
--- name: FormatType Coverage by Supply Status (2024+)
+-- name: FormatType Coverage by Supply Status (Recent)
 -- display: table
--- description: Raw 2024+ ISBN-bearing catalog rows, by supply status; no Use filter. Issue #42. FormatType fill rate split by is_supply (#36) over raw comprehensive_data rows dated 2024+ with non-null ISBN13. Canada and NoUse rows remain included; no canonical #58 Use filter is applied. Empty FormatType = NULL or ''. Row denominators are all rows in this scope; ISBN denominators are distinct ISBN13s in this scope. share_of_all_empty_formattype_rows/isbns show how much of the overall gap each segment explains: supplies are a small slice -- 1.47% of empty-FormatType rows (72,587 of 4,945,299) and 0.70% of empty-FormatType distinct ISBNs (2,371 of 340,532). Supplies themselves are less well filled per-row (75.05% of supply rows empty vs 34.62% non-supply) and per-ISBN (94.09% of the 2,520 supply ISBNs never carry a FormatType vs 51.11% non-supply). Surprising bit: 149 of 2,520 supply ISBNs (5.91%) DO carry a FormatType -- mostly science_lab/art_drafting kits recorded as Book or Bundle (bundled with a textbook).
+-- description: Raw recent-term ISBN-bearing catalog rows, by supply status; no Use filter. Issue #42. FormatType fill rate split by is_supply (#36) over raw comprehensive_data rows in recent terms with non-null ISBN13. Canada and NoUse rows remain included; no canonical #58 Use filter is applied. Empty FormatType = NULL or ''. Row denominators are all rows in this scope; ISBN denominators are distinct ISBN13s in this scope. Historical fill-rate totals are intentionally not embedded because the rolling scope changes with each release.
 WITH base AS (
     SELECT "ISBN13", is_supply, "FormatType"
     FROM comprehensive_data
-    WHERE period_date >= '2024-01-01' AND "ISBN13" IS NOT NULL
+    WHERE is_recent AND "ISBN13" IS NOT NULL
     [[ AND {{period_sortable}} ]]
 ),
 totals AS (
@@ -13,7 +13,7 @@ totals AS (
         COUNT(DISTINCT "ISBN13") FILTER (WHERE "FormatType" IS NULL OR "FormatType" = '') AS all_empty_isbns
     FROM base
 )
-SELECT 1 AS ord, 'All ISBNs (2024+)' AS segment,
+SELECT 1 AS ord, 'All ISBNs (recent terms)' AS segment,
        COUNT(*) AS row_count,
        COUNT(*) FILTER (WHERE "FormatType" IS NULL OR "FormatType" = '') AS empty_formattype_rows,
        ROUND(100.0 * COUNT(*) FILTER (WHERE "FormatType" IS NULL OR "FormatType" = '') / COUNT(*), 2) AS pct_rows_empty_formattype,

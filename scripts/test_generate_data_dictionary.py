@@ -73,17 +73,17 @@ class DataDictionaryTest(unittest.TestCase):
             cls.relations, cls.appendix_body
         )
 
-    def test_canonical_scope_is_33_relations_and_1199_fields(self) -> None:
-        self.assertEqual(len(self.relations), 33)
-        self.assertEqual(sum(r.kind == "table" for r in self.relations), 26)
+    def test_canonical_scope_is_32_relations_and_1231_fields(self) -> None:
+        self.assertEqual(len(self.relations), 32)
+        self.assertEqual(sum(r.kind == "table" for r in self.relations), 25)
         self.assertEqual(sum(r.kind == "view" for r in self.relations), 7)
         field_count = sum(len(relation.columns) for relation in self.relations)
-        self.assertEqual(field_count, 1_199)
+        self.assertEqual(field_count, 1_231)
 
     def test_one_deterministically_named_document_per_relation(self) -> None:
         expected_names = {relation.name for relation in self.relations}
         self.assertEqual(set(self.docs), expected_names)
-        self.assertEqual(len(self.docs), 33)
+        self.assertEqual(len(self.docs), 32)
         self.assertEqual(
             {path.name for path in DOCS_DIRECTORY.glob("*.md")},
             {f"{name}.md" for name in expected_names},
@@ -91,13 +91,14 @@ class DataDictionaryTest(unittest.TestCase):
 
     def test_index_is_concise_and_links_every_relation_once(self) -> None:
         body = _body(self.index)
-        self.assertEqual(body.count("| Relation | Kind | Grain / key | Stage |"), 6)
-        self.assertIn("## External source tables (5 relations)", body)
+        self.assertEqual(body.count("| Relation | Kind | Grain / key | Stage |"), 7)
+        self.assertIn("## External sources (5 relations)", body)
         self.assertIn("## Lookup/reference inputs (2 relations)", body)
-        self.assertIn("## Processing helpers (5 relations)", body)
-        self.assertIn("## Canonical outputs (12 relations)", body)
+        self.assertIn("## Processing helpers (4 relations)", body)
+        self.assertIn("## Canonical outputs (11 relations)", body)
         self.assertIn("## Data-quality sidecars (7 relations)", body)
-        self.assertIn("## Report/export views (2 relations)", body)
+        self.assertIn("## Release outputs (2 relations)", body)
+        self.assertIn("## Report/export views (1 relation)", body)
         self.assertIn("not database relations or dictionary pages", body)
         self.assertEqual(
             {name for _, _, names in generator.RELATION_GROUPS for name in names},
@@ -147,7 +148,7 @@ class DataDictionaryTest(unittest.TestCase):
                 self.assertEqual(len(rows), len(relation.columns))
                 self.assertEqual(len({row[0] for row in rows}), len(rows))
             total_rows += len(rows)
-        self.assertEqual(total_rows, 1_199)
+        self.assertEqual(total_rows, 1_231)
 
     def test_sample_materials_preserve_material_costs_schema(self) -> None:
         material = self.by_name["master_material"]
@@ -196,7 +197,7 @@ class DataDictionaryTest(unittest.TestCase):
                         self.assertNotIn(fragment, lowered)
         self.assertEqual(
             len({column.name for relation in self.relations for column in relation.columns}),
-            298,
+            303,
         )
 
     def test_representative_descriptions_are_conceptual_and_relation_aware(self) -> None:
@@ -208,7 +209,7 @@ class DataDictionaryTest(unittest.TestCase):
             ("course_material", "catalog_metadata_conflict"): "Flags conflicting bibliographic values among grouped catalog rows.",
             ("master_mailing", "email"): "Normalized instructor email used for contact and matching.",
             ("pricing_historical", "price"): "Observed amount for the specific pricing offering.",
-            ("section_enrollment", "enrollment_assigned"): "Best available section enrollment from the assignment ladder.",
+            ("comprehensive_data", "section_enrollment_assigned"): "Best available enrollment assigned to the source section.",
             ("master_course", "required_cost_owned_avg"): "Mean buy-only required-cost midpoint across course sections.",
             ("__data_quality_metrics", "metric_value"): "Scalar result identified by its three metric keys.",
         }
@@ -217,17 +218,14 @@ class DataDictionaryTest(unittest.TestCase):
                 self.assertEqual(self.field_metadata[key].description, description)
 
     def test_audited_panel_enrollment_and_opt_out_contracts(self) -> None:
-        panel = self.field_metadata[("panel", "response_year")]
         panel_latest = self.field_metadata[("panel_email", "panel_response_year")]
-        self.assertIn("OER_YYYY", panel.values)
-        self.assertIn("OER_2018", panel.values)
-        self.assertIn("campaign label", panel.description)
         self.assertIn("OER_2025", panel_latest.values)
         self.assertIn("campaign label", panel_latest.description)
-        self.assertNotIn("Four-digit response year", panel.values)
+        self.assertIn("MAX", panel_latest.source)
+        self.assertNotIn("Four-digit response year", panel_latest.values)
 
         expected_noise_structures = {
-            ("section_enrollment", "enrollment_assigned"): "raw negatives can propagate",
+            ("comprehensive_data", "section_enrollment_assigned"): "raw negatives can propagate",
             ("master_course", "enrollment_total"): "source negatives may propagate",
             ("master_course", "seats_taken_total"): "source noise and sentinels may propagate",
             ("master_institution", "enrollments_tot"): "negative source values may propagate",
@@ -451,7 +449,7 @@ class DataDictionaryTest(unittest.TestCase):
             r"FROM comprehensive_data",
         )
         self.assertIn(
-            "FROM comprehensive_data\nWHERE is_required_inferred = TRUE AND ISBN13 IS NULL",
+            "FROM comprehensive_data\nWHERE is_required_inferred = TRUE AND is_recent AND ISBN13 IS NULL",
             dq_sql,
         )
         self.assertIn("ROUND(100.0 * SUM(CASE", dq_sql)

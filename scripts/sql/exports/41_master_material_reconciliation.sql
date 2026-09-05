@@ -32,7 +32,7 @@ key_presence AS MATERIALIZED (
 raw_metrics AS MATERIALIZED (
     SELECT
         period_sortable,
-        COUNT(*) AS raw_valid_post_2024_rows,
+        COUNT(*) AS raw_valid_recent_rows,
         COUNT(DISTINCT (section_id, "ISBN13")) AS raw_distinct_item_keys,
         COUNT(*) FILTER (WHERE "ISBN13" IS NULL) AS raw_null_isbn_rows,
         COUNT(DISTINCT section_id) FILTER (WHERE "ISBN13" IS NULL)
@@ -41,7 +41,7 @@ raw_metrics AS MATERIALIZED (
         COUNT(DISTINCT (section_id, "ISBN13"))
             FILTER (WHERE is_course_material_use) AS raw_distinct_use_keys
     FROM comprehensive_data
-    WHERE is_post_2024
+    WHERE is_recent
       AND period_sortable IS NOT NULL
       AND section_id IS NOT NULL
     GROUP BY period_sortable
@@ -61,7 +61,7 @@ canonical_metrics AS MATERIALIZED (
         SUM(use_source_row_count) FILTER (WHERE is_course_material_use)
             AS canonical_use_source_rows
     FROM course_material
-    WHERE is_post_2024
+    WHERE is_recent
     GROUP BY period_sortable
 ),
 terms AS (
@@ -122,9 +122,9 @@ coverage_metrics AS (
 per_term AS (
     SELECT
         terms.period_sortable,
-        COALESCE(raw.raw_valid_post_2024_rows, 0) AS raw_valid_post_2024_rows,
+        COALESCE(raw.raw_valid_recent_rows, 0) AS raw_valid_recent_rows,
         COALESCE(raw.raw_distinct_item_keys, 0) AS raw_distinct_item_keys,
-        COALESCE(raw.raw_valid_post_2024_rows - raw.raw_distinct_item_keys, 0)
+        COALESCE(raw.raw_valid_recent_rows - raw.raw_distinct_item_keys, 0)
             AS raw_rows_collapsed,
         COALESCE(raw.raw_null_isbn_rows, 0) AS raw_null_isbn_rows,
         COALESCE(raw.raw_null_isbn_sections, 0) AS raw_null_isbn_sections,
@@ -169,7 +169,7 @@ reported AS (
     UNION ALL BY NAME
     SELECT
         '__ALL__' AS period_sortable,
-        SUM(raw_valid_post_2024_rows) AS raw_valid_post_2024_rows,
+        SUM(raw_valid_recent_rows) AS raw_valid_recent_rows,
         SUM(raw_distinct_item_keys) AS raw_distinct_item_keys,
         SUM(raw_rows_collapsed) AS raw_rows_collapsed,
         SUM(raw_null_isbn_rows) AS raw_null_isbn_rows,
@@ -200,7 +200,7 @@ reported AS (
 SELECT
     *,
     COALESCE(
-      raw_valid_post_2024_rows = canonical_represented_raw_rows
+      raw_valid_recent_rows = canonical_represented_raw_rows
       AND raw_distinct_item_keys = canonical_course_material_rows
       AND raw_null_isbn_rows = canonical_null_isbn_source_rows
       AND raw_null_isbn_sections = canonical_null_isbn_audit_rows

@@ -1,8 +1,8 @@
 [
   {
     "__meta__": {
-      "name": "OER/IA + Status (Filtered, 2024+)",
-      "description": "Canonical inferred-required items, 2024+; FormatType/OER/IA/status cross-tabs using the inferred-required rule."
+      "name": "OER/IA + Status (Filtered, Recent)",
+      "description": "Canonical inferred-required items in recent terms; FormatType/OER/IA/status cross-tabs using the inferred-required rule."
     }
   },
   {

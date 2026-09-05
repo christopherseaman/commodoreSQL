@@ -19,6 +19,8 @@ CREATE TABLE catalog AS SELECT * FROM (VALUES
  ('105','Class target',NULL,2,'E','105','A','2::E::105','2::E::105::A::2025-4','2025-4',DATE '2025-10-01',NULL,NULL,'Introductory or general undergraduate'),
  ('106','Level ref',NULL,3,'D','106','A','3::D::106','3::D::106::A::2025-4','2025-4',DATE '2025-10-01',50,NULL,'Introductory or general undergraduate'),
  ('107','Level target',NULL,4,'E','107','A','4::E::107','4::E::107::A::2025-4','2025-4',DATE '2025-10-01',NULL,NULL,'Introductory or general undergraduate'),
+ ('112','Null unit own',NULL,NULL,'N','112','A','UNKNOWN::N::112','UNKNOWN::N::112::A::2025-4','2025-4',DATE '2025-10-01',7,NULL,'Introductory or general undergraduate'),
+ ('113','Unmatched none',NULL,99,'U','113','A','99::U::113','99::U::113::A::2025-4','2025-4',DATE '2025-10-01',NULL,NULL,'Introductory or general undergraduate'),
  ('111','Supply','required',1,'S','111','A','1::S::111','1::S::111::A::2025-4','2025-4',DATE '2025-10-01',NULL,NULL,'Introductory or general undergraduate'),
  (NULL,'Blank fallback',NULL,1,'S','111','A','1::S::111','1::S::111::A::2025-4','2025-4',DATE '2025-10-01',NULL,NULL,'Introductory or general undergraduate'),
  ('108','Mixed required','required',1,'M','108','A','1::M::108','1::M::108::A::2025-4','2025-4',DATE '2025-10-01',NULL,NULL,'Introductory or general undergraduate'),
@@ -35,30 +37,44 @@ class SectionRequirednessTest(unittest.TestCase):
     def test_actual_scripts_and_assignment_ladder(self):
         self.assertIsNotNone(DUCKDB, "duckdb CLI is required")
         config = "SET memory_limit='1GB'; SET threads=1; SET preserve_insertion_order=false;"
+        recent = (ROOT/'scripts/sql/0c_recent_period.sql').read_text().replace('${CONFIG}',config).replace('${SURVEY_TABLE}','catalog')
         one_b = (ROOT/'scripts/sql/1b_section_enrollment.sql').read_text().replace('${CONFIG}',config).replace('${SURVEY_TABLE}','catalog').replace('${IPEDS_TABLE}','ipeds_data')
         oer = (ROOT/'scripts/sql/2_oer_classification.sql').read_text()
         for key, value in {'${LOOKUP_DIR}':str(ROOT/'data/2025.12.15'),'${SURVEY_TABLE}':'catalog','${IPEDS_TABLE}':'ipeds_data','${PANEL_TABLE}':'panel','${OPTOUT_TABLE}':'opt_out'}.items(): oer=oer.replace(key,value)
         checks = r'''
 SELECT CASE WHEN
- (SELECT enrollment_source FROM section_enrollment WHERE section_id='1::D::100::A::2025-4')='own' AND
- (SELECT enrollment_source FROM section_enrollment WHERE section_id='1::D::101::A::2025-4')='own_seats' AND
- (SELECT enrollment_source FROM section_enrollment WHERE section_id='1::D::102::B::2025-4')='sibling_enroll' AND
- (SELECT enrollment_source FROM section_enrollment WHERE section_id='2::E::105::A::2025-4')='class_median' AND
- (SELECT enrollment_source FROM section_enrollment WHERE section_id='4::E::107::A::2025-4')='level_median' AND
+ (SELECT section_enrollment_source FROM comprehensive_data WHERE section_id='1::D::100::A::2025-4' LIMIT 1)='own' AND
+ (SELECT section_enrollment_source FROM comprehensive_data WHERE section_id='1::D::101::A::2025-4' LIMIT 1)='own_seats' AND
+ (SELECT section_enrollment_source FROM comprehensive_data WHERE section_id='1::D::102::B::2025-4' LIMIT 1)='sibling_enroll' AND
+ (SELECT section_enrollment_source FROM comprehensive_data WHERE section_id='2::E::105::A::2025-4' LIMIT 1)='class_median' AND
+ (SELECT section_enrollment_source FROM comprehensive_data WHERE section_id='4::E::107::A::2025-4' LIMIT 1)='level_median' AND
+ (SELECT section_enrollment_source FROM comprehensive_data WHERE section_id='99::U::113::A::2025-4' LIMIT 1)='none' AND
+ (SELECT section_enrollment_assigned FROM comprehensive_data WHERE section_id='1::D::100::A::2025-4' LIMIT 1)=10 AND
+ (SELECT section_enrollment_assigned FROM comprehensive_data WHERE section_id='1::D::101::A::2025-4' LIMIT 1)=20 AND
+ (SELECT section_enrollment_assigned FROM comprehensive_data WHERE section_id='1::D::102::B::2025-4' LIMIT 1)=30 AND
+ (SELECT section_enrollment_assigned FROM comprehensive_data WHERE section_id='2::E::105::A::2025-4' LIMIT 1)=35 AND
+ (SELECT section_enrollment_assigned FROM comprehensive_data WHERE section_id='4::E::107::A::2025-4' LIMIT 1)=35 AND
+ (SELECT section_enrollment_assigned FROM comprehensive_data WHERE section_id='99::U::113::A::2025-4' LIMIT 1) IS NULL AND
+ (SELECT unit_id FROM section_enrollment WHERE section_id='1::D::100::A::2025-4')=1 AND
+ (SELECT unit_id FROM section_enrollment WHERE section_id='UNKNOWN::N::112::A::2025-4') IS NULL AND
+ (SELECT section_control FROM comprehensive_data WHERE section_id='UNKNOWN::N::112::A::2025-4' LIMIT 1) IS NULL AND
+ (SELECT section_level FROM comprehensive_data WHERE section_id='99::U::113::A::2025-4' LIMIT 1) IS NULL AND
+ (SELECT COUNT(*) FROM information_schema.columns WHERE table_name='section_enrollment'
+    AND column_name IN ('control','level','sector','enrollment_assigned','enrollment_source'))=0 AND
  (SELECT is_section_required_direct FROM comprehensive_data WHERE section_id='1::S::111::A::2025-4' AND "ISBN13" IS NULL LIMIT 1)=FALSE AND
  (SELECT is_required_inferred FROM comprehensive_data WHERE section_id='1::S::111::A::2025-4' AND "ISBN13" IS NULL)=TRUE AND
  (SELECT is_section_required_direct FROM comprehensive_data WHERE section_id='1::M::108::A::2025-4' LIMIT 1)=TRUE AND
  (SELECT is_required_inferred FROM comprehensive_data WHERE section_id='1::M::108::A::2025-4' AND book_status='option')=FALSE AND
- (SELECT COUNT(*) FROM comprehensive_data)=13 AND
- (SELECT COUNT(*) FROM comprehensive_data WHERE section_id='1::O::110::A::2023-4' AND is_required_inferred)=0
+ (SELECT COUNT(*) FROM comprehensive_data)=15 AND
+ (SELECT COUNT(*) FROM comprehensive_data WHERE section_id='1::O::110::A::2023-4' AND is_required_inferred)=1
  THEN 1 ELSE error('actual SQL regression') END AS contract_ok;
 '''
         with tempfile.TemporaryDirectory() as td:
-            r = subprocess.run([DUCKDB,'-bail',str(Path(td)/'t.duckdb'),'-c',FIXTURE+one_b+oer+checks],text=True,capture_output=True)
+            r = subprocess.run([DUCKDB,'-bail',str(Path(td)/'t.duckdb'),'-c',FIXTURE+recent+one_b+oer+checks],text=True,capture_output=True)
         self.assertEqual(r.returncode,0,r.stdout+r.stderr); self.assertIn('1',r.stdout)
 
-    def test_helper_has_no_supply_requiredness(self):
+    def test_helper_is_catalog_only(self):
         s=(ROOT/'scripts/sql/1b_section_enrollment.sql').read_text()
-        self.assertNotIn('supply_isbn_classification',s); self.assertNotIn('AS is_required_direct',s); self.assertNotIn('is_required_direct_legacy',s)
+        self.assertNotIn('supply_isbn_classification',s); self.assertNotIn('IPEDS',s); self.assertNotIn('AS is_required_direct',s); self.assertNotIn('is_required_direct_legacy',s)
 
 if __name__ == '__main__': unittest.main()

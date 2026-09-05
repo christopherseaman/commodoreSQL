@@ -1,4 +1,4 @@
--- name: OER/IA Adoption Over Time (Filtered, 2024+)
+-- name: OER/IA Adoption Over Time (Filtered, Recent)
 -- display: line
 -- description: Canonical inferred-required items; enrollment counted once per section/OER/IA group. OER and IA item counts by period over canonical inferred-required master_material rows. total_enrollments counts each section once within its displayed OER/IA group.
 

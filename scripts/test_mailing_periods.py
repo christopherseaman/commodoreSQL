@@ -10,6 +10,7 @@ import sys
 
 REPO_ROOT = Path(__file__).resolve().parent.parent
 MAILING_SQL = REPO_ROOT / "scripts/sql/3_mailing_lists.sql"
+RECENT_PERIOD_SQL = REPO_ROOT / "scripts/sql/0c_recent_period.sql"
 
 
 def fail(message: str) -> None:
@@ -92,9 +93,8 @@ FROM current_mailing;
 
 
 def main() -> None:
-    sql = MAILING_SQL.read_text()
-    recent_periods_sql = view_definition(sql, "recent_period")
-    current_mailing_sql = view_definition(sql, "current_mailing")
+    recent_periods_sql = view_definition(RECENT_PERIOD_SQL.read_text(), "recent_period")
+    current_mailing_sql = view_definition(MAILING_SQL.read_text(), "current_mailing")
     assert_static_contract(recent_periods_sql, current_mailing_sql)
     assert_isolated_behavior(recent_periods_sql, current_mailing_sql)
     print("PASS: catalog recency boundary and Mailing Working filters are preserved.")

@@ -11,7 +11,7 @@ notion-sync: push
 - Relation kind: table
 - Grain / key: One material-bearing period × section
 - Pipeline stage: EDA records / 4_merged_records.sql
-- Direct upstream relations: `master_material`, `course_material`
+- Direct upstream relations: `master_material`
 - Deep appendix: [Master Section release dictionary](../../MASTER-SECTION-DICTIONARY.md)
 
 | Column | Type | Example / structure | Direct upstream source / derivation | Description |
@@ -43,12 +43,12 @@ notion-sync: push
 | `optional_count` | `bigint` | COUNT of master_material items WHERE NOT is_required_inferred | Count where not `is_required_inferred` | Optional or recommended materials within the section. |
 | `has_course_material_use` | `boolean` | Always true: membership requires at least one canonical Use item | Constant true for retained sections | Whether the section contains retained canonical materials. |
 | `course_material_use_count` | `bigint` | Canonical material items; equals material_count | Canonical item count (= `material_count`) | Canonical included materials within the retained section. |
-| `course_material_no_use_count` | `bigint` | Co-occurring NoUse catalog rows for retained sections only; sidecar audit | Count of `course_material.is_course_material_no_use` sidecar rows | Excluded material rows co-occurring with retained sections. |
-| `no_details_count` | `bigint` | Co-occurring no_details rows for retained sections only; sidecar audit | Exact `*No Book Details*` sidecar rows | No-details placeholder rows co-occurring with retained sections. |
-| `no_materials_count` | `bigint` | Co-occurring no_materials rows for retained sections only; sidecar audit | Exact `*No Books Required*`/`placeholder_no_material` sidecar rows | No-materials placeholder rows co-occurring with retained sections. |
-| `is_canada` | `boolean` | Co-occurring Canada row for a retained section; sidecar audit, not a full-population indicator | `BOOL_OR(state='CAN')` in sidecar | Whether the source row belongs to Canada. |
-| `is_supply` | `boolean` | #36: co-occurring classified supply on a retained section; sidecar audit | `BOOL_OR(is_supply)` in sidecar | Whether the material is classified as a course supply. |
-| `supply_count` | `bigint` | #36: co-occurring classified supply rows on a retained section; sidecar audit | Count of supply rows in sidecar | Classified supply rows co-occurring with retained sections. |
+| `course_material_no_use_count` | `bigint` | ANY_VALUE of repeated canonical per-section NoUse item count | `ANY_VALUE(master_material.section_course_material_no_use_count)` | Excluded canonical items audited within retained sections. |
+| `no_details_count` | `bigint` | ANY_VALUE of repeated canonical per-section no-details item count | `ANY_VALUE(master_material.section_no_details_count)` | No-details canonical items audited within retained sections. |
+| `no_materials_count` | `bigint` | ANY_VALUE of repeated canonical per-section no-materials item count | `ANY_VALUE(master_material.section_no_materials_count)` | No-materials canonical items audited within retained sections. |
+| `is_canada` | `boolean` | ANY_VALUE of repeated canonical per-section Canada indicator | `ANY_VALUE(master_material.is_section_canada)` | Whether retained sections contain Canadian canonical items. |
+| `is_supply` | `boolean` | ANY_VALUE of repeated canonical per-section supply indicator | `ANY_VALUE(master_material.is_section_supply)` | Whether retained sections contain classified supply canonical items. |
+| `supply_count` | `bigint` | ANY_VALUE of repeated canonical per-section supply item count | `ANY_VALUE(master_material.section_supply_count)` | Supply canonical items audited within retained sections. |
 | `is_oer` | `boolean` | COALESCE(BOOL_OR(is_oer), FALSE) over canonical master_material items | `BOOL_OR(is_oer)` over `master_material`, coalesced false | Whether the material is an open educational resource. |
 | `is_ia` | `boolean` | TRUE or FALSE | `BOOL_OR(is_ia)` over `master_material`, coalesced false | Whether the material uses inclusive access. |
 | `oer_count` | `bigint` | Non-negative whole-number count | Count of Items with `is_oer=true` | Open-resource materials within the aggregation group. |
@@ -83,3 +83,4 @@ notion-sync: push
 | `optional_cost_avg` | `double` | USD midpoint of lower and upper total cost bounds | `(optional_cost_total_min + optional_cost_total_max)/2` | Legacy midpoint of total optional-material cost bounds. |
 | `required_priced_count` | `bigint` | distinct required materials with ANY price (total coverage; NOT owned-only — can be >0 while owned cost is NULL when priced materials are rental-only) | Required Items with non-NULL `price_min` | Required materials having at least one valid price. |
 | `optional_priced_count` | `bigint` | Non-negative whole-number count | Optional Items with non-NULL `price_min` | Optional materials having at least one valid price. |
+| `bookstore_url` | `varchar` | Absolute `http://` or `https://` bookstore URL | Deterministic modal nonblank `master_material.bookstore_url`: count DESC, URL ASC | Bookstore URL selected across canonical section items. |

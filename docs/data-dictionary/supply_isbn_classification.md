@@ -11,12 +11,12 @@ notion-sync: push
 - Relation kind: table
 - Grain / key: One classified ISBN
 - Pipeline stage: IMPORT derived / 1a_supply_classification.sql
-- Direct upstream relations: `course_catalog_20251215`, `supply_keywords.tsv`
+- Direct upstream relations: `course_catalog_20251215`, `recent_period`, `supply_keywords.tsv`
 
 | Column | Type | Example / structure | Direct upstream source / derivation | Description |
 |---|---|---|---|---|
 | `isbn13` | `bigint` | 13-digit numeric ISBN or numeric source identifier; NULL when absent | Non-NULL catalog ISBN group key after qualifying title-pattern matches. | Book or material identifier used for cross-source matching. |
 | `title` | `varchar` | Material title; source punctuation/casing retained | Deterministic representative catalog title for the ISBN. | Title supplied for the adopted course material. |
-| `n_rows` | `hugeint` | 2024+ catalog rows covered by qualifying title variants | Count of 2024+ catalog rows covered by qualifying title variants. | Catalog rows supporting the selected supply classification. |
+| `n_rows` | `hugeint` | rolling recent-period catalog rows covered by qualifying title variants | Count of recent-period catalog rows covered by qualifying title variants. | Catalog rows supporting the selected supply classification. |
 | `matched_pattern` | `varchar` | representative lowercase include-pattern match: specific rules before generic supply markers, then longest and lexical tie-breaks | Highest-priority included lowercase keyword; longest then lexical tie-break. | Supply keyword selected after priority and tie-breaking rules. |
 | `category` | `varchar` | category associated with matched_pattern | Category attached to the selected supply keyword. | Classification assigned to the matched supply pattern. |

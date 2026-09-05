@@ -1,4 +1,4 @@
--- name: Coverage — Enrollment Fill-Potential (sections, 2024+)
+-- name: Coverage — Enrollment Fill-Potential (sections, Recent)
 -- display: table
 -- description: Material-bearing Master Section denominator; overlapping enrollment-availability signals, not imputations. Enrollment coverage among material-bearing Master Section rows. Enrollment is NOT imputed here — these counts show how many retained sections missing enrollment have each fill signal available (has_enrollment_* are pure availability flags). Signals overlap (a section can have more than one), so the fillable rows do not sum to (missing − unfillable). pct_of_all_sections means all material-bearing sections in this model, not the complete section_enrollment population.
 WITH base AS (

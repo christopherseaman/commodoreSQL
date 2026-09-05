@@ -13,18 +13,27 @@ State: 2026-09-04. Backlog: GitHub Issues / Project 2.
 ## Current implementation
 
 - `master_material`: canonical Use items LEFT-enriched by exact section × ISBN pricing.
-- `section_enrollment`: complete section population and assigned enrollment.
+- `section_enrollment`: catalog-only section enrollment/seats and sibling signals; assignment happens inside `comprehensive_data`.
 - `sample_material_10pct`: direct stable section-hash sample of `master_material`.
-- `master_section`: owns section costs; no separate `section_cost` relation.
+- `master_section`: all values derive from `master_material`, including inherited audits and modal bookstore URL.
+- `master_course`, `master_institution`: provisional Release outputs; definitions pending.
 - `current_mailing`: Master contacts in the latest 12 catalog terms, history-enriched, minus opt-outs.
+- `course_material_recent`: same 12-term window; `is_recent` replaces the fixed-year flag. Classification and enrollment cover admitted older terms.
+- `panel_email`: sole persisted history import; raw import staging is temporary.
 
 [Flow](CMM-DATA-FLOW.md) · [ETL rules](CMM-ETL.md) · [Dictionary](DATA-DICTIONARY.md)
 
-Current branch checks: 58 automated tests plus standalone cleanup/mailing checks pass.
+Current branch checks: 64 automated tests plus standalone cleanup/mailing checks pass.
 Isolated actual-SQL fixtures cover enrollment, requiredness, canonical grain, costs,
 master rollups, exact sample membership, release reconciliations, and cleanup/replay.
+They also exercise inherited audit counts, section/institution URL selection,
+complete-spine report totals, and report term-filter binding.
+Shared-window fixtures cover admission/expiry, NULL/duplicate terms, pre-2024
+classification/enrollment, and matching material/mailing windows. Panel import
+tests verify deduplication and that raw staging is not persisted.
 All five diagrams render; generated dictionaries/report inventory match their sources.
-These checks do not establish full-data parity.
+These checks do not establish full-data parity. The rolling window intentionally
+changes the historical fixed-2024+ population; full-data term impacts remain unmeasured.
 
 ## Live pre-change baseline
 
@@ -55,10 +64,10 @@ Bounded read-only checks of the staged expressions against that snapshot found:
 
 ## Next release
 
-1. Human review/merge PR #62 and Review → Done transition.
+1. Resolve remaining scope/definition decisions and review PR #62.
 2. Obtain pending inputs; validate schemas/terms; update `scripts/dot.env`.
-3. Stop Metabase, rebuild with bounded resources, validate, restart.
-4. Regenerate exports; verify keys/counts before delivery.
+3. Once the rebuild hold is lifted, stop Metabase, rebuild, validate, and restart.
+4. Migrate report queries, regenerate exports, and verify keys/counts before delivery.
 
 **Do not release `output/`: its 2026-08-27 artifacts predate the validated rebuild.**
 
@@ -66,11 +75,12 @@ Bounded read-only checks of the staged expressions against that snapshot found:
 
 ### Flow changes
 
-- [#80](https://github.com/christopherseaman/commodoreSQL/issues/80) — enrollment helper no longer computes requiredness or joins supply; IPEDS cohort/median dependency remains; rebuild pending
+- [#80](https://github.com/christopherseaman/commodoreSQL/issues/80) — catalog-only helper; IPEDS cohort/median work moved into enrichment; rebuild pending
 - [#81](https://github.com/christopherseaman/commodoreSQL/issues/81) — direct `master_material` hash sample staged; rebuild pending
 - [#85](https://github.com/christopherseaman/commodoreSQL/issues/85) — singular relation/sample naming and direct Canada export staged; live migration held
-- [#86](https://github.com/christopherseaman/commodoreSQL/issues/86) — consolidate enriched raw/canonical processing without losing source-row consumers
-- [#87](https://github.com/christopherseaman/commodoreSQL/issues/87) — confirm master definitions and institution bookstore-URL lineage
+- [#86](https://github.com/christopherseaman/commodoreSQL/issues/86) — consolidate into `course_material`, rerouting source-row consumers to the catalog; implementation pending, no user clarification needed
+- [#87](https://github.com/christopherseaman/commodoreSQL/issues/87) — URL carried through Master Section; final Course/Institution definitions pending
+- [#88](https://github.com/christopherseaman/commodoreSQL/issues/88) — shared newest-12-term window approved and staged; full-data count effects unmeasured under rebuild hold
 - [#83](https://github.com/christopherseaman/commodoreSQL/issues/83) — catalog-derived mailing window staged; bounded live-snapshot parity proven; rebuild pending
 - [#84](https://github.com/christopherseaman/commodoreSQL/issues/84) — section costs folded into Master Section; rebuild pending
 - [#24](https://github.com/christopherseaman/commodoreSQL/issues/24) — resolved: retain `master_course`, export 32, and Metabase card 90 for the course×term rollup; retire `master_course_material` and export 33 (no consumer; NULL publishers excluded; seats repeat across publisher/status groups).

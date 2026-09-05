@@ -1,4 +1,4 @@
--- name: Owned vs All-Options Cost by Course Level (2024+)
+-- name: Owned vs All-Options Cost by Course Level (Recent)
 -- display: bar
 -- description: Master Section required costs by level; buy-priced subset for owned. Required-material cost — all options (incl. rental) vs owned (buy-only) — by course level. Owned reflects only materials that have a buy price.
 

@@ -53,13 +53,101 @@ DROP VIEW IF EXISTS course_materials_canada;
 DROP VIEW IF EXISTS course_materials_no_use;
 DROP VIEW IF EXISTS course_materials_use;
 DROP VIEW IF EXISTS course_materials_post_2024;
+DROP VIEW IF EXISTS course_materials_recent;
 DROP VIEW IF EXISTS course_material_canada;
 DROP VIEW IF EXISTS course_material_no_use;
 DROP VIEW IF EXISTS course_material_use;
 DROP VIEW IF EXISTS course_material_post_2024;
+DROP VIEW IF EXISTS course_material_recent;
 DROP TABLE IF EXISTS comprehensive_data;
 CREATE TABLE comprehensive_data AS
-WITH section_requiredness AS (
+WITH section_context AS (
+    SELECT
+        se.*,
+        i.control AS section_control,
+        i.iclevel AS section_level,
+        i.sector AS section_sector
+    FROM section_enrollment se
+    LEFT JOIN ${IPEDS_TABLE} i ON se.unit_id = i.unitid
+), section_reference AS (
+    SELECT
+        course_id,
+        period_sortable,
+        section_control,
+        section_level,
+        enrollments,
+        seats_taken
+    FROM section_context
+    WHERE course_level IN (
+        'Introductory or general undergraduate',
+        'Intermediate undergraduate',
+        'Non-degree credit',
+        'Uncategorized'
+    )
+      AND section_sector IN (
+        'Public, 4-year or above',
+        'Public, 2-year',
+        'Private not-for-profit, 4-year or above',
+        'Private not-for-profit, 2-year',
+        'Private for-profit, 4-year or above',
+        'Private for-profit, 2-year'
+    )
+), course_medians AS (
+    SELECT
+        course_id,
+        period_sortable,
+        quantile_cont(enrollments, 0.5) AS course_enrollment_median,
+        quantile_cont(CASE WHEN seats_taken < 9999 THEN seats_taken END, 0.5)
+            AS course_seats_median
+    FROM section_reference
+    GROUP BY course_id, period_sortable
+), class_medians AS (
+    SELECT
+        section_control,
+        section_level,
+        period_sortable,
+        quantile_cont(enrollments, 0.5) AS class_enrollment_median
+    FROM section_reference
+    GROUP BY section_control, section_level, period_sortable
+), level_medians AS (
+    SELECT
+        section_level,
+        period_sortable,
+        quantile_cont(enrollments, 0.5) AS level_enrollment_median
+    FROM section_reference
+    GROUP BY section_level, period_sortable
+), section_assignment AS (
+    SELECT
+        context.*,
+        ROUND(COALESCE(
+            context.enrollments,
+            CASE WHEN context.seats_taken < 9999 THEN context.seats_taken END,
+            course.course_enrollment_median,
+            course.course_seats_median,
+            class.class_enrollment_median,
+            level.level_enrollment_median
+        ))::INT AS enrollment_assigned,
+        CASE
+            WHEN context.enrollments IS NOT NULL THEN 'own'
+            WHEN context.seats_taken < 9999 THEN 'own_seats'
+            WHEN course.course_enrollment_median IS NOT NULL THEN 'sibling_enroll'
+            WHEN course.course_seats_median IS NOT NULL THEN 'sibling_seats'
+            WHEN class.class_enrollment_median IS NOT NULL THEN 'class_median'
+            WHEN level.level_enrollment_median IS NOT NULL THEN 'level_median'
+            ELSE 'none'
+        END AS enrollment_source
+    FROM section_context context
+    LEFT JOIN course_medians course
+      ON context.course_id = course.course_id
+     AND context.period_sortable = course.period_sortable
+    LEFT JOIN class_medians class
+      ON context.section_control = class.section_control
+     AND context.section_level = class.section_level
+     AND context.period_sortable = class.period_sortable
+    LEFT JOIN level_medians level
+      ON context.section_level = level.section_level
+     AND context.period_sortable = level.period_sortable
+), section_requiredness AS (
     SELECT
         c.period_sortable,
         c.section_id,
@@ -69,7 +157,7 @@ WITH section_requiredness AS (
     LEFT JOIN supply_isbn_classification si ON c."ISBN13" = si.isbn13
     WHERE c.section_id IS NOT NULL
       AND c.period_sortable IS NOT NULL
-      AND c.period_date >= DATE '2024-01-01'
+      AND c.period_sortable IN (SELECT period_sortable FROM recent_period)
     GROUP BY c.period_sortable, c.section_id
 ), joined AS (
 SELECT
@@ -101,13 +189,13 @@ SELECT
     CASE WHEN oo.email IS NOT NULL THEN true ELSE false END AS is_opted_out,
     oo.source AS opt_out_source,
     -- Direct requiredness is row-grain; section context comes from the local
-    -- requiredness grouping above. Inference remains its separate 2024+ rule.
+    -- requiredness grouping above. Inference uses the shared recent-term window.
     COALESCE(c.book_status = 'required' AND si.isbn13 IS NULL, FALSE) AS is_required_direct,
     sr.is_section_required_direct,
     se.course_id AS section_course_id,
-    se.control AS section_control,
-    se.level AS section_level,
-    se.sector AS section_sector,
+    se.section_control,
+    se.section_level,
+    se.section_sector,
     se.course_level AS section_course_level,
     se.enrollments AS section_enrollments,
     se.seats_taken AS section_seats_taken,
@@ -118,7 +206,7 @@ SELECT
     se.enrollment_assigned AS section_enrollment_assigned,
     se.enrollment_source AS section_enrollment_source,
     CASE
-        WHEN c.period_date >= '2024-01-01'
+        WHEN c.period_sortable IN (SELECT period_sortable FROM recent_period)
          AND (
              (sr.is_section_required_direct = TRUE  AND c.book_status = 'required')
              OR
@@ -133,7 +221,7 @@ LEFT JOIN supply_isbn_classification si ON c."ISBN13" = si.isbn13
 LEFT JOIN ipeds_data i ON c.unit_id = i.unitid
 LEFT JOIN panel_email p ON c.email = p.email
 LEFT JOIN opt_out oo ON c.email = oo.email
-LEFT JOIN section_enrollment se
+LEFT JOIN section_assignment se
   ON c.period_sortable = se.period_sortable
  AND c.section_id = se.section_id
 LEFT JOIN section_requiredness sr
@@ -143,7 +231,7 @@ LEFT JOIN section_requiredness sr
 row_flags AS (
     SELECT
         joined.*,
-        COALESCE(period_date >= DATE '2024-01-01', FALSE) AS is_post_2024,
+        COALESCE(period_sortable IN (SELECT period_sortable FROM recent_period), FALSE) AS is_recent,
         ("ISBN13" IS NOT NULL) AS has_isbn,
         ("FormatType" IS NOT NULL AND TRIM("FormatType") <> '') AS has_formattype,
         (enrollments IS NOT NULL) AS has_enrollment,
@@ -157,7 +245,7 @@ row_flags AS (
 SELECT
     row_flags.*,
     (
-        is_post_2024
+        is_recent
         AND NOT is_canada
         AND has_isbn
         AND NOT is_supply
@@ -165,7 +253,7 @@ SELECT
         AND NOT no_materials
     ) AS is_course_material_use,
     (
-        is_post_2024
+        is_recent
         AND NOT (
             NOT is_canada
             AND has_isbn
@@ -175,6 +263,45 @@ SELECT
         )
     ) AS is_course_material_no_use
 FROM row_flags;
+
+-- Every valid section key must receive one stable helper/IPEDS/assignment
+-- context before that context is repeated across its catalog material rows.
+WITH section_context_dq AS (
+    SELECT
+        period_sortable,
+        section_id,
+        MIN(section_course_id) IS DISTINCT FROM MAX(section_course_id)
+          OR MIN(section_control) IS DISTINCT FROM MAX(section_control)
+          OR MIN(section_level) IS DISTINCT FROM MAX(section_level)
+          OR MIN(section_sector) IS DISTINCT FROM MAX(section_sector)
+          OR MIN(section_course_level) IS DISTINCT FROM MAX(section_course_level)
+          OR MIN(section_enrollments) IS DISTINCT FROM MAX(section_enrollments)
+          OR MIN(section_seats_taken) IS DISTINCT FROM MAX(section_seats_taken)
+          OR MIN(section_has_enrollment) IS DISTINCT FROM MAX(section_has_enrollment)
+          OR MIN(section_has_enrollment_own_seats)
+               IS DISTINCT FROM MAX(section_has_enrollment_own_seats)
+          OR MIN(section_has_enrollment_sibling)
+               IS DISTINCT FROM MAX(section_has_enrollment_sibling)
+          OR MIN(section_has_enrollment_sibling_seats)
+               IS DISTINCT FROM MAX(section_has_enrollment_sibling_seats)
+          OR MIN(section_enrollment_assigned)
+               IS DISTINCT FROM MAX(section_enrollment_assigned)
+          OR MIN(section_enrollment_source) IS DISTINCT FROM MAX(section_enrollment_source)
+            AS has_context_conflict,
+        (MIN(section_enrollment_assigned) IS NULL)
+          <> (MIN(section_enrollment_source) = 'none') AS assignment_source_violation
+    FROM comprehensive_data
+    WHERE period_sortable IS NOT NULL
+      AND section_id IS NOT NULL
+      AND period_sortable IN (SELECT period_sortable FROM recent_period)
+    GROUP BY period_sortable, section_id
+)
+SELECT
+    'Section helper/IPEDS assignment context DQ' AS validation_status,
+    COUNT(*) AS valid_sections,
+    COUNT(*) FILTER (WHERE has_context_conflict) AS context_conflict_sections,
+    COUNT(*) FILTER (WHERE assignment_source_violation) AS assignment_source_violations
+FROM section_context_dq;
 
 -- Validation: Check distribution of OER/IA classifications including NULLs
 SELECT
@@ -195,26 +322,26 @@ SELECT
     COUNT(DISTINCT "ISBN13") FILTER (WHERE is_supply) AS supply_isbns
 FROM comprehensive_data;
 
--- Population contract DQ. Exactly one of Use/NoUse is true for every post-2024
--- row; neither is true before 2024. Exclusion booleans deliberately remain
+-- Population contract DQ. Exactly one of Use/NoUse is true for every recent-term
+-- row; neither is true outside the window. Exclusion booleans deliberately remain
 -- independent because (for example) a row can be both Canadian and no-material.
 SELECT
     'Course-material population contract' AS validation_status,
-    COUNT(*) FILTER (WHERE is_post_2024) AS post_2024_rows,
+    COUNT(*) FILTER (WHERE is_recent) AS recent_rows,
     COUNT(*) FILTER (WHERE is_course_material_use) AS use_rows,
     COUNT(*) FILTER (WHERE is_course_material_no_use) AS no_use_rows,
     COUNT(*) FILTER (
-        WHERE is_post_2024
+        WHERE is_recent
           AND is_course_material_use = is_course_material_no_use
-    ) AS post_2024_partition_violations,
+    ) AS recent_partition_violations,
     COUNT(*) FILTER (
-        WHERE NOT is_post_2024
+        WHERE NOT is_recent
           AND (is_course_material_use OR is_course_material_no_use)
-    ) AS pre_2024_flag_violations,
+    ) AS outside_recent_flag_violations,
     COUNT(*) FILTER (
-        WHERE is_post_2024 AND is_canada AND NOT is_course_material_no_use
+        WHERE is_recent AND is_canada AND NOT is_course_material_no_use
     ) AS canada_not_no_use_violations,
-    COUNT(*) FILTER (WHERE is_post_2024)
+    COUNT(*) FILTER (WHERE is_recent)
       - COUNT(*) FILTER (WHERE is_course_material_use)
       - COUNT(*) FILTER (WHERE is_course_material_no_use) AS partition_difference
 FROM comprehensive_data;
@@ -222,7 +349,7 @@ FROM comprehensive_data;
 SELECT
     'Course-material population contract by term' AS validation_status,
     period_sortable,
-    COUNT(*) AS post_2024_rows,
+    COUNT(*) AS recent_rows,
     COUNT(*) FILTER (WHERE is_course_material_use) AS use_rows,
     COUNT(*) FILTER (WHERE is_course_material_no_use) AS no_use_rows,
     COUNT(*) FILTER (WHERE NOT has_isbn) AS no_isbn_rows,
@@ -236,7 +363,7 @@ SELECT
     COUNT(*) FILTER (WHERE is_canada AND NOT is_course_material_no_use)
         AS canada_not_no_use_violations
 FROM comprehensive_data
-WHERE is_post_2024
+WHERE is_recent
 GROUP BY period_sortable
 ORDER BY period_sortable;
 
@@ -251,7 +378,7 @@ WITH reason_cardinality AS (
           + CAST(no_details AS INTEGER)
           + CAST(no_materials AS INTEGER) AS no_use_reason_count
     FROM comprehensive_data
-    WHERE is_post_2024
+    WHERE is_recent
 )
 SELECT
     'Course-material NoUse reason cardinality' AS validation_status,
@@ -274,7 +401,7 @@ SELECT
     no_materials,
     COUNT(*) AS record_count
 FROM comprehensive_data
-WHERE is_post_2024
+WHERE is_recent
 GROUP BY period_sortable, is_canada, has_isbn, is_supply, no_details, no_materials
 ORDER BY period_sortable, record_count DESC;
 
@@ -286,7 +413,7 @@ SELECT
     (SELECT COUNT(*) FROM comprehensive_data) AS enriched_source_rows,
     (SELECT COUNT(*) FROM comprehensive_data)
       - (SELECT COUNT(*) FROM ${SURVEY_TABLE}) AS row_difference,
-    (SELECT COUNT(*) FROM ${PANEL_TABLE}) AS panel_source_rows,
+    COALESCE((SELECT SUM(panel_source_row_count) FROM panel_email), 0) AS panel_source_rows,
     (SELECT COUNT(*) FROM panel_email) AS panel_distinct_emails,
     (SELECT COUNT(*) FROM panel_email WHERE panel_source_row_count > 1)
         AS panel_emails_with_multiple_rows,

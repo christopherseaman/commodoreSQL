@@ -10,7 +10,7 @@ notion-sync: push
 
 - Relation kind: view
 - Grain / key: One material-bearing period × course
-- Pipeline stage: EDA records / 4_merged_records.sql
+- Pipeline stage: Release / 4_merged_records.sql
 - Direct upstream relations: `master_section`
 
 | Column | Type | Example / structure | Direct upstream source / derivation | Description |

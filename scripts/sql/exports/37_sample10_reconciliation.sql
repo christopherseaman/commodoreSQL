@@ -13,13 +13,22 @@
 -- Raw Use/NoUse, Canada, and placeholder row totals remain full-catalog additive
 -- diagnostics even though their exclusion booleans overlap. Canonical material
 -- metrics use master_material. Distinct institution/ISBN domains remain
--- coverage-only. Sample membership itself comes from the complete
--- section_enrollment population.
-WITH sample AS MATERIALIZED (
+-- coverage-only. Sample membership itself comes from the complete deduplicated
+-- section context in comprehensive_data.
+WITH full_section_context AS MATERIALIZED (
+    SELECT DISTINCT
+        period_sortable,
+        section_id,
+        section_enrollment_assigned AS enrollment_assigned
+    FROM comprehensive_data
+    WHERE period_sortable IS NOT NULL
+      AND section_id IS NOT NULL
+      AND is_recent
+), sample AS MATERIALIZED (
     SELECT
         period_sortable,
         section_id
-    FROM section_enrollment
+    FROM full_section_context
     WHERE CAST('0x' || LEFT(md5(section_id), 16) AS UBIGINT) % 10 = 0
 ),
 catalog AS (
@@ -60,7 +69,7 @@ catalog AS (
         ) AS supply_rows_sample
     FROM comprehensive_data c
     LEFT JOIN sample USING (period_sortable, section_id)
-    WHERE c.period_date >= DATE '2024-01-01'
+    WHERE c.is_recent
       AND c.period_sortable IS NOT NULL
       AND c.section_id IS NOT NULL
     GROUP BY c.period_sortable
@@ -77,7 +86,7 @@ catalog_reason_cardinality AS (
         COUNT(*) FILTER (WHERE sample.section_id IS NOT NULL) AS catalog_rows_sample
     FROM comprehensive_data c
     LEFT JOIN sample USING (period_sortable, section_id)
-    WHERE c.is_post_2024
+    WHERE c.is_recent
       AND c.period_sortable IS NOT NULL
       AND c.section_id IS NOT NULL
     GROUP BY c.period_sortable, no_use_reason_count
@@ -98,7 +107,7 @@ sampled_catalog_by_section AS MATERIALIZED (
         COUNT(*) FILTER (WHERE COALESCE(c.is_supply, FALSE))::DOUBLE AS supply_rows
     FROM comprehensive_data c
     JOIN sample USING (period_sortable, section_id)
-    WHERE c.period_date >= DATE '2024-01-01'
+    WHERE c.is_recent
       AND c.period_sortable IS NOT NULL
       AND c.section_id IS NOT NULL
     GROUP BY c.period_sortable, c.section_id
@@ -115,7 +124,7 @@ sampled_reason_cardinality_by_section AS (
         COUNT(*)::DOUBLE AS catalog_rows
     FROM comprehensive_data c
     JOIN sample USING (period_sortable, section_id)
-    WHERE c.is_post_2024
+    WHERE c.is_recent
       AND c.period_sortable IS NOT NULL
       AND c.section_id IS NOT NULL
     GROUP BY c.period_sortable, c.section_id, no_use_reason_count
@@ -226,26 +235,26 @@ pricing_count_squares AS (
 ),
 section_population AS (
     SELECT
-        enrollment.period_sortable,
+        context.period_sortable,
         COUNT(*) AS section_rows_full,
         COUNT(*) FILTER (WHERE sample.section_id IS NOT NULL) AS section_rows_sample,
-        SUM(enrollment.enrollment_assigned) AS enrollment_assigned_full,
-        SUM(enrollment.enrollment_assigned) FILTER (
+        SUM(context.enrollment_assigned) AS enrollment_assigned_full,
+        SUM(context.enrollment_assigned) FILTER (
             WHERE sample.section_id IS NOT NULL
         ) AS enrollment_assigned_sample
-    FROM section_enrollment enrollment
+    FROM full_section_context context
     LEFT JOIN sample USING (period_sortable, section_id)
-    GROUP BY enrollment.period_sortable
+    GROUP BY context.period_sortable
 ),
 section_population_squares AS (
     SELECT
-        enrollment.period_sortable,
+        context.period_sortable,
         COUNT(*)::DOUBLE AS section_rows_sum_squares,
-        SUM(POWER(COALESCE(enrollment.enrollment_assigned, 0)::DOUBLE, 2))
+        SUM(POWER(COALESCE(context.enrollment_assigned, 0)::DOUBLE, 2))
             AS enrollment_sum_squares
-    FROM section_enrollment enrollment
+    FROM full_section_context context
     JOIN sample USING (period_sortable, section_id)
-    GROUP BY enrollment.period_sortable
+    GROUP BY context.period_sortable
 ),
 sections AS (
     SELECT
@@ -364,12 +373,12 @@ metrics AS (
            COALESCE(optional_priced_materials_sample, 0)::HUGEINT
     FROM pricing_counts LEFT JOIN pricing_count_squares USING (period_sortable)
     UNION ALL
-    SELECT period_sortable, 'section_enrollment', 'section_rows',
+    SELECT period_sortable, 'comprehensive_data', 'section_rows',
            TRUE, section_rows_sum_squares,
            section_rows_full::HUGEINT, COALESCE(section_rows_sample, 0)::HUGEINT
     FROM section_population LEFT JOIN section_population_squares USING (period_sortable)
     UNION ALL
-    SELECT period_sortable, 'section_enrollment', 'enrollment_assigned_total',
+    SELECT period_sortable, 'comprehensive_data', 'enrollment_assigned_total',
            TRUE, enrollment_sum_squares,
            enrollment_assigned_full::HUGEINT, COALESCE(enrollment_assigned_sample, 0)::HUGEINT
     FROM section_population LEFT JOIN section_population_squares USING (period_sortable)

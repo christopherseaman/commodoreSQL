@@ -12,7 +12,7 @@ flowchart LR
     S --> R[recent_period]
     M --> W[current_mailing]
     R --> W
-    H[panel] --> P[panel_email]
+    P["panel_email<br/>(panel_20260108.csv)"]
     P -->|LEFT JOIN| W
     O[opt_out] -->|NOT EXISTS| W
 ```
@@ -22,11 +22,10 @@ flowchart LR
 | Table / view | Grain | Selection / enrichment |
 |---|---|---|
 | `course_catalog_20251215` | Source row | Normalize email, IDs, periods; retain missing/invalid contacts. |
-| `panel` | Source row | Lowercase/trim email; retain duplicates. |
-| `panel_email` | Email | `MAX(response_year)` → `panel_response_year`; count rows/year variants. Assumes four-digit years. |
+| `panel_email` | Email | Import normalized emails; `MAX(response_year)` campaign label (e.g., `OER_2025`); count rows/label variants. |
 | `opt_out` | Source row | Lowercase/trim email; duplicates allowed. |
 | `master_mailing` | Email | Nonblank only; newest term, largest enrollment, stable IDs/contact/course tie-breakers. No other eligibility filters. |
-| `recent_period` | Term | Lookup view of newest 12 distinct non-NULL terms from `course_catalog_20251215`. |
+| `recent_period` | Term | Newest 12 distinct non-NULL catalog terms; shared with materials. |
 | `current_mailing` | Email | Recent terms; LEFT history join; exclude opt-out existence. Missing history retains contact; duplicate opt-outs cannot multiply rows. |
 
 Catalog email cleaning extracts `email:` text, takes the first space-delimited address from

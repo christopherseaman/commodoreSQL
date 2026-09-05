@@ -17,11 +17,9 @@
 -- * assigned enrollment is authoritative for enrollment_section_count and its total;
 --   raw enrollments is not re-imputed here. seats_taken=9999 is the documented invalid
 --   sentinel, so it is excluded from seat counts and totals.
--- * bookstore_url is an institution-metadata exception to the canonical material
---   flow. It is selected from all same-term pricing rows so institutions do not
---   lose a known URL merely because those priced items fall outside canonical Use.
---   The URL occurring on the most pricing rows wins; lexical ordering is the
---   deterministic tie-break. URLs are not inferred for NULL unit_id.
+-- * bookstore_url flows through canonical Master Section. The URL occurring on
+--   the most same-term section rows wins; lexical ordering is the deterministic
+--   tie-break. URLs are not inferred for NULL unit_id.
 WITH section_flags AS (
     SELECT
         ms.*,
@@ -41,14 +39,13 @@ WITH section_flags AS (
 ),
 url_counts AS (
     SELECT
-        REGEXP_EXTRACT(pricing.section_id, '::([0-9]{4}-[1-4])$', 1) AS period_sortable,
-        pricing.unit_id,
-        pricing.bookstore_url,
-        COUNT(*) AS pricing_rows
-    FROM pricing_wide pricing
-    WHERE pricing.unit_id IS NOT NULL
-      AND pricing.bookstore_url IS NOT NULL
-      AND pricing.bookstore_url <> ''
+        period_sortable,
+        unit_id,
+        NULLIF(TRIM(bookstore_url), '') AS bookstore_url,
+        COUNT(*) AS section_rows
+    FROM master_section
+    WHERE unit_id IS NOT NULL
+      AND NULLIF(TRIM(bookstore_url), '') IS NOT NULL
     GROUP BY 1, 2, 3
 ),
 ranked_urls AS (
@@ -56,7 +53,7 @@ ranked_urls AS (
         *,
         ROW_NUMBER() OVER (
             PARTITION BY period_sortable, unit_id
-            ORDER BY pricing_rows DESC, bookstore_url ASC
+            ORDER BY section_rows DESC, bookstore_url ASC
         ) AS url_rank
     FROM url_counts
 ),

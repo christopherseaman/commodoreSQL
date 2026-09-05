@@ -1,7 +1,7 @@
 #!/bin/bash
 set -euo pipefail
 
-# Export one release-dated CSV per material-bearing term from the canonical
+# Export one release-dated CSV per material-bearing recent term from the canonical
 # materialized Material Costs, Master Section, Master Institution, and Master ISBN
 # models. Pass terms explicitly to limit the run, for example:
 # scripts/export_cmm_masters.sh 2025-4
@@ -33,7 +33,7 @@ else
             SELECT DISTINCT period_sortable
             FROM master_material
             WHERE period_sortable IS NOT NULL
-              AND period_sortable >= '2024-1'
+              AND period_sortable IN (SELECT period_sortable FROM recent_period)
             ORDER BY period_sortable;
         "
     )
@@ -44,7 +44,7 @@ else
 fi
 
 if [ "${#TERMS[@]}" -eq 0 ]; then
-    echo "Error: no material-bearing terms from 2024 onward were found" >&2
+    echo "Error: no material-bearing recent terms were found" >&2
     exit 1
 fi
 

@@ -11,8 +11,6 @@ DROP VIEW IF EXISTS current_mailing_pa;
 DROP VIEW IF EXISTS current_mailing_can;
 DROP VIEW IF EXISTS current_mailing_other;
 DROP VIEW IF EXISTS current_mailing;
-DROP VIEW IF EXISTS recent_periods;
-DROP VIEW IF EXISTS recent_period;
 -- Remove stale pre-#66 cache relations; they are no longer canonical outputs.
 DROP TABLE IF EXISTS master_mailing_cache;
 DROP TABLE IF EXISTS current_mailing_cache;
@@ -78,16 +76,6 @@ SELECT
     chosen.last_name AS last_name,
     email
 FROM selected;
-
--- Identify the current catalog window independently of per-email Master
--- selection. A term remains current even if no catalog contact ultimately
--- survives the Master selection for that term.
-CREATE VIEW recent_period AS
-SELECT DISTINCT period_sortable
-FROM ${SURVEY_TABLE}
-WHERE period_sortable IS NOT NULL
-ORDER BY period_sortable DESC
-LIMIT 12;
 
 -- Whiteboard Mailing Working population: recent selected catalog contacts,
 -- excluding BVA opt-outs and LEFT-enriched with panel response history.

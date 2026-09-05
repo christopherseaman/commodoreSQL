@@ -94,10 +94,10 @@ copy_path_sql() {
 # escaped as SQL literals before being interpolated into the read-only COPY.
 declare -a EXPORTS=(
     "course_material|course_material${term_slug}_${EXPORT_DATE}.csv|period_sortable, section_id, isbn13|TRUE"
-    "course_material_post_2024|course_material_post_2024${term_slug}_${EXPORT_DATE}.csv|period_sortable, section_id, isbn13|TRUE"
-    "course_material_use|course_material_use_post_2024${term_slug}_${EXPORT_DATE}.csv|period_sortable, section_id, isbn13|TRUE"
-    "course_material_no_use|course_material_no_use_post_2024${term_slug}_${EXPORT_DATE}.csv|period_sortable, section_id, isbn13|TRUE"
-    "course_material_no_use|course_material_can_post_2024${term_slug}_${EXPORT_DATE}.csv|period_sortable, section_id, isbn13|is_canada"
+    "course_material_recent|course_material_recent${term_slug}_${EXPORT_DATE}.csv|period_sortable, section_id, isbn13|TRUE"
+    "course_material_use|course_material_use_recent${term_slug}_${EXPORT_DATE}.csv|period_sortable, section_id, isbn13|TRUE"
+    "course_material_no_use|course_material_no_use_recent${term_slug}_${EXPORT_DATE}.csv|period_sortable, section_id, isbn13|TRUE"
+    "course_material_no_use|course_material_can_recent${term_slug}_${EXPORT_DATE}.csv|period_sortable, section_id, isbn13|is_canada"
 )
 
 # Refuse to replace an existing dated release. Build every file in one staging

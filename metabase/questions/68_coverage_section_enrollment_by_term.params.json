@@ -1,6 +1,6 @@
 {
   "period_sortable": {
     "display-name": "Term",
-    "field": "section_enrollment.period_sortable"
+    "field": "comprehensive_data.period_sortable"
   }
 }

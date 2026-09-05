@@ -54,6 +54,7 @@ class RenamedFlowPipelineTest(unittest.TestCase):
             cli(database, self.fixture_sql())
 
             stages = (
+                "0c_recent_period.sql",
                 "1a_supply_classification.sql",
                 "1b_section_enrollment.sql",
                 "2_oer_classification.sql",
@@ -139,6 +140,7 @@ class RenamedFlowPipelineTest(unittest.TestCase):
                 CREATE VIEW course_materials_canada AS SELECT 1 AS id;
                 CREATE VIEW course_material_canada AS SELECT 1 AS id;
                 CREATE VIEW recent_periods AS SELECT '2025-4' AS period_sortable;
+                CREATE VIEW course_material_post_2024 AS SELECT 1 AS id;
                 CREATE VIEW master_section_us_intro_fall2025 AS SELECT 1 AS id;
             """)
             cli(database, render(SQL / "0_cleanup.sql"))
@@ -147,7 +149,7 @@ class RenamedFlowPipelineTest(unittest.TestCase):
                 WHERE table_schema = 'main'
                   AND table_name IN ('course_materials', 'material_costs', 'sample10pct_materials',
                                      'course_materials_canada', 'course_material_canada',
-                                     'recent_periods', 'master_section_us_intro_fall2025')
+                                     'recent_periods', 'course_material_post_2024', 'master_section_us_intro_fall2025')
             """), ["0"])
             for stage in stages:
                 cli(database, render(SQL / stage))
@@ -164,6 +166,28 @@ class RenamedFlowPipelineTest(unittest.TestCase):
             cli(database, f"CREATE OR REPLACE TABLE {name} AS\n" + render(SQL / "models" / f"{name}.sql"))
 
     def assert_release_exports(self, database: Path) -> None:
+        sample_query = render(SQL / "exports/37_sample10_reconciliation.sql").strip().removesuffix(";")
+        self.assertEqual(cli(database, f"""
+            SELECT metric, full_value FROM ({sample_query})
+            WHERE stage = 'comprehensive_data'
+            ORDER BY metric
+        """), ["enrollment_assigned_total,50", "section_rows,2"])
+
+        coverage = (ROOT / "metabase/questions/68_coverage_section_enrollment_by_term.sql").read_text()
+        optional_term = "[[ AND {{period_sortable}} ]]"
+        self.assertIn(optional_term, coverage)
+        coverage_rows = cli(database, coverage.replace(optional_term, ""))
+        self.assertEqual(len(coverage_rows), 1)
+        fields = coverage_rows[0].split(",")
+        self.assertEqual(fields[:8], ["2025-4", "2", "2", "2", "50", "2", "50", "2"])
+        self.assertEqual(fields[15], "1")  # Only one section is material-bearing.
+        self.assertEqual(cli(database, coverage.replace(
+            optional_term, "AND comprehensive_data.period_sortable = '2025-4'"
+        )), coverage_rows)
+        self.assertEqual(cli(database, coverage.replace(
+            optional_term, "AND comprehensive_data.period_sortable = '2024-4'"
+        )), [])
+
         release_rows = cli(database, render(SQL / "exports/38_cmm_release_reconciliation.sql"))
         self.assertGreater(len(release_rows), 0)
         self.assertTrue(all(row.endswith(",true") for row in release_rows), release_rows)

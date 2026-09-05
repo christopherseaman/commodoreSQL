@@ -9,8 +9,8 @@ notion-sync: push
 # `recent_period` data dictionary
 
 - Relation kind: view
-- Grain / key: One of the latest 12 distinct non-NULL periods
-- Pipeline stage: EDA mailing / 3_mailing_lists.sql
+- Grain / key: One of the newest 12 distinct non-NULL catalog periods
+- Pipeline stage: IMPORT derived / 0c_recent_period.sql
 - Direct upstream relations: `course_catalog_20251215`
 
 | Column | Type | Example / structure | Direct upstream source / derivation | Description |

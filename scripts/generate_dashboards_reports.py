@@ -267,12 +267,11 @@ def render() -> str:
         "## Coverage checks",
         "",
         f"- Dashboards: {EXPECTED['dashboards']}; questions: {EXPECTED['questions']}; models: {EXPECTED['models']}",
-        f"- Dashboard card placements: {EXPECTED['placements']}; unique dashboard-used questions: {EXPECTED['dashboard_used']}; standalone questions: {EXPECTED['standalone']}",
-        "IDs link to sources; placements repeat.",
+        f"- Placements: {EXPECTED['placements']}; dashboard-used questions: {EXPECTED['dashboard_used']}; standalone: {EXPECTED['standalone']}",
         "",
         "## Regeneration",
         "",
-        "`python3 scripts/generate_dashboards_reports.py` prints this inventory; `--check` detects drift.",
+        "Regenerate: `python3 scripts/generate_dashboards_reports.py`; verify: `--check`.",
         "",
     ]
     rendered = "\n".join(lines)

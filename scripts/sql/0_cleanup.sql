@@ -13,6 +13,7 @@ DROP VIEW IF EXISTS faculty_records;
 DROP VIEW IF EXISTS master_course_material;
 DROP VIEW IF EXISTS recent_periods;
 DROP VIEW IF EXISTS course_materials_post_2024;
+DROP VIEW IF EXISTS course_material_post_2024;
 DROP VIEW IF EXISTS course_materials_use;
 DROP VIEW IF EXISTS course_materials_no_use;
 DROP VIEW IF EXISTS course_materials_canada;
@@ -76,7 +77,7 @@ DROP VIEW IF EXISTS crosstab_formattype_oeria_state;
 
 -- Fail the transaction if any exact retired relation remains in the catalog.
 SELECT CASE
-    WHEN COUNT(*) = 0 THEN 'Legacy relation cleanup verified: 59 relations absent.'
+    WHEN COUNT(*) = 0 THEN 'Legacy relation cleanup verified: 60 relations absent.'
     ELSE error('Legacy relation cleanup failed: retired relations remain.')
 END AS cleanup_postcondition
 FROM information_schema.tables
@@ -84,7 +85,7 @@ WHERE table_schema = 'main'
   AND table_name IN (
     'catalog_filtered', 'course_records', 'course_section_records', 'faculty_records',
     'master_course_material', 'recent_periods',
-    'course_materials_post_2024', 'course_materials_use',
+    'course_materials_post_2024', 'course_material_post_2024', 'course_materials_use',
     'course_materials_no_use', 'course_materials_canada', 'course_material_canada',
     'master_section_us_intro_fall2025',
     'current_mailing_ca', 'current_mailing_tx', 'current_mailing_fl',

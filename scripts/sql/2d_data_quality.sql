@@ -17,39 +17,38 @@ CREATE TABLE __data_quality_metrics (
     metric_value BIGINT
 );
 
--- All catalog checks are scoped to is_required_inferred = TRUE (analytical subset:
--- period >= 2024-01-01 with the section directness / book_status fallback logic).
--- Source-quality of pre-2024 / non-required rows is acknowledged but not surfaced here.
+-- All catalog checks are scoped to recent is_required_inferred = TRUE rows.
+-- Historical / non-required source-quality is acknowledged but not surfaced here.
 
 -- Catalog: composite-key UNKNOWN segments + null period
 INSERT INTO __data_quality_metrics
-SELECT 'catalog', 'composite_key_unknowns', 'section_id_unknown_rows', COUNT(*) FILTER (WHERE section_id LIKE '%UNKNOWN%') FROM comprehensive_data WHERE is_required_inferred = TRUE
-UNION ALL SELECT 'catalog', 'composite_key_unknowns', 'course_id_unknown_rows', COUNT(*) FILTER (WHERE course_id LIKE '%UNKNOWN%') FROM comprehensive_data WHERE is_required_inferred = TRUE
-UNION ALL SELECT 'catalog', 'composite_key_unknowns', 'period_sortable_null',  COUNT(*) FILTER (WHERE period_sortable IS NULL) FROM comprehensive_data WHERE is_required_inferred = TRUE;
+SELECT 'catalog', 'composite_key_unknowns', 'section_id_unknown_rows', COUNT(*) FILTER (WHERE section_id LIKE '%UNKNOWN%') FROM comprehensive_data WHERE is_required_inferred = TRUE AND is_recent
+UNION ALL SELECT 'catalog', 'composite_key_unknowns', 'course_id_unknown_rows', COUNT(*) FILTER (WHERE course_id LIKE '%UNKNOWN%') FROM comprehensive_data WHERE is_required_inferred = TRUE AND is_recent
+UNION ALL SELECT 'catalog', 'composite_key_unknowns', 'period_sortable_null',  COUNT(*) FILTER (WHERE period_sortable IS NULL) FROM comprehensive_data WHERE is_required_inferred = TRUE AND is_recent;
 
 -- Catalog → IPEDS match (is_required_inferred = TRUE)
 INSERT INTO __data_quality_metrics
-SELECT 'catalog', 'ipeds_match', 'total_rows',                  COUNT(*) FROM comprehensive_data WHERE is_required_inferred = TRUE
-UNION ALL SELECT 'catalog', 'ipeds_match', 'no_unit_id_likely_canadian', COUNT(*) FROM comprehensive_data WHERE is_required_inferred = TRUE AND unit_id IS NULL
-UNION ALL SELECT 'catalog', 'ipeds_match', 'unit_id_not_in_ipeds',       COUNT(*) FROM comprehensive_data WHERE is_required_inferred = TRUE AND unit_id IS NOT NULL AND institution_name IS NULL;
+SELECT 'catalog', 'ipeds_match', 'total_rows',                  COUNT(*) FROM comprehensive_data WHERE is_required_inferred = TRUE AND is_recent
+UNION ALL SELECT 'catalog', 'ipeds_match', 'no_unit_id_likely_canadian', COUNT(*) FROM comprehensive_data WHERE is_required_inferred = TRUE AND is_recent AND unit_id IS NULL
+UNION ALL SELECT 'catalog', 'ipeds_match', 'unit_id_not_in_ipeds',       COUNT(*) FROM comprehensive_data WHERE is_required_inferred = TRUE AND is_recent AND unit_id IS NOT NULL AND institution_name IS NULL;
 
 -- Catalog: email validity (loose)
 INSERT INTO __data_quality_metrics
-SELECT 'catalog', 'email_validity', 'email_null',      COUNT(*) FILTER (WHERE email IS NULL) FROM comprehensive_data WHERE is_required_inferred = TRUE
-UNION ALL SELECT 'catalog', 'email_validity', 'email_no_at',     COUNT(*) FILTER (WHERE email IS NOT NULL AND email NOT LIKE '%@%') FROM comprehensive_data WHERE is_required_inferred = TRUE
-UNION ALL SELECT 'catalog', 'email_validity', 'email_no_dot',    COUNT(*) FILTER (WHERE email IS NOT NULL AND email LIKE '%@%' AND email NOT LIKE '%.%') FROM comprehensive_data WHERE is_required_inferred = TRUE
-UNION ALL SELECT 'catalog', 'email_validity', 'email_too_short', COUNT(*) FILTER (WHERE email IS NOT NULL AND LENGTH(email) < 5) FROM comprehensive_data WHERE is_required_inferred = TRUE;
+SELECT 'catalog', 'email_validity', 'email_null',      COUNT(*) FILTER (WHERE email IS NULL) FROM comprehensive_data WHERE is_required_inferred = TRUE AND is_recent
+UNION ALL SELECT 'catalog', 'email_validity', 'email_no_at',     COUNT(*) FILTER (WHERE email IS NOT NULL AND email NOT LIKE '%@%') FROM comprehensive_data WHERE is_required_inferred = TRUE AND is_recent
+UNION ALL SELECT 'catalog', 'email_validity', 'email_no_dot',    COUNT(*) FILTER (WHERE email IS NOT NULL AND email LIKE '%@%' AND email NOT LIKE '%.%') FROM comprehensive_data WHERE is_required_inferred = TRUE AND is_recent
+UNION ALL SELECT 'catalog', 'email_validity', 'email_too_short', COUNT(*) FILTER (WHERE email IS NOT NULL AND LENGTH(email) < 5) FROM comprehensive_data WHERE is_required_inferred = TRUE AND is_recent;
 
 -- Catalog: enrollment sanity
 INSERT INTO __data_quality_metrics
-SELECT 'catalog', 'enrollment_sanity', 'enrollments_negative',         COUNT(*) FILTER (WHERE enrollments < 0) FROM comprehensive_data WHERE is_required_inferred = TRUE
-UNION ALL SELECT 'catalog', 'enrollment_sanity', 'seats_taken_sentinel_9999', COUNT(*) FILTER (WHERE seats_taken = 9999) FROM comprehensive_data WHERE is_required_inferred = TRUE
+SELECT 'catalog', 'enrollment_sanity', 'enrollments_negative',         COUNT(*) FILTER (WHERE enrollments < 0) FROM comprehensive_data WHERE is_required_inferred = TRUE AND is_recent
+UNION ALL SELECT 'catalog', 'enrollment_sanity', 'seats_taken_sentinel_9999', COUNT(*) FILTER (WHERE seats_taken = 9999) FROM comprehensive_data WHERE is_required_inferred = TRUE AND is_recent
 UNION ALL SELECT 'catalog', 'enrollment_sanity', 'overage_small_1_to_5',
-    COUNT(*) FILTER (WHERE seats_taken > enrollments AND seats_taken < 9999 AND seats_taken - enrollments BETWEEN 1 AND 5) FROM comprehensive_data WHERE is_required_inferred = TRUE
+    COUNT(*) FILTER (WHERE seats_taken > enrollments AND seats_taken < 9999 AND seats_taken - enrollments BETWEEN 1 AND 5) FROM comprehensive_data WHERE is_required_inferred = TRUE AND is_recent
 UNION ALL SELECT 'catalog', 'enrollment_sanity', 'overage_medium_6_to_100',
-    COUNT(*) FILTER (WHERE seats_taken > enrollments AND seats_taken < 9999 AND seats_taken - enrollments BETWEEN 6 AND 100) FROM comprehensive_data WHERE is_required_inferred = TRUE
+    COUNT(*) FILTER (WHERE seats_taken > enrollments AND seats_taken < 9999 AND seats_taken - enrollments BETWEEN 6 AND 100) FROM comprehensive_data WHERE is_required_inferred = TRUE AND is_recent
 UNION ALL SELECT 'catalog', 'enrollment_sanity', 'overage_large_over_100',
-    COUNT(*) FILTER (WHERE seats_taken > enrollments AND seats_taken < 9999 AND seats_taken - enrollments > 100) FROM comprehensive_data WHERE is_required_inferred = TRUE;
+    COUNT(*) FILTER (WHERE seats_taken > enrollments AND seats_taken < 9999 AND seats_taken - enrollments > 100) FROM comprehensive_data WHERE is_required_inferred = TRUE AND is_recent;
 
 -- Pricing dedupe stages — the headline DQ block from the import
 WITH src AS (
@@ -205,7 +204,7 @@ DROP TABLE IF EXISTS __data_quality_top_unmatched_ipeds_schools;
 CREATE TABLE __data_quality_top_unmatched_ipeds_schools AS
 SELECT school, unit_id, COUNT(*) AS catalog_rows
 FROM comprehensive_data
-WHERE is_required_inferred = TRUE AND institution_name IS NULL
+WHERE is_required_inferred = TRUE AND is_recent AND institution_name IS NULL
 GROUP BY school, unit_id ORDER BY catalog_rows DESC LIMIT 10;
 
 -- NULL ISBN13 placeholder breakdown by school (is_required_inferred = TRUE).
@@ -225,7 +224,7 @@ SELECT
                        OR Title NOT IN ('*No Book Details*', '*No Books Required*', '*Bad Course*')) AS other,
     COUNT(*)                                              AS total_null_isbn
 FROM comprehensive_data
-WHERE is_required_inferred = TRUE AND ISBN13 IS NULL
+WHERE is_required_inferred = TRUE AND is_recent AND ISBN13 IS NULL
 GROUP BY school
 HAVING COUNT(*) > 0
 ORDER BY total_null_isbn DESC
@@ -242,7 +241,7 @@ SELECT
     ROUND(100.0 * COUNT(*) FILTER (WHERE ISBN13 IS NULL) / COUNT(*), 2) AS null_pct,
     COUNT(DISTINCT section_id) FILTER (WHERE ISBN13 IS NULL) AS distinct_sections
 FROM comprehensive_data
-WHERE is_required_inferred = TRUE
+WHERE is_required_inferred = TRUE AND is_recent
 GROUP BY school
 HAVING COUNT(*) FILTER (WHERE ISBN13 IS NULL) > 0
 ORDER BY null_isbn_rows DESC LIMIT 10;

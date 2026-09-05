@@ -33,7 +33,7 @@ DROP TABLE IF EXISTS _ms_mode_course_subject;
 DROP TABLE IF EXISTS _ms_publishers;
 DROP TABLE IF EXISTS _ms_required_publishers;
 DROP TABLE IF EXISTS _ms_publisher_counts;
-DROP TABLE IF EXISTS _ms_course_material_audit;
+DROP TABLE IF EXISTS _ms_bookstore_url;
 DROP TABLE IF EXISTS _ms_enriched;
 
 -- Fixed-size aggregates over canonical Material Costs rows. Descriptive modes and
@@ -87,7 +87,13 @@ SELECT
     SUM(price_buy_min) FILTER (WHERE NOT is_required_inferred) AS optional_cost_owned_min,
     SUM(price_buy_max) FILTER (WHERE NOT is_required_inferred) AS optional_cost_owned_max,
     COUNT(*) FILTER (WHERE is_required_inferred AND price_min IS NOT NULL) AS required_priced_count,
-    COUNT(*) FILTER (WHERE NOT is_required_inferred AND price_min IS NOT NULL) AS optional_priced_count
+    COUNT(*) FILTER (WHERE NOT is_required_inferred AND price_min IS NOT NULL) AS optional_priced_count,
+    ANY_VALUE(section_course_material_no_use_count) AS course_material_no_use_count,
+    ANY_VALUE(section_no_details_count) AS no_details_count,
+    ANY_VALUE(section_no_materials_count) AS no_materials_count,
+    ANY_VALUE(is_section_canada) AS is_canada,
+    ANY_VALUE(is_section_supply) AS is_supply,
+    ANY_VALUE(section_supply_count) AS supply_count
 FROM master_material
 GROUP BY period_sortable, section_id;
 
@@ -146,31 +152,30 @@ SELECT
 FROM master_material
 GROUP BY period_sortable, section_id;
 
--- Canonical Course Materials sidecar: these columns audit excluded/noisy item
--- keys (including the per-section NULL-ISBN audit row) that co-occur with a
--- retained material-bearing section. They do not define Master Section
--- membership or any material-facing aggregate. Raw source-row evidence remains
--- in comprehensive_data and its DQ/mailing/faculty consumers.
-CREATE TEMP TABLE _ms_course_material_audit AS
-WITH retained_section_keys AS (
-    SELECT period_sortable, section_id
+-- Section-level bookstore URL is the most frequent nonblank exact-price URL
+-- among canonical Use items; lexical ordering resolves ties deterministically.
+CREATE TEMP TABLE _ms_bookstore_url AS
+WITH url_counts AS (
+    SELECT
+        period_sortable,
+        section_id,
+        NULLIF(TRIM(bookstore_url), '') AS bookstore_url,
+        COUNT(*) AS material_count
     FROM master_material
-    GROUP BY period_sortable, section_id
+    WHERE NULLIF(TRIM(bookstore_url), '') IS NOT NULL
+    GROUP BY 1, 2, 3
+), ranked_urls AS (
+    SELECT
+        *,
+        ROW_NUMBER() OVER (
+            PARTITION BY period_sortable, section_id
+            ORDER BY material_count DESC, bookstore_url ASC
+        ) AS url_rank
+    FROM url_counts
 )
-SELECT
-    c.period_sortable,
-    c.section_id,
-    COUNT(*) FILTER (WHERE c.is_course_material_no_use) AS course_material_no_use_count,
-    COUNT(*) FILTER (WHERE c.no_details) AS no_details_count,
-    COUNT(*) FILTER (WHERE c.no_materials) AS no_materials_count,
-    COALESCE(BOOL_OR(c.is_canada), FALSE) AS is_canada,
-    COALESCE(BOOL_OR(c.is_supply), FALSE) AS is_supply,
-    COUNT(*) FILTER (WHERE c.is_supply) AS supply_count
-FROM course_material c
-JOIN retained_section_keys retained
-  ON c.period_sortable = retained.period_sortable
- AND c.section_id = retained.section_id
-GROUP BY c.period_sortable, c.section_id;
+SELECT period_sortable, section_id, bookstore_url
+FROM ranked_urls
+WHERE url_rank = 1;
 
 CREATE TEMP TABLE _ms_enriched AS
 SELECT
@@ -201,12 +206,12 @@ SELECT
     s.optional_count,
     s.has_course_material_use,
     s.course_material_use_count,
-    audit.course_material_no_use_count,
-    audit.no_details_count,
-    audit.no_materials_count,
-    audit.is_canada,
-    audit.is_supply,
-    audit.supply_count,
+    s.course_material_no_use_count,
+    s.no_details_count,
+    s.no_materials_count,
+    s.is_canada,
+    s.is_supply,
+    s.supply_count,
     s.is_oer,
     s.is_ia,
     s.oer_count,
@@ -237,7 +242,8 @@ SELECT
     s.optional_cost_owned_min,
     s.optional_cost_owned_max,
     s.required_priced_count,
-    s.optional_priced_count
+    s.optional_priced_count,
+    url.bookstore_url
 FROM _ms_scalar s
 JOIN _ms_mode_school school
   ON school.period_sortable = s.period_sortable AND school.section_id = s.section_id
@@ -259,8 +265,8 @@ LEFT JOIN _ms_required_publishers required_publishers
 LEFT JOIN _ms_publisher_counts publisher_counts
   ON publisher_counts.period_sortable = s.period_sortable
  AND publisher_counts.section_id = s.section_id
-JOIN _ms_course_material_audit audit
-  ON audit.period_sortable = s.period_sortable AND audit.section_id = s.section_id;
+LEFT JOIN _ms_bookstore_url url
+  ON url.period_sortable = s.period_sortable AND url.section_id = s.section_id;
 
 DROP TABLE _ms_scalar;
 DROP TABLE _ms_mode_school;
@@ -272,17 +278,18 @@ DROP TABLE _ms_mode_course_subject;
 DROP TABLE _ms_publishers;
 DROP TABLE _ms_required_publishers;
 DROP TABLE _ms_publisher_counts;
-DROP TABLE _ms_course_material_audit;
+DROP TABLE _ms_bookstore_url;
 
 CREATE TABLE master_section AS
 SELECT
-    base.* EXCLUDE (required_priced_count, optional_priced_count),
+    base.* EXCLUDE (required_priced_count, optional_priced_count, bookstore_url),
     -- price_avg convention: (min + max) / 2, NOT an arithmetic mean (see CLAUDE.md)
     (base.required_cost_total_min + base.required_cost_total_max) / 2.0 AS required_cost_avg,
     (base.required_cost_owned_min + base.required_cost_owned_max) / 2.0 AS required_cost_owned_avg,
     (base.optional_cost_total_min + base.optional_cost_total_max) / 2.0 AS optional_cost_avg,
     base.required_priced_count,
-    base.optional_priced_count
+    base.optional_priced_count,
+    base.bookstore_url
 FROM _ms_enriched base;
 
 DROP TABLE _ms_enriched;
@@ -475,7 +482,7 @@ WITH catalog_by_term AS (
     FROM comprehensive_data
     WHERE section_id IS NOT NULL
       AND period_sortable IS NOT NULL
-      AND period_date >= DATE '2024-01-01'
+      AND period_sortable IN (SELECT period_sortable FROM recent_period)
     GROUP BY period_sortable
 ),
 enrollment_by_term AS (

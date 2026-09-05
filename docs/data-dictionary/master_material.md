@@ -69,7 +69,7 @@ notion-sync: push
 | `is_opted_out` | `boolean` | TRUE or FALSE | `course_material_use.is_opted_out` passthrough. | Whether the contact appears in the opt-out list. |
 | `opt_out_source` | `varchar` | BVA source-system label for the opt-out entry | `course_material_use.opt_out_source` passthrough. | BVA source label explaining the opt-out record. |
 | `is_required_inferred` | `boolean` | TRUE or FALSE | `course_material_use.is_required_inferred` passthrough. | Whether the material is treated as required after fallback. |
-| `is_post_2024` | `boolean` | TRUE or FALSE | `course_material_use.is_post_2024` passthrough. | Whether the academic term begins during 2024 or later. |
+| `is_recent` | `boolean` | TRUE or FALSE | `course_material_use.is_recent` passthrough. | Whether the term belongs to the newest catalog window. |
 | `has_isbn` | `boolean` | TRUE or FALSE | `course_material_use.has_isbn` passthrough. | Whether the material has a non-NULL ISBN. |
 | `has_formattype` | `boolean` | TRUE or FALSE | `course_material_use.has_formattype` passthrough. | Whether the material has a nonblank FormatType classification. |
 | `has_enrollment` | `boolean` | TRUE or FALSE | `course_material_use.has_enrollment` passthrough. | Whether usable enrollment information is available. |
@@ -127,7 +127,7 @@ notion-sync: push
 | `price_buy_min` | `decimal(10,2)` | USD amount such as `123.45`; stored as `DECIMAL(10,2)` | `pricing_wide.price_buy_min` LEFT JOIN on `(section_id, isbn13)`. | Lowest valid purchase price across available material offerings. |
 | `price_buy_max` | `decimal(10,2)` | USD amount such as `123.45`; stored as `DECIMAL(10,2)` | `pricing_wide.price_buy_max` LEFT JOIN on `(section_id, isbn13)`. | Highest valid purchase price across available material offerings. |
 | `has_pricing_match` | `boolean` | TRUE when the LEFT pricing_wide join found a section/ISBN row; independent of whether that row has a valid price_min | `pricing_wide.section_id IS NOT NULL` after the exact `(section_id, isbn13)` LEFT JOIN. | Whether an exact section-and-ISBN pricing match exists. |
-| `is_section_required_direct` | `boolean` | TRUE/FALSE for 2024+ section context; NULL before 2024 | `course_material_use.is_section_required_direct` passthrough. | Whether the source section has direct required evidence. |
+| `is_section_required_direct` | `boolean` | TRUE/FALSE for recent-period section context; NULL outside the window | `course_material_use.is_section_required_direct` passthrough. | Whether the source section has direct required evidence. |
 | `panel_source_row_count` | `bigint` | Non-negative whole-number count | `course_material_use.panel_source_row_count` passthrough. | Panel-history rows collapsed into the contact lookup. |
 | `panel_response_year_variant_count` | `bigint` | Non-negative whole-number count | `course_material_use.panel_response_year_variant_count` passthrough. | Distinct campaign labels found among grouped panel-history rows. |
 | `use_source_row_count` | `bigint` | Non-negative whole-number count | `course_material_use.use_source_row_count` passthrough. | Included catalog rows collapsed into the canonical item. |
@@ -145,3 +145,9 @@ notion-sync: push
 | `is_null_isbn_audit` | `boolean` | TRUE or FALSE | `course_material_use.is_null_isbn_audit` passthrough. | Whether the row audits a NULL-ISBN source group. |
 | `has_nonnull_isbn_in_section` | `boolean` | TRUE or FALSE | `course_material_use.has_nonnull_isbn_in_section` passthrough. | Whether the section contains another non-NULL ISBN. |
 | `is_no_adoption_section` | `boolean` | TRUE or FALSE | `course_material_use.is_no_adoption_section` passthrough. | Whether the section has no non-NULL adopted ISBN. |
+| `section_course_material_no_use_count` | `bigint` | canonical per-section NoUse item count repeated on each canonical item | `course_material_use.section_course_material_no_use_count` passthrough. | Excluded canonical items counted for the source section. |
+| `section_no_details_count` | `bigint` | canonical per-section no-details item count repeated on each canonical item | `course_material_use.section_no_details_count` passthrough. | No-details canonical items counted for the source section. |
+| `section_no_materials_count` | `bigint` | canonical per-section no-materials item count repeated on each canonical item | `course_material_use.section_no_materials_count` passthrough. | No-materials canonical items counted for the source section. |
+| `is_section_canada` | `boolean` | canonical per-section Canada indicator repeated on each canonical item | `course_material_use.is_section_canada` passthrough. | Whether any canonical item marks the source section Canadian. |
+| `is_section_supply` | `boolean` | canonical per-section supply indicator repeated on each canonical item | `course_material_use.is_section_supply` passthrough. | Whether any canonical item marks the source section supply. |
+| `section_supply_count` | `bigint` | canonical per-section supply item count repeated on each canonical item | `course_material_use.section_supply_count` passthrough. | Supply canonical items counted for the source section. |

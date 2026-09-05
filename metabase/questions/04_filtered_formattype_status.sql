@@ -1,4 +1,4 @@
--- name: FormatType x OER x IA x Status (Filtered, 2024+)
+-- name: FormatType x OER x IA x Status (Filtered, Recent)
 -- display: table
 -- description: Canonical inferred-required items; enrollment counted once per section/group. FormatType cross-tabulated with OER/IA flags and book_status over canonical inferred-required items. Item counts use master_material grain; total_enrollments counts each section once within a displayed group.
 

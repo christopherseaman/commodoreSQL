@@ -71,7 +71,7 @@ notion-sync: push
 | `is_opted_out` | `boolean` | TRUE or FALSE | Representative `comprehensive_data.is_opted_out` from grouped rows. | Whether the contact appears in the opt-out list. |
 | `opt_out_source` | `varchar` | BVA source-system label for the opt-out entry | Representative `comprehensive_data.opt_out_source` from grouped rows. | BVA source label explaining the opt-out record. |
 | `is_required_inferred` | `boolean` | TRUE or FALSE | `BOOL_OR(is_required_inferred)` across grouped `comprehensive_data` rows. | Whether the material is treated as required after fallback. |
-| `is_post_2024` | `boolean` | TRUE or FALSE | `BOOL_OR(is_post_2024)` across grouped `comprehensive_data` rows. | Whether the academic term begins during 2024 or later. |
+| `is_recent` | `boolean` | TRUE or FALSE | `BOOL_OR(is_recent)` across grouped `comprehensive_data` rows. | Whether the term belongs to the newest catalog window. |
 | `has_isbn` | `boolean` | TRUE or FALSE | Grouped ISBN key `IS NOT NULL`. | Whether the material has a non-NULL ISBN. |
 | `has_formattype` | `boolean` | TRUE or FALSE | `BOOL_OR(has_formattype)` across grouped `comprehensive_data` rows. | Whether the material has a nonblank FormatType classification. |
 | `has_enrollment` | `boolean` | TRUE or FALSE | `COALESCE(comprehensive_data.section_has_enrollment, representative comprehensive_data.has_enrollment)`. | Whether usable enrollment information is available. |
@@ -80,7 +80,7 @@ notion-sync: push
 | `no_materials` | `boolean` | TRUE or FALSE | `BOOL_OR(no_materials)` across grouped `comprehensive_data` rows. | Whether the row explicitly indicates no course materials. |
 | `is_canada` | `boolean` | TRUE or FALSE | `BOOL_OR(is_canada)` across grouped `comprehensive_data` rows. | Whether the source row belongs to Canada. |
 | `is_course_material_use` | `boolean` | TRUE or FALSE | Exact alias of grouped `has_use_source_row`. | Whether the material belongs to the analysis population. |
-| `is_course_material_no_use` | `boolean` | TRUE or FALSE | `is_post_2024 AND NOT has_use_source_row` at canonical item grain. | Whether the material belongs to the excluded population. |
+| `is_course_material_no_use` | `boolean` | TRUE or FALSE | `is_recent AND NOT has_use_source_row` at canonical item grain. | Whether the material belongs to the excluded population. |
 | `has_enrollment_sibling` | `boolean` | TRUE or FALSE | `comprehensive_data.section_has_enrollment_sibling` from the upstream section join. | Whether a sibling section reports enrollment. |
 | `has_enrollment_sibling_seats` | `boolean` | TRUE or FALSE | `comprehensive_data.section_has_enrollment_sibling_seats` from the upstream section join. | Whether a sibling section reports usable occupied seats. |
 | `enrollment_assigned` | `integer` | Rounded student count from the ladder; raw negatives can propagate | `comprehensive_data.section_enrollment_assigned` from the upstream section join. | Best available section enrollment from the assignment ladder. |
@@ -114,4 +114,10 @@ notion-sync: push
 | `is_null_isbn_audit` | `boolean` | TRUE or FALSE | True when grouped ISBN is NULL. | Whether the row audits a NULL-ISBN source group. |
 | `has_nonnull_isbn_in_section` | `boolean` | TRUE or FALSE | Section-level `BOOL_OR(isbn13 IS NOT NULL)` across grouped items. | Whether the section contains another non-NULL ISBN. |
 | `is_no_adoption_section` | `boolean` | TRUE or FALSE | NULL-ISBN audit row in a section with no non-NULL ISBN. | Whether the section has no non-NULL adopted ISBN. |
-| `is_section_required_direct` | `boolean` | TRUE/FALSE for 2024+ section context; NULL before 2024 | `BOOL_OR(is_section_required_direct)` across grouped `comprehensive_data` rows. | Whether the source section has direct required evidence. |
+| `is_section_required_direct` | `boolean` | TRUE/FALSE for recent-period section context; NULL outside the window | `BOOL_OR(is_section_required_direct)` across grouped `comprehensive_data` rows. | Whether the source section has direct required evidence. |
+| `section_course_material_no_use_count` | `bigint` | canonical per-section NoUse item count repeated on each canonical item | `COUNT(*) FILTER (WHERE is_course_material_no_use)` across canonical `(period_sortable, section_id, isbn13)` keys for the section, repeated on each item. | Excluded canonical items counted for the source section. |
+| `section_no_details_count` | `bigint` | canonical per-section no-details item count repeated on each canonical item | `COUNT(*) FILTER (WHERE no_details)` across canonical `(period_sortable, section_id, isbn13)` keys for the section, repeated on each item. | No-details canonical items counted for the source section. |
+| `section_no_materials_count` | `bigint` | canonical per-section no-materials item count repeated on each canonical item | `COUNT(*) FILTER (WHERE no_materials)` across canonical `(period_sortable, section_id, isbn13)` keys for the section, repeated on each item. | No-materials canonical items counted for the source section. |
+| `is_section_canada` | `boolean` | canonical per-section Canada indicator repeated on each canonical item | `COALESCE(BOOL_OR(is_canada), FALSE)` across canonical `(period_sortable, section_id, isbn13)` keys for the section, repeated on each item. | Whether any canonical item marks the source section Canadian. |
+| `is_section_supply` | `boolean` | canonical per-section supply indicator repeated on each canonical item | `COALESCE(BOOL_OR(is_supply), FALSE)` across canonical `(period_sortable, section_id, isbn13)` keys for the section, repeated on each item. | Whether any canonical item marks the source section supply. |
+| `section_supply_count` | `bigint` | canonical per-section supply item count repeated on each canonical item | `COUNT(*) FILTER (WHERE is_supply)` across canonical `(period_sortable, section_id, isbn13)` keys for the section, repeated on each item. | Supply canonical items counted for the source section. |

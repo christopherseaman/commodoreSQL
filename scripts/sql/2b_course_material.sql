@@ -13,7 +13,9 @@ DROP VIEW IF EXISTS course_material_no_use;
 DROP VIEW IF EXISTS course_materials_use;
 DROP VIEW IF EXISTS course_material_use;
 DROP VIEW IF EXISTS course_materials_post_2024;
+DROP VIEW IF EXISTS course_materials_recent;
 DROP VIEW IF EXISTS course_material_post_2024;
+DROP VIEW IF EXISTS course_material_recent;
 
 DROP TABLE IF EXISTS _cm_key_agg;
 DROP TABLE IF EXISTS course_material;
@@ -29,7 +31,7 @@ SELECT
     COUNT(*) AS source_row_count,
     COUNT(*) FILTER (WHERE is_course_material_use) AS use_source_row_count,
     COUNT(*) FILTER (WHERE is_course_material_no_use) AS no_use_source_row_count,
-    BOOL_OR(is_post_2024) AS is_post_2024,
+    BOOL_OR(is_recent) AS is_recent,
     BOOL_OR(is_course_material_use) AS has_use_source_row,
     BOOL_OR(is_course_material_no_use) AS has_no_use_source_row,
     COALESCE(BOOL_OR(is_required_direct), FALSE) AS is_required_direct,
@@ -62,6 +64,22 @@ SELECT
     period_sortable,
     section_id,
     BOOL_OR(isbn13 IS NOT NULL) AS has_nonnull_isbn_in_section
+FROM _cm_key_agg
+GROUP BY period_sortable, section_id;
+
+-- Retained-section audit state is calculated once at canonical item grain and
+-- repeated on every item in the section. Downstream material rollups can then
+-- inherit it without rejoining the complete Course Materials population.
+CREATE TEMP TABLE _cm_section_audit AS
+SELECT
+    period_sortable,
+    section_id,
+    COUNT(*) FILTER (WHERE NOT has_use_source_row) AS section_course_material_no_use_count,
+    COUNT(*) FILTER (WHERE no_details) AS section_no_details_count,
+    COUNT(*) FILTER (WHERE no_materials) AS section_no_materials_count,
+    COALESCE(BOOL_OR(is_canada), FALSE) AS is_section_canada,
+    COALESCE(BOOL_OR(is_supply), FALSE) AS is_section_supply,
+    COUNT(*) FILTER (WHERE is_supply) AS section_supply_count
 FROM _cm_key_agg
 GROUP BY period_sortable, section_id;
 
@@ -243,7 +261,7 @@ SELECT
     r.is_opted_out,
     r.opt_out_source,
     a.is_required_inferred,
-    a.is_post_2024,
+    a.is_recent,
     (a.isbn13 IS NOT NULL) AS has_isbn,
     a.has_formattype,
     COALESCE(r.section_has_enrollment, r.has_enrollment) AS has_enrollment,
@@ -253,7 +271,7 @@ SELECT
     a.no_materials,
     a.is_canada,
     a.has_use_source_row AS is_course_material_use,
-    (a.is_post_2024 AND NOT a.has_use_source_row) AS is_course_material_no_use,
+    (a.is_recent AND NOT a.has_use_source_row) AS is_course_material_no_use,
     r.section_has_enrollment_sibling AS has_enrollment_sibling,
     r.section_has_enrollment_sibling_seats AS has_enrollment_sibling_seats,
     r.section_enrollment_assigned AS enrollment_assigned,
@@ -325,7 +343,13 @@ SELECT
     si.has_nonnull_isbn_in_section,
     (a.isbn13 IS NULL AND NOT si.has_nonnull_isbn_in_section)
         AS is_no_adoption_section,
-    a.is_section_required_direct
+    a.is_section_required_direct,
+    sa.section_course_material_no_use_count,
+    sa.section_no_details_count,
+    sa.section_no_materials_count,
+    sa.is_section_canada,
+    sa.is_section_supply,
+    sa.section_supply_count
 FROM representative r
 JOIN _cm_key_agg a
   ON r.period_sortable = a.period_sortable
@@ -334,6 +358,9 @@ JOIN _cm_key_agg a
 JOIN _cm_section_isbn si
   ON a.period_sortable = si.period_sortable
  AND a.section_id = si.section_id
+JOIN _cm_section_audit sa
+  ON a.period_sortable = sa.period_sortable
+ AND a.section_id = sa.section_id
 LEFT JOIN _cm_duplicate_variants v
   ON a.period_sortable = v.period_sortable
  AND a.section_id = v.section_id
@@ -344,18 +371,22 @@ LEFT JOIN _cm_isbn_metadata im
 
 DROP TABLE _cm_key_agg;
 DROP TABLE _cm_section_isbn;
+DROP TABLE _cm_section_audit;
 DROP TABLE _cm_duplicate_representative;
 DROP TABLE _cm_duplicate_variants;
 DROP TABLE _cm_isbn_metadata;
 
-CREATE VIEW course_material_post_2024 AS
-SELECT * FROM course_material WHERE is_post_2024;
+CREATE VIEW course_material_recent AS
+SELECT cm.*
+FROM course_material cm
+JOIN recent_period rp USING (period_sortable)
+WHERE cm.is_recent;
 
 CREATE VIEW course_material_use AS
-SELECT * FROM course_material_post_2024 WHERE is_course_material_use;
+SELECT * FROM course_material_recent WHERE is_course_material_use;
 
 CREATE VIEW course_material_no_use AS
-SELECT * FROM course_material_post_2024 WHERE is_course_material_no_use;
+SELECT * FROM course_material_recent WHERE is_course_material_no_use;
 
 -- Raw rows with invalid canonical keys remain preserved and explicitly reported.
 SELECT
@@ -400,17 +431,17 @@ FROM course_material;
 SELECT
     'Course Materials population contract' AS metric,
     COUNT(*) FILTER (
-        WHERE is_post_2024
+        WHERE is_recent
           AND is_course_material_use = is_course_material_no_use
-    ) AS post_2024_partition_violations,
+    ) AS recent_partition_violations,
     COUNT(*) FILTER (
-        WHERE NOT is_post_2024
+        WHERE NOT is_recent
           AND (is_course_material_use OR is_course_material_no_use)
-    ) AS pre_2024_flag_violations,
+    ) AS outside_recent_flag_violations,
     COUNT(*) FILTER (
         WHERE source_row_count <> use_source_row_count + no_use_source_row_count
-          AND is_post_2024
-    ) AS post_2024_source_count_violations,
+          AND is_recent
+    ) AS recent_source_count_violations,
     COUNT(*) FILTER (
         WHERE population_classification_conflict IS DISTINCT FROM
               (use_source_row_count > 0 AND no_use_source_row_count > 0)
@@ -437,19 +468,19 @@ SELECT
 
 WITH flag_counts AS (
     SELECT
-        COUNT(*) FILTER (WHERE is_post_2024) AS post_2024_rows,
+        COUNT(*) FILTER (WHERE is_recent) AS recent_rows,
         COUNT(*) FILTER (WHERE is_course_material_use) AS use_rows,
         COUNT(*) FILTER (WHERE is_course_material_no_use) AS no_use_rows
     FROM course_material
 ), view_counts AS (
     SELECT
-        (SELECT COUNT(*) FROM course_material_post_2024) AS post_2024_rows,
+        (SELECT COUNT(*) FROM course_material_recent) AS recent_rows,
         (SELECT COUNT(*) FROM course_material_use) AS use_rows,
         (SELECT COUNT(*) FROM course_material_no_use) AS no_use_rows
 )
 SELECT
     'Course Materials population view conservation' AS metric,
-    ABS(v.post_2024_rows - f.post_2024_rows) AS post_2024_violations,
+    ABS(v.recent_rows - f.recent_rows) AS recent_violations,
     ABS(v.use_rows - f.use_rows) AS use_violations,
     ABS(v.no_use_rows - f.no_use_rows) AS no_use_violations
 FROM flag_counts f

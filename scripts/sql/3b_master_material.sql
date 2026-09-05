@@ -31,7 +31,13 @@ SELECT
         is_canada_conflict,
         is_null_isbn_audit,
         has_nonnull_isbn_in_section,
-        is_no_adoption_section
+        is_no_adoption_section,
+        section_course_material_no_use_count,
+        section_no_details_count,
+        section_no_materials_count,
+        is_section_canada,
+        is_section_supply,
+        section_supply_count
     ),
     pw.bookstore_url,
     pw.price_buy_new_physical,
@@ -80,7 +86,13 @@ SELECT
     cm.is_canada_conflict,
     cm.is_null_isbn_audit,
     cm.has_nonnull_isbn_in_section,
-    cm.is_no_adoption_section
+    cm.is_no_adoption_section,
+    cm.section_course_material_no_use_count,
+    cm.section_no_details_count,
+    cm.section_no_materials_count,
+    cm.is_section_canada,
+    cm.is_section_supply,
+    cm.section_supply_count
 FROM course_material_use cm
 LEFT JOIN pricing_wide pw
   ON cm.section_id = pw.section_id

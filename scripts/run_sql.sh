@@ -38,6 +38,7 @@ IMPORT_SQL=(
     "0_cleanup.sql"
     "0_setup.sql"
     "0b_state_region.sql"
+    "0c_recent_period.sql"
     "1_bookprices_import.sql"
     "1a_supply_classification.sql"
     "1b_section_enrollment.sql"

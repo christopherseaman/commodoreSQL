@@ -11,7 +11,7 @@ notion-sync: push
 - Relation kind: table
 - Grain / key: One normalized catalog source row
 - Pipeline stage: IMPORT derived / 2_oer_classification.sql
-- Direct upstream relations: `course_catalog_20251215`, `format_type_classification`, `ipeds_data`, `section_enrollment`, `supply_isbn_classification`, `opt_out`, `panel_email`
+- Direct upstream relations: `course_catalog_20251215`, `recent_period`, `format_type_classification`, `ipeds_data`, `section_enrollment`, `supply_isbn_classification`, `opt_out`, `panel_email`
 
 | Column | Type | Example / structure | Direct upstream source / derivation | Description |
 |---|---|---|---|---|
@@ -59,17 +59,17 @@ notion-sync: push
 | `enrollment_2024` | `integer` | Non-negative 2024 student count; NULL when unavailable | `ipeds_data.enroll_24` joined on institution ID. | Total institutional enrollment reported to IPEDS for 2024. |
 | `distance_enrollment_2024` | `integer` | Non-negative 2024 student count; NULL when unavailable | `ipeds_data.dist_enroll_24` joined on institution ID. | IPEDS 2024 students enrolled in distance education. |
 | `institution_type` | `varchar` | Derived institution-type category label | `ipeds_data.inst_type` joined on institution ID. | Derived institution type used for reporting groups. |
-| `panel_response_year` | `varchar` | Campaign label shaped `OER_YYYY`, such as `OER_2025` | `panel_email.panel_response_year` joined on cleaned email. | Latest recorded panel response campaign label. |
-| `panel_source_row_count` | `bigint` | number of retained raw panel rows for this email | `panel_email.panel_source_row_count` joined on cleaned email. | Panel-history rows collapsed into the contact lookup. |
-| `panel_response_year_variant_count` | `bigint` | number of distinct response years for this email | `panel_email.panel_response_year_variant_count` joined on cleaned email. | Distinct campaign labels found among grouped panel-history rows. |
+| `panel_response_year` | `varchar` | Campaign label shaped `OER_YYYY`, such as `OER_2025` | `panel_email.panel_response_year` joined on cleaned email; one-row lookup prevents panel-history multiplication. | Latest recorded panel response campaign label. |
+| `panel_source_row_count` | `bigint` | number of retained raw panel rows for this email | `panel_email.panel_source_row_count` joined on cleaned email; preserves panel multiplicity audit. | Panel-history rows collapsed into the contact lookup. |
+| `panel_response_year_variant_count` | `bigint` | number of distinct response years for this email | `panel_email.panel_response_year_variant_count` joined on cleaned email; preserves response-year conflict audit. | Distinct campaign labels found among grouped panel-history rows. |
 | `is_opted_out` | `boolean` | TRUE or FALSE | True when cleaned email matches `opt_out.email`; otherwise false. | Whether the contact appears in the opt-out list. |
 | `opt_out_source` | `varchar` | BVA source-system label for the opt-out entry | `opt_out.source` joined on cleaned email. | BVA source label explaining the opt-out record. |
-| `is_required_direct` | `boolean` | this row is literal required and nonsupply; pre-2024 rows may be true | `course_catalog_20251215.book_status = 'required'` with no supply-classification match. | Whether direct required evidence is present at the relation grain. |
-| `is_section_required_direct` | `boolean` | 2024+ section context from section_enrollment; NULL before 2024 | Local `BOOL_OR` of nonsupply literal-required rows by period_sortable and section_id; NULL before 2024. | Whether the source section has direct required evidence. |
+| `is_required_direct` | `boolean` | this row is literal required and nonsupply; outside-window rows may be true | `course_catalog_20251215.book_status = 'required'` with no supply-classification match. | Whether direct required evidence is present at the relation grain. |
+| `is_section_required_direct` | `boolean` | recent-period section context from section_enrollment; NULL outside the window | Local `BOOL_OR` of nonsupply literal-required rows in recent_period by period_sortable and section_id; NULL outside the window. | Whether the source section has direct required evidence. |
 | `section_course_id` | `varchar` | Section-canonical course identifier with source segments retained | `section_enrollment.course_id` joined on period_sortable and section_id. | Section-canonical course identifier from the upstream section spine. |
-| `section_control` | `varchar` | IPEDS control label from the section-canonical join | `section_enrollment.control` joined on period_sortable and section_id. | Section-canonical institutional control from the upstream section spine. |
-| `section_level` | `varchar` | IPEDS level label from the section-canonical join | `section_enrollment.level` joined on period_sortable and section_id. | Section-canonical institutional level from the upstream section spine. |
-| `section_sector` | `varchar` | IPEDS sector label from the section-canonical join | `section_enrollment.sector` joined on period_sortable and section_id. | Section-canonical institutional sector from the upstream section spine. |
+| `section_control` | `varchar` | IPEDS control label from the section-canonical join | Local assignment context: `ipeds_data.control` joined through `section_enrollment.unit_id`. | Section-canonical institutional control from the upstream section spine. |
+| `section_level` | `varchar` | IPEDS level label from the section-canonical join | Local assignment context: `ipeds_data.iclevel` joined through `section_enrollment.unit_id`. | Section-canonical institutional level from the upstream section spine. |
+| `section_sector` | `varchar` | IPEDS sector label from the section-canonical join | Local assignment context: `ipeds_data.sector` joined through `section_enrollment.unit_id`. | Section-canonical institutional sector from the upstream section spine. |
 | `section_course_level` | `varchar` | Section-canonical course-level category label | `section_enrollment.course_level` joined on period_sortable and section_id. | Section-canonical instructional level from the upstream section spine. |
 | `section_enrollments` | `integer` | Section-canonical reported student count; source noise can include negative values | `section_enrollment.enrollments` joined on period_sortable and section_id. | Section-canonical raw enrollment from the upstream section spine. |
 | `section_seats_taken` | `integer` | Section-canonical occupied seats; `9999` is the source sentinel | `section_enrollment.seats_taken` joined on period_sortable and section_id. | Section-canonical occupied seats from the upstream section spine. |
@@ -77,10 +77,10 @@ notion-sync: push
 | `section_has_enrollment_own_seats` | `boolean` | TRUE or FALSE | `section_enrollment.has_enrollment_own_seats` joined on period_sortable and section_id. | Whether the source section reports usable occupied seats. |
 | `section_has_enrollment_sibling` | `boolean` | TRUE or FALSE | `section_enrollment.has_enrollment_sibling` joined on period_sortable and section_id. | Whether a sibling source section reports enrollment. |
 | `section_has_enrollment_sibling_seats` | `boolean` | TRUE or FALSE | `section_enrollment.has_enrollment_sibling_seats` joined on period_sortable and section_id. | Whether a sibling section reports usable occupied seats. |
-| `section_enrollment_assigned` | `integer` | Rounded student count from the ladder; raw negatives can propagate | `section_enrollment.enrollment_assigned` joined on period_sortable and section_id. | Best available enrollment assigned to the source section. |
-| `section_enrollment_source` | `varchar` | One of `own`, `own_seats`, `sibling_enroll`, `sibling_seats`, `class_median`, `level_median`, or `none` | `section_enrollment.enrollment_source` joined on period_sortable and section_id. | Assignment rung used for the source section. |
-| `is_required_inferred` | `boolean` | 2024+ required/blank-status fallback using section directness | True for 2024+ rows satisfying supply-aware section required-status fallback. | Whether the material is treated as required after fallback. |
-| `is_post_2024` | `boolean` | period_date >= 2024-01-01; NULL dates are false | `COALESCE(period_date >= DATE '2024-01-01', FALSE)`. | Whether the academic term begins during 2024 or later. |
+| `section_enrollment_assigned` | `integer` | Rounded student count from the ladder; raw negatives can propagate | Local assignment context: rounded own/seats/sibling/IPEDS cohort median ladder from section_enrollment signals. | Best available enrollment assigned to the source section. |
+| `section_enrollment_source` | `varchar` | One of `own`, `own_seats`, `sibling_enroll`, `sibling_seats`, `class_median`, `level_median`, or `none` | Local assignment context: first successful own/seats/sibling/IPEDS cohort median ladder label. | Assignment rung used for the source section. |
+| `is_required_inferred` | `boolean` | recent-period required/blank-status fallback using section directness | True for recent-period rows satisfying supply-aware section required-status fallback. | Whether the material is treated as required after fallback. |
+| `is_recent` | `boolean` | period_sortable is in the rolling newest 12 catalog terms | `period_sortable IN (SELECT period_sortable FROM recent_period)`. | Whether the term belongs to the newest catalog window. |
 | `has_isbn` | `boolean` | Row has non-NULL ISBN13 (#20 retains false rows in the section spine) | `ISBN13 IS NOT NULL`. | Whether the material has a non-NULL ISBN. |
 | `has_formattype` | `boolean` | Row has nonblank FormatType | `FormatType` is non-NULL and nonblank. | Whether the material has a nonblank FormatType classification. |
 | `has_enrollment` | `boolean` | Row has non-NULL enrollments | `enrollments IS NOT NULL`. | Whether usable enrollment information is available. |
@@ -88,5 +88,5 @@ notion-sync: push
 | `no_details` | `boolean` | Title exactly *No Book Details* | Title equals exact marker `*No Book Details*`. | Whether the title carries the no-details placeholder. |
 | `no_materials` | `boolean` | Title exactly *No Books Required* OR supply_category=placeholder_no_material | Title equals `*No Books Required*` or supply category is `placeholder_no_material`. | Whether the row explicitly indicates no course materials. |
 | `is_canada` | `boolean` | state = CAN | `state = 'CAN'`, coalesced false. | Whether the source row belongs to Canada. |
-| `is_course_material_use` | `boolean` | #58: post-2024, not Canada, has ISBN, not supply, not no_details, not no_materials | 2024+ AND not Canada AND has ISBN AND not supply/no-details/no-materials. | Whether the material belongs to the analysis population. |
-| `is_course_material_no_use` | `boolean` | #58: post-2024 complement of is_course_material_use; both flags false pre-2024 | 2024+ complement of `is_course_material_use`; false before 2024. | Whether the material belongs to the excluded population. |
+| `is_course_material_use` | `boolean` | #58: recent-period, not Canada, has ISBN, not supply, not no_details, not no_materials | Recent-period AND not Canada AND has ISBN AND not supply/no-details/no-materials. | Whether the material belongs to the analysis population. |
+| `is_course_material_no_use` | `boolean` | #58: recent-period complement of is_course_material_use; both flags false outside the window | Recent-period complement of `is_course_material_use`; false outside the window. | Whether the material belongs to the excluded population. |

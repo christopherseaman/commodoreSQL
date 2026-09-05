@@ -11,7 +11,7 @@ notion-sync: push
 - Relation kind: table
 - Grain / key: One period × institution, including an explicit NULL-institution bucket
 - Pipeline stage: Release model / models/master_institution.sql
-- Direct upstream relations: `master_section`, `pricing_wide`
+- Direct upstream relations: `master_section`
 
 | Column | Type | Example / structure | Direct upstream source / derivation | Description |
 |---|---|---|---|---|
@@ -25,7 +25,7 @@ notion-sync: push
 | `institution_type` | `varchar` | Derived institution-type category label | `ANY_VALUE(master_section.institution_type)`; IPEDS attributes are institution-grain. | Derived institution type used for reporting groups. |
 | `enrollment_2024` | `integer` | Non-negative 2024 student count; NULL when unavailable | `ANY_VALUE(master_section.enrollment_2024)`; IPEDS attributes are institution-grain. | Total institutional enrollment reported to IPEDS for 2024. |
 | `distance_enrollment_2024` | `integer` | Non-negative 2024 student count; NULL when unavailable | `ANY_VALUE(master_section.distance_enrollment_2024)`; IPEDS attributes are institution-grain. | IPEDS 2024 students enrolled in distance education. |
-| `bookstore_url` | `varchar` | Absolute `http://` or `https://` bookstore URL | Most frequent nonblank `pricing_wide.bookstore_url` for the same term×institution; lexical tie-break. | Bookstore page providing the observed material prices. |
+| `bookstore_url` | `varchar` | Absolute `http://` or `https://` bookstore URL | Most frequent nonblank `master_section.bookstore_url` for the same term×institution; lexical tie-break. | Bookstore URL chosen from material-bearing sections. |
 | `section_count` | `bigint` | Non-negative whole-number count | `COUNT(*)` across material-bearing sections. | Distinct material-bearing sections within the aggregation group. |
 | `advanced_graduate_section_count` | `bigint` | Non-negative whole-number count | `COUNT(*) FILTER (WHERE course_level = 'Advanced graduate')`. | Sections classified as advanced graduate. |
 | `advanced_graduate_directed_study_and_research_section_count` | `bigint` | Non-negative whole-number count | `COUNT(*) FILTER (WHERE course_level = 'Advanced graduate/ directed study and research')`. | Sections classified as advanced graduate directed study and research. |
