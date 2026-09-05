@@ -159,9 +159,10 @@ def main() -> None:
         'i2d["10 · 2d_data_quality.sql"]',
         'e30["11 · 3_mailing_lists.sql"]',
         'm03["16 · models/sample10_section_ids.sql"]',
+        'm04["17 · models/sample10pct_materials.sql"]',
     )
     if any(marker not in schema_doc for marker in required_execution_markers):
-        fail("SCHEMA.md does not show the exact 16-step processing order")
+        fail("SCHEMA.md does not show the exact 17-step processing order")
     if "| Import | `0_cleanup.sql` |" not in (REPO_ROOT / "CMM-ETL.md").read_text():
         fail("CMM-ETL.md omits the cleanup step")
 

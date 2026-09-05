@@ -144,26 +144,45 @@ material_spine AS MATERIALIZED (
         isbn13
     FROM material_costs
 ),
-materials AS (
+sampled_material_spine AS MATERIALIZED (
+    SELECT
+        period_sortable,
+        section_id,
+        isbn13
+    FROM sample10pct_materials
+),
+material_full AS (
     SELECT
         spine.period_sortable,
         COUNT(*) AS section_isbn_rows_full,
-        COUNT(*) FILTER (WHERE sample.section_id IS NOT NULL) AS section_isbn_rows_sample,
-        COUNT(DISTINCT spine.isbn13) AS isbn_rows_full,
-        COUNT(DISTINCT spine.isbn13) FILTER (
-            WHERE sample.section_id IS NOT NULL
-        ) AS isbn_rows_sample
+        COUNT(DISTINCT spine.isbn13) AS isbn_rows_full
     FROM material_spine spine
-    LEFT JOIN sample USING (period_sortable, section_id)
     GROUP BY spine.period_sortable
+),
+material_sample AS (
+    SELECT
+        period_sortable,
+        COUNT(*) AS section_isbn_rows_sample,
+        COUNT(DISTINCT isbn13) AS isbn_rows_sample
+    FROM sampled_material_spine
+    GROUP BY period_sortable
+),
+materials AS (
+    SELECT
+        f.period_sortable,
+        f.section_isbn_rows_full,
+        s.section_isbn_rows_sample,
+        f.isbn_rows_full,
+        s.isbn_rows_sample
+    FROM material_full f
+    LEFT JOIN material_sample s USING (period_sortable)
 ),
 sampled_material_by_section AS (
     SELECT
         spine.period_sortable,
         spine.section_id,
         COUNT(*)::DOUBLE AS section_isbn_rows
-    FROM material_spine spine
-    JOIN sample USING (period_sortable, section_id)
+    FROM sampled_material_spine spine
     GROUP BY spine.period_sortable, spine.section_id
 ),
 material_squares AS (

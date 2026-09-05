@@ -118,8 +118,8 @@ flowchart LR
     pricing_wide --> master_institution
     material_costs --> master_isbn
     section_enrollment --> sample10
-    sample10 -.-> sample10_materials
-    material_costs -.-> sample10_materials
+    sample10 --> sample10_materials
+    material_costs --> sample10_materials
     master_section --> fall_scope
 
     catalog --> master_mailing
@@ -142,7 +142,7 @@ flowchart LR
     classDef imported fill:#d9ead3,stroke:#38761d,stroke-width:2px,color:#274e13;
     classDef expected fill:#f3f3f3,stroke:#777,stroke-width:2px,stroke-dasharray:6 4,color:#444;
     class catalog,pricing_historical,ipeds,optout,panel,format_lookup,supply imported;
-    class cmm_discipline_source,cmm_ia_source,external_pricing_source,brand_source,review25_source,sample10_materials,sample25_ids,sample25_material,sample25_section expected;
+    class cmm_discipline_source,cmm_ia_source,external_pricing_source,brand_source,review25_source,sample25_ids,sample25_material,sample25_section expected;
     style expected_sources fill:#fafafa,stroke:#777,stroke-width:2px,stroke-dasharray:8 4
 ```
 
@@ -211,31 +211,25 @@ flowchart TB
         direction LR
         comprehensive("comprehensive_data")
         master_section_analysis("master_section")
-        sample10("sample10_section_ids")
+        sample10_materials("sample10pct_materials")
         random_file["01_sample_records.csv"]
         faculty_file["30_faculty_records.csv"]
-        sample_file["34_master_section_sample10pct.csv"]
+        sample_file["34_sample10pct_materials.csv<br/>sample10pct_materials.parquet"]
         subset_files["fall2025_setA_required.parquet<br/>fall2025_setB_no_required.parquet"]
         comprehensive --> random_file
         comprehensive --> faculty_file
-        master_section_analysis --> sample_file
-        sample10 --> sample_file
+        sample10_materials --> sample_file
         master_section_analysis --> subset_files
     end
 
-    subgraph pending_sample_exports["Pending samples"]
+    subgraph pending_sample_exports["Pending 25-institution samples"]
         direction LR
         section_cost("section_cost")
-        sample10_materials("sample10pct_materials")
         sample25_ids("sample25_unit_ids")
         sample25_material("sample25id_material_cost")
         sample25_section("sample25id_section_cost")
-        sample10_future_files["34_sample10pct_materials.csv<br/>sample10pct_materials.parquet"]
         sample25_material_file["sample25id_material_cost.csv"]
         sample25_section_file["sample25id_section_cost.csv"]
-        material_costs -.-> sample10_materials
-        sample10 -.-> sample10_materials
-        sample10_materials -.-> sample10_future_files
         material_costs -.-> sample25_material
         sample25_ids -.-> sample25_material
         section_cost -.-> sample25_section
@@ -247,7 +241,7 @@ flowchart TB
     classDef file fill:#fff2cc,stroke:#9c7227,color:#222;
     class course_file,post_file,use_file,nouse_file,canada_file,cost_files,section_files,course_files,distribution_files,institution_files,isbn_files,master_file,mailing_files,geography_files,random_file,faculty_file,sample_file,subset_files file;
     classDef expected fill:#f3f3f3,stroke:#777,stroke-width:2px,stroke-dasharray:6 4,color:#444;
-    class sample10_materials,sample25_ids,sample25_material,sample25_section,sample10_future_files,sample25_material_file,sample25_section_file expected;
+    class sample25_ids,sample25_material,sample25_section,sample25_material_file,sample25_section_file expected;
 ```
 
 `YYYY_N` is the term; `YYYYMMDD` is the export date. Brackets mark an optional term suffix.
@@ -283,6 +277,7 @@ Arrows above identify inputs. “Section” includes term; grain means one row p
 | `master_institution` | Institution × term | Roll up sections; same-term bookstore URL; retain unknown institution. |
 | `master_isbn` | ISBN × term | Roll up material rows. |
 | `sample10_section_ids` | Section | Internal fixed 10% hash membership. |
+| `sample10pct_materials` | Section × ISBN | Selected section clusters from `material_costs`. |
 | `master_section_us_intro_fall2025` | Section | Fall 2025; required-bearing; introductory/intermediate; nonblank, non-Canada state. |
 | `master_mailing` | Email | Nonblank; newest term, largest enrollment, stable tie-breakers. |
 | `recent_periods` | Term | Newest 12 terms represented after `master_mailing` selection. |
@@ -319,7 +314,6 @@ Geographic reports join `state_region` at query time.
 | CMM IA | Campus availability, distinct from FormatType IA; grain/dates/precedence unresolved. |
 | CMM external pricing | Feed the pricing-wide stage; fields/grain await source. |
 | Bookstore-brand lookup | Enrich `pricing_wide`; key and file scope await lookup. |
-| `sample10pct_materials` | Material Costs section-cluster sample; #81. |
 | 25 institution list | Feed `sample25id_material_cost` and `sample25id_section_cost`; #60. |
 | Course summaries | #24: retain, rename, or retire; publisher/status seats are non-additive and blank publishers are excluded. |
 

@@ -1380,6 +1380,141 @@ Table master_isbn {
   Note: 'Issue #55/#58. One row per term × ISBN consumed from material_costs; Canada, blank ISBN, supply, no-details, and no-material rows are excluded. Pseudo-SKU access codes remain eligible unless classified supply. Price counts are distinct sections with non-NULL material_costs cells.'
 }
 
+Table sample10pct_materials {
+  isbn13 bigint [pk, note: 'non-NULL catalog ISBN13; part of the canonical material key']
+  book_title varchar [note: 'catalog-owned; sourced from course_materials, never copied from pricing_wide']
+  author varchar [note: 'catalog-owned; sourced from course_materials, never copied from pricing_wide']
+  publisher varchar [note: 'catalog-owned; sourced from course_materials, never copied from pricing_wide']
+  imprint varchar [note: 'catalog-owned']
+  book_format varchar [note: 'catalog-owned Format value']
+  format_type varchar [note: 'catalog-owned FormatType classification input']
+  book_status varchar [note: 'catalog-owned raw status']
+  isbn_book_title varchar [note: 'term/ISBN lexical-min title used by the downstream Master ISBN compatibility contract']
+  isbn_author varchar [note: 'term/ISBN lexical-min author used by the downstream Master ISBN compatibility contract']
+  isbn_publisher varchar [note: 'term/ISBN lexical-min publisher used by the downstream Master ISBN compatibility contract']
+  isbn_title_variant_count bigint [note: 'term/ISBN distinct nonblank source-title count']
+  isbn_author_variant_count bigint [note: 'term/ISBN distinct nonblank source-author count']
+  isbn_publisher_variant_count bigint [note: 'term/ISBN distinct nonblank source-publisher count']
+  unit_id bigint
+  school varchar
+  state varchar
+  dept_code varchar
+  department varchar
+  dept_description varchar
+  course_number varchar
+  section varchar
+  course_title varchar
+  course_level varchar
+  course_subject varchar
+  period varchar
+  enrollments integer
+  seats_taken integer
+  instructor varchar
+  first_name varchar
+  last_name varchar
+  email varchar
+  course_id varchar
+  section_id varchar [pk, note: 'period-specific section key; part of the canonical material key']
+  period_sortable varchar [pk, note: 'YYYY-N; part of the canonical material key']
+  period_date date
+  is_oer boolean [note: 'catalog-owned definitive BOOL_OR over Use catalog rows']
+  oer_category varchar
+  is_ia boolean [note: 'catalog-owned definitive BOOL_OR over Use catalog rows']
+  ia_category varchar
+  is_supply boolean [note: 'always false in canonical Use population; retained for audit contract']
+  supply_category varchar
+  institution_name varchar
+  sector varchar
+  level varchar
+  control varchar
+  size varchar
+  enrollment_2024 integer
+  distance_enrollment_2024 integer
+  institution_type varchar
+  panel_response_year varchar
+  is_opted_out boolean
+  opt_out_source varchar
+  is_required_inferred boolean [note: 'catalog-owned canonical required inference']
+  is_post_2024 boolean
+  has_isbn boolean
+  has_formattype boolean
+  has_enrollment boolean
+  has_enrollment_own_seats boolean
+  no_details boolean
+  no_materials boolean
+  is_canada boolean
+  is_course_material_use boolean
+  is_course_material_no_use boolean
+  has_enrollment_sibling boolean
+  has_enrollment_sibling_seats boolean
+  enrollment_assigned integer
+  enrollment_source varchar
+  is_required_direct boolean [note: 'item-grain literal required nonsupply evidence']
+  is_optional_or_recommended_direct boolean [note: 'item-grain optional/recommended literal-status evidence']
+  source_row_count bigint [note: 'source catalog rows collapsed into this section-term-ISBN item']
+  title_variant_count bigint [note: 'distinct nonblank catalog title values; conflict signal']
+  author_variant_count bigint [note: 'distinct nonblank catalog author values; conflict signal']
+  publisher_variant_count bigint [note: 'distinct nonblank catalog publisher values; conflict signal']
+  imprint_variant_count bigint [note: 'distinct nonblank catalog Imprint values; conflict signal']
+  book_format_variant_count bigint [note: 'distinct catalog Format values; conflict signal']
+  format_type_variant_count bigint [note: 'distinct catalog FormatType values; conflict signal']
+  book_status_variant_count bigint [note: 'distinct catalog status values; conflict signal']
+  catalog_metadata_conflict boolean [note: 'TRUE when any catalog metadata variant count exceeds one']
+  is_required_inferred_conflict boolean [note: 'BOOL_OR vs BOOL_AND disagreement DQ signal']
+  is_oer_conflict boolean [note: 'BOOL_OR vs BOOL_AND disagreement DQ signal']
+  is_ia_conflict boolean [note: 'BOOL_OR vs BOOL_AND disagreement DQ signal']
+  bookstore_url varchar [note: 'pricing-owned enrichment from pricing_wide; NULL when no pricing match']
+  price_buy_new_physical decimal(10,2)
+  price_buy_new_digital decimal(10,2)
+  price_buy_new_na decimal(10,2)
+  price_buy_used_physical decimal(10,2)
+  price_buy_used_digital decimal(10,2)
+  price_buy_used_na decimal(10,2)
+  price_buy_na_physical decimal(10,2)
+  price_buy_na_digital decimal(10,2)
+  price_buy_na_na decimal(10,2)
+  price_rental_new_physical decimal(10,2)
+  price_rental_new_digital decimal(10,2)
+  price_rental_new_na decimal(10,2)
+  price_rental_used_physical decimal(10,2)
+  price_rental_used_digital decimal(10,2)
+  price_rental_used_na decimal(10,2)
+  price_rental_na_physical decimal(10,2)
+  price_rental_na_digital decimal(10,2)
+  price_rental_na_na decimal(10,2)
+  format_count bigint [note: 'pricing_wide count of distinct offered buy/rental option × condition × format tuples, independent of price validity; maximum 18']
+  has_buy boolean
+  has_rent boolean
+  price_min decimal(10,2)
+  price_max decimal(10,2)
+  price_avg double [note: 'LEGACY midpoint (price_min + price_max) / 2; not arithmetic mean']
+  rental_days_min integer
+  rental_days_max integer
+  price_buy_min decimal(10,2)
+  price_buy_max decimal(10,2)
+  has_pricing_match boolean [note: 'TRUE when the LEFT pricing_wide join found a section/ISBN row; independent of whether that row has a valid price_min']
+  is_section_required_direct boolean [note: 'section-grain direct-required context inherited from comprehensive_data']
+  panel_source_row_count bigint [note: 'appended canonical panel multiplicity audit from panel_email']
+  panel_response_year_variant_count bigint [note: 'appended canonical panel response-year variant audit']
+  use_source_row_count bigint [note: 'appended canonical Use source-row count']
+  no_use_source_row_count bigint [note: 'appended canonical NoUse source-row count']
+  has_use_source_row boolean [note: 'appended source Use evidence flag']
+  has_no_use_source_row boolean [note: 'appended source NoUse evidence flag']
+  population_classification_conflict boolean [note: 'appended Use/NoUse disagreement across source rows']
+  instructor_variant_count bigint [note: 'appended distinct nonblank instructor count']
+  email_variant_count bigint [note: 'appended distinct nonblank email count']
+  contact_metadata_conflict boolean [note: 'appended instructor/email conflict signal']
+  is_supply_conflict boolean [note: 'appended supply flag conflict signal']
+  no_details_conflict boolean [note: 'appended no-details flag conflict signal']
+  no_materials_conflict boolean [note: 'appended no-materials flag conflict signal']
+  is_canada_conflict boolean [note: 'appended Canada flag conflict signal']
+  is_null_isbn_audit boolean [note: 'appended one-NULL-ISBN-row audit marker']
+  has_nonnull_isbn_in_section boolean [note: 'appended section has another non-NULL ISBN']
+  is_no_adoption_section boolean [note: 'appended section has no non-NULL ISBN adoption']
+
+  Note: 'Issue #81. Materialized by models/sample10pct_materials.sql from material_costs joined to sample10_section_ids on (period_sortable, section_id). Preserves all 130 Material Costs columns and one row per sampled (period_sortable, section_id, isbn13). Membership uses md5-prefix64-mod10-v1 over the complete section population. Current baseline: 1,282,423 rows across 698,578 material-bearing sections.'
+}
+
 Table sample10_section_ids {
   section_id varchar [note: 'Canonical sampling unit; one selected row per full section_enrollment key']
   period_sortable varchar
@@ -1463,6 +1598,7 @@ TableGroup eda_records {
   master_institution
   master_isbn
   sample10_section_ids
+  sample10pct_materials
 }
 
 // ---------------------------------------------------------------------------

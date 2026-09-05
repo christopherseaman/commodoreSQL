@@ -28,7 +28,7 @@ Run `scripts/run_sql.sh`; SQL is rendered with `envsubst`. DROP-before-CREATE ma
 |---|---|---|
 | IMPORT | 10 fixed SQL files | Cleanup, source loading, catalog normalization/enrichment, canonical materials, pricing pivot, DQ snapshots; `0_setup.sql` also writes `output/email_issues.tsv`. |
 | EDA | 3 fixed SQL files | Mailing, Material Costs, section costs, and section/course/material masters. |
-| Models | `scripts/sql/models/*.sql` lexical | `master_institution`, `master_isbn`, `sample10_section_ids`. |
+| Models | `scripts/sql/models/*.sql` lexical | `master_institution`, `master_isbn`, `sample10_section_ids`, `sample10pct_materials`. |
 | EXPORT | `scripts/sql/exports/*.sql` lexical, top-level | Temporary-table wrappers to `output/<basename>.csv`. |
 
 After IMPORT, mailing export requires `3_mailing_lists.sql`; wrapper-only runs with `NO_IMPORT=1` may use last-refreshed mailing relations.
@@ -40,9 +40,9 @@ flowchart TD
   run["scripts/run_sql.sh"] --> i0c["01 · 0_cleanup.sql"]
   run -. "NO_IMPORT" .-> x01["01_sample_records.sql"]
   i0c --> i00["02 · 0_setup.sql"] --> i0b["03 · 0b_state_region.sql"] --> i10["04 · 1_bookprices_import.sql"] --> i1a["05 · 1a_supply_classification.sql"] --> i1b["06 · 1b_section_enrollment.sql"] --> i20["07 · 2_oer_classification.sql"] --> i2b["08 · 2b_course_materials.sql"] --> i2c["09 · 2c_pricing_wide.sql"] --> i2d["10 · 2d_data_quality.sql"]
-  i2d --> e30["11 · 3_mailing_lists.sql"] --> e3b["12 · 3b_material_costs.sql"] --> e40["13 · 4_merged_records.sql"] --> m01["14 · models/master_institution.sql"] --> m02["15 · models/master_isbn.sql"] --> m03["16 · models/sample10_section_ids.sql"] --> x01
+  i2d --> e30["11 · 3_mailing_lists.sql"] --> e3b["12 · 3b_material_costs.sql"] --> e40["13 · 4_merged_records.sql"] --> m01["14 · models/master_institution.sql"] --> m02["15 · models/master_isbn.sql"] --> m03["16 · models/sample10_section_ids.sql"] --> m04["17 · models/sample10pct_materials.sql"] --> x01
   i2d -. "NO_EDA" .-> x01
-  x01 --> x10["10_master_mailing.sql"] --> x11c["11_current_mailing.sql"] --> x11r["11_recent_mailing.sql"] --> x20["20_california_mailing.sql"] --> x21["21_texas_mailing.sql"] --> x22["22_florida_mailing.sql"] --> x23["23_newyork_mailing.sql"] --> x24["24_texas_fall_series.sql"] --> x25["25_pennsylvania_mailing.sql"] --> x26["26_canada_mailing.sql"] --> x27["27_other_mailing.sql"] --> x30["30_faculty_records.sql"] --> x31["31_master_section.sql"] --> x32["32_master_course.sql"] --> x33["33_master_course_material.sql"] --> x34["34_master_section_sample10pct.sql"] --> x35["35_master_institution_by_term.sql"] --> x36["36_master_isbn_by_term.sql"] --> x37["37_sample10_reconciliation.sql"] --> x38["38_cmm_release_reconciliation.sql"] --> x39["39_cmm_release_key_reconciliation.sql"] --> x40["40_material_costs_by_term.sql"] --> x41["41_material_costs_reconciliation.sql"]
+  x01 --> x10["10_master_mailing.sql"] --> x11c["11_current_mailing.sql"] --> x11r["11_recent_mailing.sql"] --> x20["20_california_mailing.sql"] --> x21["21_texas_mailing.sql"] --> x22["22_florida_mailing.sql"] --> x23["23_newyork_mailing.sql"] --> x24["24_texas_fall_series.sql"] --> x25["25_pennsylvania_mailing.sql"] --> x26["26_canada_mailing.sql"] --> x27["27_other_mailing.sql"] --> x30["30_faculty_records.sql"] --> x31["31_master_section.sql"] --> x32["32_master_course.sql"] --> x33["33_master_course_material.sql"] --> x34["34_sample10pct_materials.sql"] --> x35["35_master_institution_by_term.sql"] --> x36["36_master_isbn_by_term.sql"] --> x37["37_sample10_reconciliation.sql"] --> x38["38_cmm_release_reconciliation.sql"] --> x39["39_cmm_release_key_reconciliation.sql"] --> x40["40_material_costs_by_term.sql"] --> x41["41_material_costs_reconciliation.sql"]
 ```
 
 ## Relation inventory
@@ -77,10 +77,11 @@ flowchart TD
 | `master_institution` | Material-bearing period×institution, including NULL unit. |
 | `master_isbn` | Canonical Use period×ISBN rollup. |
 | `sample10_section_ids` | Deterministic section-sample membership. |
+| `sample10pct_materials` | Sampled `material_costs` rows for selected sections. |
 
 ## Data dependencies
 
-Solid arrows are dependencies; dotted arrows are projections/subsets/leaves. All 36 DBML relations are current and consumed. Geographic mailing is seven direct `current_mailing` export filters.
+Solid arrows are dependencies; dotted arrows are projections/subsets/leaves. All 37 DBML relations are current and consumed. Geographic mailing is seven direct `current_mailing` export filters.
 
 ```mermaid
 flowchart TD
@@ -114,6 +115,8 @@ flowchart TD
   pricing_wide --> master_institution
   material_costs --> master_isbn
   section_enrollment --> sample10_section_ids
+  material_costs --> sample10pct_materials
+  sample10_section_ids --> sample10pct_materials
   course_catalog_20251215 --> master_mailing
   master_mailing --> current_mailing
   master_mailing --> recent_periods --> current_mailing
@@ -133,7 +136,7 @@ flowchart TD
   pricing_wide --> __data_quality_format_count_distribution
 ```
 
-`state_region` is an IMPORT helper joined at query time; it does not enrich `comprehensive_data` or release tables. Pending inputs have no implemented nodes. The intended topology is the 36 DBML relations (27 tables, nine views); cleanup enforces absence of retired relations.
+`state_region` is an IMPORT helper joined at query time; it does not enrich `comprehensive_data` or release tables. Pending inputs have no implemented nodes. The intended topology is the 37 DBML relations (28 tables, nine views); cleanup enforces absence of retired relations.
 
 ## Export dependencies and inventory
 

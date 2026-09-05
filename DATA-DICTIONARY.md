@@ -12,7 +12,7 @@ Generated from canonical `schema.dbml`. Each declared table or view has a separa
 dictionary in schema order. Regenerate with `python3 scripts/generate_data_dictionary.py`.
 The maintained [Master Section deep appendix](MASTER-SECTION-DICTIONARY.md) remains separate.
 
-Declared scope: 36 current, consumed relations and 1,200 fields.
+Declared scope: 37 current, consumed relations and 1,330 fields.
 
 ## External source tables (5 relations)
 
@@ -47,7 +47,7 @@ Current derived helpers used to enrich, select, classify, or aggregate the execu
 | [`pricing_wide`](docs/data-dictionary/pricing_wide.md) | table | One section_id × ISBN13 | IMPORT derived / 2c_pricing_wide.sql |
 | [`recent_periods`](docs/data-dictionary/recent_periods.md) | view | One of the latest 12 distinct non-NULL periods | EDA mailing / 3_mailing_lists.sql |
 
-## Canonical outputs (14 relations)
+## Canonical outputs (15 relations)
 
 Current pipeline outputs and population projections used by the release flow.
 
@@ -67,6 +67,7 @@ Current pipeline outputs and population projections used by the release flow.
 | [`master_institution`](docs/data-dictionary/master_institution.md) | table | One period × institution, including an explicit NULL-institution bucket | Release model / models/master_institution.sql |
 | [`master_isbn`](docs/data-dictionary/master_isbn.md) | table | One period × non-NULL ISBN | Release model / models/master_isbn.sql |
 | [`sample10_section_ids`](docs/data-dictionary/sample10_section_ids.md) | table | One selected section_enrollment section | Sampling / models/sample10_section_ids.sql |
+| [`sample10pct_materials`](docs/data-dictionary/sample10pct_materials.md) | table | One sampled Material Costs period × section × ISBN item | Sampling / models/sample10pct_materials.sql |
 
 ## Data-quality sidecars (7 relations)
 

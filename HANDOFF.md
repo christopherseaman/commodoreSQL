@@ -14,6 +14,7 @@ State: 2026-09-04. Backlog: GitHub Issues / Project 2.
 
 - `material_costs`: canonical Use items LEFT-enriched by exact section × ISBN pricing.
 - `section_enrollment`: complete section population and assigned enrollment.
+- `sample10pct_materials`: stable section-cluster sample of `material_costs`.
 - `current_mailing`: latest contacts, 12-term window, history, minus opt-outs.
 
 [Flow](CMM-DATA-FLOW.md) · [ETL rules](CMM-ETL.md) · [Dictionary](DATA-DICTIONARY.md)
@@ -28,6 +29,8 @@ Raw → canonical → release reconciliation passed:
 - `master_section`: **6,983,049** material-bearing sections
 - Fall 2025: **2,754,111** Material Costs, **1,509,634** Master Section,
   **2,216** Master Institution, and **335,157** Master ISBN rows
+- 10% material sample definition: **1,282,423** items, **698,578** material-bearing sections,
+  no NULL/duplicate keys, and exact key parity with sampled `course_materials_use`
 - Raw conservation, release/key-set, price-cell, mailing, and partition checks passed.
 
 ## Next release
@@ -44,8 +47,12 @@ Raw → canonical → release reconciliation passed:
 ### Flow changes
 
 - [#80](https://github.com/christopherseaman/commodoreSQL/issues/80) — implementation staged; full rebuild/reconciliation pending
-- [#81](https://github.com/christopherseaman/commodoreSQL/issues/81) — `sample10pct_materials` from `material_costs`
+- [#81](https://github.com/christopherseaman/commodoreSQL/issues/81) — in Review; 1,282,423-row sample reconciled
 - [#24](https://github.com/christopherseaman/commodoreSQL/issues/24) — rationalize course summary views
+
+### Reliability
+
+- [#82](https://github.com/christopherseaman/commodoreSQL/issues/82) — make DuckDB runners fail on the first SQL error
 
 ### Pricing identity: #21
 

@@ -73,17 +73,17 @@ class DataDictionaryTest(unittest.TestCase):
             cls.relations, cls.appendix_body
         )
 
-    def test_canonical_scope_is_36_relations_and_1200_fields(self) -> None:
-        self.assertEqual(len(self.relations), 36)
-        self.assertEqual(sum(r.kind == "table" for r in self.relations), 27)
+    def test_canonical_scope_is_37_relations_and_1330_fields(self) -> None:
+        self.assertEqual(len(self.relations), 37)
+        self.assertEqual(sum(r.kind == "table" for r in self.relations), 28)
         self.assertEqual(sum(r.kind == "view" for r in self.relations), 9)
         field_count = sum(len(relation.columns) for relation in self.relations)
-        self.assertEqual(field_count, 1_200)
+        self.assertEqual(field_count, 1_330)
 
     def test_one_deterministically_named_document_per_relation(self) -> None:
         expected_names = {relation.name for relation in self.relations}
         self.assertEqual(set(self.docs), expected_names)
-        self.assertEqual(len(self.docs), 36)
+        self.assertEqual(len(self.docs), 37)
         self.assertEqual(
             {path.name for path in DOCS_DIRECTORY.glob("*.md")},
             {f"{name}.md" for name in expected_names},
@@ -95,7 +95,7 @@ class DataDictionaryTest(unittest.TestCase):
         self.assertIn("## External source tables (5 relations)", body)
         self.assertIn("## Lookup/reference inputs (3 relations)", body)
         self.assertIn("## Processing helpers (4 relations)", body)
-        self.assertIn("## Canonical outputs (14 relations)", body)
+        self.assertIn("## Canonical outputs (15 relations)", body)
         self.assertIn("## Data-quality sidecars (7 relations)", body)
         self.assertIn("## Report/export views (3 relations)", body)
         self.assertIn("not database relations or dictionary pages", body)
@@ -147,7 +147,21 @@ class DataDictionaryTest(unittest.TestCase):
                 self.assertEqual(len(rows), len(relation.columns))
                 self.assertEqual(len({row[0] for row in rows}), len(rows))
             total_rows += len(rows)
-        self.assertEqual(total_rows, 1_200)
+        self.assertEqual(total_rows, 1_330)
+
+    def test_sample_materials_preserve_material_costs_schema(self) -> None:
+        material = self.by_name["material_costs"]
+        sample = self.by_name["sample10pct_materials"]
+        self.assertEqual(
+            [(column.name, column.data_type) for column in sample.columns],
+            [(column.name, column.data_type) for column in material.columns],
+        )
+        for column in sample.columns:
+            metadata = self.field_metadata[(sample.name, column.name)]
+            self.assertEqual(
+                metadata.source,
+                f"`material_costs.{column.name}` retained for `sample10_section_ids` membership.",
+            )
 
     def test_every_field_has_example_source_and_short_conceptual_description(self) -> None:
         banned_descriptions = {

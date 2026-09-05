@@ -96,6 +96,7 @@ RELATION_METADATA: dict[str, RelationMetadata] = {
     "master_institution": RelationMetadata("Release model / models/master_institution.sql", "One period × institution, including an explicit NULL-institution bucket", ("master_section", "pricing_wide"), "Canonical materialized per-term institution release table."),
     "master_isbn": RelationMetadata("Release model / models/master_isbn.sql", "One period × non-NULL ISBN", ("material_costs",), "Canonical materialized per-term ISBN release table."),
     "sample10_section_ids": RelationMetadata("Sampling / models/sample10_section_ids.sql", "One selected section_enrollment section", ("section_enrollment",), "Stable deterministic 10% section-membership lookup."),
+    "sample10pct_materials": RelationMetadata("Sampling / models/sample10pct_materials.sql", "One sampled Material Costs period × section × ISBN item", ("material_costs", "sample10_section_ids"), "Stable 10% section-cluster sample with the full Material Costs payload."),
     "__data_quality_metrics": RelationMetadata("Data quality / 2d_data_quality.sql", "One category × check × metric", ("comprehensive_data", "pricing_historical", "pricing_wide", "${PRICING_CSV}"), "Long-format pipeline quality metrics, including direct raw-pricing deduplication checks."),
     "__data_quality_top_unmatched_ipeds_schools": RelationMetadata("Data quality / 2d_data_quality.sql", "One ranked unmatched catalog school", ("comprehensive_data",), "Top unmatched IPEDS institution diagnostic."),
     "__data_quality_null_isbn_breakdown": RelationMetadata("Data quality / 2d_data_quality.sql", "One ranked catalog school", ("comprehensive_data",), "NULL-ISBN placeholder breakdown diagnostic."),
@@ -127,14 +128,14 @@ RELATION_GROUPS: tuple[tuple[str, str, tuple[str, ...]], ...] = (
         ("panel_email", "section_enrollment", "pricing_wide", "recent_periods"),
     ),
     (
-        "Canonical outputs (14 relations)",
+        "Canonical outputs (15 relations)",
         "Current pipeline outputs and population projections used by the release flow.",
         (
             "comprehensive_data", "course_materials", "course_materials_post_2024",
             "course_materials_use", "course_materials_no_use", "course_materials_canada",
             "master_mailing", "current_mailing", "material_costs",
             "section_cost", "master_section", "master_institution", "master_isbn",
-            "sample10_section_ids",
+            "sample10_section_ids", "sample10pct_materials",
         ),
     ),
     (
@@ -712,6 +713,17 @@ def _resolve_non_inherited(
         return _master_institution_metadata(column)
     if r == "master_isbn":
         return _master_isbn_metadata(column)
+    if r == "sample10pct_materials":
+        base = resolved.get(("material_costs", n))
+        if base is None:
+            raise ValueError(f"missing material_costs metadata for sample field: {n}")
+        return FieldMetadata(
+            f"`material_costs.{n}` retained for `sample10_section_ids` membership.",
+            base.values,
+            "Material Costs items in selected section clusters.",
+            base.null_meaning,
+            "passthrough",
+        )
     if r == "sample10_section_ids":
         rules = {
             "section_id": ("Distinct `section_enrollment.section_id` group key.", "Not produced."),
