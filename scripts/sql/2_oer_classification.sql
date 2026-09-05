@@ -1,6 +1,8 @@
 -- Add OER (Open Educational Resources) and IA (Inclusive Access) classification
 -- Both OER and IA status are derived from FormatType column via lookup table
 
+${CONFIG}
+
 BEGIN TRANSACTION;
 
 -- Import format type classification lookup table

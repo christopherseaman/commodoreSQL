@@ -39,7 +39,7 @@ class SectionRequirednessTest(unittest.TestCase):
         config = "SET memory_limit='1GB'; SET threads=1; SET preserve_insertion_order=false;"
         recent = (ROOT/'scripts/sql/0c_recent_period.sql').read_text().replace('${CONFIG}',config).replace('${SURVEY_TABLE}','catalog')
         one_b = (ROOT/'scripts/sql/1b_section_enrollment.sql').read_text().replace('${CONFIG}',config).replace('${SURVEY_TABLE}','catalog').replace('${IPEDS_TABLE}','ipeds_data')
-        oer = (ROOT/'scripts/sql/2_oer_classification.sql').read_text()
+        oer = (ROOT/'scripts/sql/2_oer_classification.sql').read_text().replace('${CONFIG}',config)
         for key, value in {'${LOOKUP_DIR}':str(ROOT/'data/2025.12.15'),'${SURVEY_TABLE}':'catalog','${IPEDS_TABLE}':'ipeds_data','${PANEL_TABLE}':'panel','${OPTOUT_TABLE}':'opt_out'}.items(): oer=oer.replace(key,value)
         checks = r'''
 SELECT CASE WHEN

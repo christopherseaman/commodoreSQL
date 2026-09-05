@@ -1,12 +1,13 @@
 # HANDOFF — CommodoreSQL
 
-State: 2026-09-04. Backlog: GitHub Issues / Project 2.
+State: 2026-09-05. Backlog: GitHub Issues / Project 2.
 
 ## Repository state
 
 - Branch: **`cmm-spring-2026`**
 - PR: [#62](https://github.com/christopherseaman/commodoreSQL/pull/62), open/non-draft.
-- The live database remains at the pre-#80 baseline; current branch SQL is newer.
+- The full staged flow was rerun successfully on 2026-09-05; see [RERUN.md](RERUN.md) for counts, QA, and remaining issues.
+- Metabase was stopped for the rebuild and restarted afterward; no live Metabase publication or external release was performed.
 - Inputs and `duckdb/commodore.duckdb` end at Fall 2025 (`2025-4`).
 - Spring 2026 and pending lookups remain absent.
 
@@ -26,12 +27,14 @@ found no implemented dependency mismatch; the former #86 note was stale. The rew
 also corrects Master ISBN price-cell availability wording and the geographic lookup
 description. The revised flow/schema pages are synced with verified Notion readback.
 
-Remaining flow tickets #80/#81/#83/#84/#85/#88 have staged implementations and await
-the held rebuild/live validation. #87 still needs final Master Course/Institution
-definitions. Missing sources and other decisions are listed below. No further flow
-refactor is implicitly authorized by the documentation rewrite.
+Remaining flow tickets #80/#81/#83/#84/#85/#88 have staged implementations exercised
+by the full rebuild; ticket closure and external release decisions remain separate.
+#87 still needs final Master Course/Institution definitions. Missing sources and other
+decisions are listed below. No further flow refactor is implicitly authorized by the
+documentation rewrite.
 
-No full/live rebuild, live Metabase publication, or stale `output/` release.
+No live Metabase publication or external release; current and pre-existing `output/`
+artifacts are distinguished in [RERUN.md](RERUN.md).
 Use isolated fixtures. Delegate with `fork_turns: "none"` and explicit bounded context;
 no descendant agents, new branch, or source-capture edits.
 
@@ -61,8 +64,8 @@ Shared-window fixtures cover admission/expiry, NULL/duplicate terms, pre-2024
 classification/enrollment, and matching material/mailing windows. Panel import
 tests verify deduplication and that raw staging is not persisted.
 All five diagrams render; generated dictionaries/report inventory match their sources.
-These checks do not establish full-data parity. The rolling window intentionally
-changes the historical fixed-2024+ population; full-data term impacts remain unmeasured.
+These checks do not establish parity with the pre-change baseline. The rolling window
+intentionally changes the historical fixed-2024+ population; full-data impacts are recorded in [RERUN.md](RERUN.md).
 
 ## Live pre-change baseline
 
@@ -95,24 +98,25 @@ Bounded read-only checks of the staged expressions against that snapshot found:
 
 1. Resolve remaining scope/definition decisions and review PR #62.
 2. Obtain pending inputs; validate schemas/terms; update `scripts/dot.env`.
-3. Once the rebuild hold is lifted, stop Metabase, rebuild, validate, and restart.
-4. Migrate report queries, regenerate exports, and verify keys/counts before delivery.
+3. Review [RERUN.md](RERUN.md), resolve non-small findings, and update ticket statuses.
+4. Migrate report queries, verify keys/counts, and make an explicit external delivery decision.
 
-**Do not release `output/`: its 2026-08-27 artifacts predate the validated rebuild.**
+**Do not release `output/` wholesale:** the 2026-09-05 exports are current, but older
+artifacts remain and are listed in [RERUN.md](RERUN.md).
 
 ## Open work
 
 ### Flow changes
 
-- [#80](https://github.com/christopherseaman/commodoreSQL/issues/80) — catalog-only helper; IPEDS cohort/median work moved into enrichment; rebuild pending
-- [#81](https://github.com/christopherseaman/commodoreSQL/issues/81) — direct `master_material` hash sample staged; rebuild pending
-- [#85](https://github.com/christopherseaman/commodoreSQL/issues/85) — singular relation/sample naming and direct Canada export staged; live migration held
+- [#80](https://github.com/christopherseaman/commodoreSQL/issues/80) — catalog-only helper; IPEDS cohort/median work moved into enrichment; full rebuild exercised, closure pending
+- [#81](https://github.com/christopherseaman/commodoreSQL/issues/81) — direct `master_material` hash sample staged; full rebuild exercised, closure pending
+- [#85](https://github.com/christopherseaman/commodoreSQL/issues/85) — singular relation/sample naming and direct Canada export staged; full rebuild exercised, release decision pending
 - [#86](https://github.com/christopherseaman/commodoreSQL/issues/86) — canceled; retain source-row `comprehensive_data` and item-grain `course_material`
 - [#89](https://github.com/christopherseaman/commodoreSQL/issues/89) — complete; verified staged SQL/diagram agreement and rewrote the flow explanation
 - [#87](https://github.com/christopherseaman/commodoreSQL/issues/87) — URL carried through Master Section; final Course/Institution definitions pending
-- [#88](https://github.com/christopherseaman/commodoreSQL/issues/88) — shared newest-12-term window approved and staged; full-data count effects unmeasured under rebuild hold
-- [#83](https://github.com/christopherseaman/commodoreSQL/issues/83) — catalog-derived mailing window staged; bounded live-snapshot parity proven; rebuild pending
-- [#84](https://github.com/christopherseaman/commodoreSQL/issues/84) — section costs folded into Master Section; rebuild pending
+- [#88](https://github.com/christopherseaman/commodoreSQL/issues/88) — shared newest-12-term window approved and staged; full-data effects recorded in [RERUN.md](RERUN.md)
+- [#83](https://github.com/christopherseaman/commodoreSQL/issues/83) — catalog-derived mailing window staged; bounded live-snapshot parity proven; full rebuild exercised
+- [#84](https://github.com/christopherseaman/commodoreSQL/issues/84) — section costs folded into Master Section; full rebuild exercised
 - [#24](https://github.com/christopherseaman/commodoreSQL/issues/24) — resolved: retain `master_course`, export 32, and Metabase card 90 for the course×term rollup; retire `master_course_material` and export 33 (no consumer; NULL publishers excluded; seats repeat across publisher/status groups).
 
 ### Reliability

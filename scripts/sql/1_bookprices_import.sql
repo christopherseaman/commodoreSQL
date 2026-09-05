@@ -161,7 +161,7 @@ SELECT 'Unique section_ids', COUNT(DISTINCT section_id)::VARCHAR FROM pricing_hi
 UNION ALL
 SELECT 'Unique ISBNs', COUNT(DISTINCT isbn13)::VARCHAR FROM pricing_historical WHERE isbn13 IS NOT NULL
 UNION ALL
-SELECT 'Period range', MIN(period) || ' - ' || MAX(period) FROM pricing_historical;
+SELECT 'Period range', MIN(period_sortable) || ' - ' || MAX(period_sortable) FROM pricing_historical;
 
 -- Granularity check (post-dedupe): expect 0 unexplained_residual.
 -- Anything > 0 here would indicate a bug in the dedupe stages or new source noise pattern.
