@@ -10,7 +10,7 @@ notion-sync: push
 
 - Relation kind: table
 - Grain / key: One material-bearing period × section
-- Pipeline stage: STAGED SQL / 4_merged_records.sql
+- Pipeline stage: 4_merged_records.sql
 - Direct upstream relations: `master_material`
 
 | Column | Type | Example / structure | Direct upstream source / derivation | Description |

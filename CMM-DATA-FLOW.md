@@ -218,16 +218,14 @@ adds `panel_email` history, and excludes any matching `opt_out` email.
 ### Release
 
 - `master_material`: LEFT-enrich every Use item from `pricing_wide` by exact section × ISBN; retain unmatched/unpriced items. `has_pricing_match` distinguishes a missing match from a matched row without valid prices. Encoding mismatch remains unresolved (#21); no fallback join is active.
-- `master_section`: group `master_material` by section; preserve counts/classifications and publish exactly ten staged monetary summaries. `required_*` sums Use items where `is_required_inferred`; `all_*` sums every Use item. Each scope has all-offer min/midrange/max plus buy-only min/max. Partial sums ignore NULL, an all-missing scope remains NULL, and a true zero remains zero. Inherit enrollment and section audit values once, never sum their repeated copies.
+- `master_section`: group `master_material` by section; preserve counts/classifications and publish ten monetary summaries. `required_*` sums Use items where `is_required_inferred`; `all_*` sums every Use item. Each scope has all-offer min/midrange/max plus buy-only min/max. Partial sums ignore NULL, an all-missing scope remains NULL, and a true zero remains zero. Inherit enrollment and section audit values once, never sum their repeated copies.
 - `master_isbn`: group `master_material` by term × ISBN; summarize adoptions, institutions, enrollment, metadata conflicts, and price-cell availability.
 - Dashed `master_course`, `master_institution`: provisional section rollups by term × course/institution; definitions other than the approved price portion remain pending (#87).
 
 At section grain, `required_price_avg` and `all_price_avg` are their own min/max midranges.
 At course grain, min bounds use `MIN(section min)`, max bounds use `MAX(section max)`, and
 each `price_avg` is the resulting course bounds' midrange—never `AVG` of section midranges
-or a sum of lower averages. Buy columns exclude rentals and have no average. These names and
-formulas describe the staged SQL definition; the live database retains the old monetary schema
-until migration.
+or a sum of lower averages. Buy columns exclude rentals and have no average.
 
 Section bookstore URL is the most frequent nonblank item URL; institution URL is the
 most frequent section URL. Ties resolve lexically; NULL-institution URLs remain NULL.

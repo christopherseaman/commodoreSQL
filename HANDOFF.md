@@ -1,38 +1,32 @@
 # HANDOFF — CommodoreSQL
 
 State: 2026-09-08. Branch: `cmm-spring-2026`. PR #62 remains open.
-Last live database/Notion verification: `45a8cd5` (before the staged price change).
+Live database rebuilt from `b4bd234`; independent supervisor QA accepted.
 
-## Active batch — #26 price contract
+## Completed batch — #26 price contract
 
-Staged implementation: ten `required_` / `all_` price-summary columns per section
+Implemented: ten `required_` / `all_` price-summary columns per section
 and course. Every legacy price `avg` is the midrange of that grain's own min/max.
 #26 owns the decision and validation checklist; #87 retains other master-definition decisions.
 
-SQL, reports, and generated schema/docs are staged together. The live database,
-Metabase, and Notion dictionary still use the previous contract. Do not publish renamed
-report queries against that database. No extended rebuild or new data release is authorized.
-Coordinate the database, report metadata, and Notion field-key migration before deployment.
-
-Deployment remaining under #26:
-
-1. With an approved execution window, rebuild section/course outputs using
-   `4_merged_records.sql`; check keys, price bounds/midranges, and release reconciliations.
-2. Refresh Metabase schema metadata, then publish changed reports and verify live results.
-3. Migrate the Notion dictionary's 33 old price-field keys to 30 new definitions across
-   section/course/section-sample; preserve recognized row IDs and remote edits. The normal
-   publisher deliberately refuses removed keys. Then publish the field/download/prose updates.
+The full pipeline finished September 8 at 20:43 PDT; Luna QA finished at 20:47.
+The supervisor independently accepted schema, counts, reconciliations, and price checks.
+Run details and publication evidence belong in `RUN-2026-09-08.md`.
+Metabase and Notion updates are published and verified. #26 is in Review for PR #62;
+no rebuild or publication step remains. No external data-file release was made.
 
 ## Current state
 
-- Full database rebuild completed September 5; September 8 changes are row-neutral.
+- Full database rebuild completed September 8; counts match September 5 exactly.
   Historical [run evidence](https://github.com/christopherseaman/commodoreSQL/blob/45a8cd52a7f83ec7c5ca537826e0027f95dee590/RERUN.md)
-  remains in Git; no active run diary is needed.
+  remains in Git; the new run's evidence belongs in `RUN-2026-09-08.md`.
 - Both grains remain: `comprehensive_data` preserves enriched source rows;
   `course_material` groups term × section × ISBN, including NULL-ISBN audit groups.
   #86 is canceled. Do not restart consolidation.
-- Renamed relations are live. All 74 tracked Metabase queries match the repository and
-  bind against DuckDB; 26 changed cards were published and four live requests passed.
+- Renamed relations and the new price schema are live. All 74 tracked Metabase SQL/filter
+  definitions match the repository; all 14 dashboards preserve mappings and layouts.
+  Five changed reports were executed against DuckDB results. Card 75 is API-limited to
+  2,000 of 2,232 rows; all returned rows match. The other four match completely.
 - Inputs end at Fall 2025. Materials and mailing share the newest 12 catalog terms.
 - No external file release was made. `output/` mixes current and older artifacts;
   select the intended files explicitly.
@@ -41,11 +35,12 @@ Deployment remaining under #26:
 
 - CMM-DATA-FLOW.md owns flow, logic, filters, and exports.
 - DATA-DICTIONARY.md owns schema presentation. Generated TSVs cover 25 implemented-flow
-  relations / 1,198 staged columns, excluding DQ/off-flow relations; live Notion still has
-  the previous 1,201 fields. Notion has one inline fields
-  database, an all-fields view, 25 table views, and collapsed global/per-table downloads.
-  All 1,201 stored records and 26 downloads were verified; repeated field/download applies
-  made zero remote writes. Remote-edit protection and interrupted-run recovery are tested.
+  relations / 1,198 columns, excluding DQ/off-flow relations. All 1,198 live Notion field
+  records and 26 downloadable TSVs are verified. Notion has one inline fields database,
+  an all-fields view, 25 table views, and collapsed global/per-table downloads.
+  The 30 renamed field rows retain their IDs; three removed buy-average rows are in
+  recoverable trash. Remote-edit protection and interrupted-run recovery are tested.
+  Repeated field, download, and prose applies made zero remote writes.
 - README.md owns runner commands and execution order.
 - SCHEMA.md and CMM-ETL.md are repo-only pointers; duplicate Notion pages are in recoverable trash.
 - Notion prose publication uses five explicit manifest pages: flow, reports, and three
@@ -60,19 +55,18 @@ Deployment remaining under #26:
 
 ## Tickets and next step
 
-24 non-Done project cards: 8 Review, 5 On Deck, 10 Todo, 1 In Progress; no draft-only cards.
+24 non-Done project cards: 9 Review, 5 On Deck, 10 Todo; none In Progress or draft-only.
 
 | Status | Tickets / remaining work |
 |---|---|
-| Review | #80, #81, #83, #84, #85, #88, #90, #91 — implemented and verified; human review/merge of PR #62 |
-| In Progress | #26 approved price contract staged; live migration/publication pending |
+| Review | #26, #80, #81, #83, #84, #85, #88, #90, #91 — implemented and verified; human review/merge of PR #62 |
 | On Deck | #21 pricing identity design/implementation; #87 remaining non-price master definitions |
 | On Deck, missing inputs | #51 Spring 2026; #52 discipline lookup; #60 25-institution list |
 | Todo, missing inputs | #23 external pricing; #56 BVA history; #57 campus IA; #72 bookstore brand |
 | Todo, decisions | #76 snapshot retention |
 | Older Todo backlog | #19 DQ logging; #30 Metabase organization; #43 cost/OER modeling; #47 drill-down tools; #48 program-level ideas |
 
-Next: review staged #26 changes and schedule coordinated deployment; then #21 work or #87 decisions.
+Next: human review/merge of PR #62; then #21 work or #87 non-price decisions.
 Provisional masters and institution URL lineage already exist. Do not reopen completed
 rebuild/migration work based on superseded ticket notes or the stale September 5 project overview.
 Canonical-stage runtime/spill optimization has no dedicated ticket; it is a non-blocking
@@ -80,21 +74,22 @@ observation, not active work. Known DuckDB resource-limit behavior is not a rele
 
 ## Validation
 
-September 5 baseline: 102,885,609 source/enriched rows; 96,663,781 canonical materials;
+September 8 rebuilt counts: 102,885,609 source/enriched rows; 96,663,781 canonical materials;
 19,387,814 `master_material` rows; 10,514,319 `master_section` rows.
-Release/key/material reconciliations: 241 passed. Samples: 254 passed, zero failed,
-34 not applicable. See the historical run evidence for full counts and DQ findings.
+Release/key/material reconciliations: 265 passed. Samples: 254 passed, zero failed,
+34 not applicable. See `RUN-2026-09-08.md` for full counts and DQ findings.
 The 10% sample is 1,937,043 materials / 1,050,536 sections; the separate
 `sample_section_us_intro_fall2025` has 773,613 rows.
 Shared-window expansion intentionally changes old fixed-2024+ totals.
 The two post-run SQL configuration/summary fixes are row-neutral and fixture-tested.
-Staged #26 validation: 108 pipeline tests plus three actual-report tests pass. Cases cover
+#26 validation: 108 pipeline tests plus three actual-report tests pass. Cases cover
 all ten price columns at both grains, optional-only/all-missing/partial/zero/rental prices,
 and unequal section ranges. All 74 report queries bind against an isolated schema; the five
 changed price queries also pass numerical checks. Dictionary names/types/order match the SQL
 fixture for section (67 columns), course (50), and section sample (67). Independent review passed.
-Standalone cleanup/mailing and both generator checks pass. No extended rebuild or new
-overall-count scan was performed; September 5 full-data evidence covers the previous contract.
+Standalone cleanup/mailing and both generator checks pass. Full-data section/course bounds
+and midrange checks have zero mismatches. Supervisor independently matched all 1,228 live
+column names/types/order and recomputed all ten price fields for 10,559 sections: zero differences.
 
 ## Handoff rules
 

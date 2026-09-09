@@ -92,8 +92,7 @@ integers. Raw enrollment fields remain unchanged.
 ## Price summaries and coverage
 
 `master_section` aggregates canonical `(period_sortable, section_id, isbn13)` Use items from
-`master_material`. This is the approved staged SQL definition; the live database retains the old
-monetary schema until migration. `required_*` uses `is_required_inferred` (direct plus fallback),
+`master_material`. `required_*` uses `is_required_inferred` (direct plus fallback),
 and `all_*` includes every Use item. `SUM` ignores partial NULL prices, returns NULL when no item
 qualifies or every qualifying input is missing, and preserves a true zero. `price_avg` is a legacy-named MIDRANGE, never a mean
 or median. Buy columns exclude rentals; no buy average is published.
