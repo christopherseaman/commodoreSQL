@@ -75,7 +75,9 @@ Excluded rows contribute only labeled audit counts; they cannot add release sect
 
 `section_enrollment` owns catalog enrollment/seats and availability; raw values use
 `MAX`, and course-level ties resolve lexically. `comprehensive_data` adds IPEDS context
-and assignment once; material/release tables inherit it. Older rows retain raw enrollment,
+and assignment once; material tables and `master_section` inherit both assigned enrollment
+and its source. ISBN/institution rollups aggregate assigned enrollment; provisional
+`master_course` sums raw enrollment/seats instead (#87). Older rows retain raw enrollment,
 but their inherited section context and assignment are NULL. Never re-impute downstream.
 The assignment ladder is documented in CMM Data Flow.
 

@@ -3,6 +3,24 @@
 State: 2026-09-08. Branch: `cmm-spring-2026`. PR #62 remains open.
 Live database rebuilt from `b4bd234`; independent supervisor QA accepted.
 
+## Completed batch — #92 / #93 documentation audit
+
+Corrected filtered dictionary value/NULL contracts at the generator, qualified provisional
+course enrollment, and replaced the stale Top-125 page with maintained `TOP125-REPORT.md`.
+Its previous content is preserved in `comms/top125-report-before-canonical-update.md`.
+Mixed-source flags remain possible in canonical Use groups; ISBN identifiers are not
+guaranteed 13 digits, and the section sample's state filter does not trim whitespace.
+
+DQ critical checks exclude seven legitimate NULL-bound pricing groups, which remain
+visible in coverage. Import summaries and source-stage labels now describe actual SQL.
+Metabase publication changed 15 cards (only two queries) and two dashboard descriptions;
+74 SQL/filter definitions and 14 layouts/mappings verify. Cards 56, 57, and 68 were executed;
+all six critical metrics are zero. Evidence: `output/logs/docs-audit-metabase-20260909T054903Z-dq/`.
+Notion publication updated 28 fields, seven TSV downloads, and four prose pages;
+all 1,198 fields, 26 downloads, and six prose pages verify. Repeat applies made zero writes.
+109 script tests and five Metabase tests pass; both generators are current; independent review passed.
+No ETL SQL, data, or pipeline configuration changed; no rebuild was run. #92 / #93 are in Review.
+
 ## Completed batch — #26 price contract
 
 Implemented: ten `required_` / `all_` price-summary columns per section
@@ -43,8 +61,8 @@ no rebuild or publication step remains. No external data-file release was made.
   Repeated field, download, and prose applies made zero remote writes.
 - README.md owns runner commands and execution order.
 - SCHEMA.md and CMM-ETL.md are repo-only pointers; duplicate Notion pages are in recoverable trash.
-- Notion prose publication uses five explicit manifest pages: flow, reports, and three
-  detail pages under CMM Data Flow. All five were published and readback verified.
+- Notion prose publication uses six explicit manifest pages: flow, reports, three
+  detail pages under CMM Data Flow, and Top-125 in Resources / Snippets. All six were readback verified.
   Dedicated dictionary publishers use `scripts/notion_dictionary.json`; preserve ignored
   `.notion/` state, including the prose baselines in `prose-state.json`. Prose sync rejects
   remote edits, skips unchanged pages, and recovers acknowledged writes after failed readback.
@@ -55,11 +73,11 @@ no rebuild or publication step remains. No external data-file release was made.
 
 ## Tickets and next step
 
-24 non-Done project cards: 9 Review, 5 On Deck, 10 Todo; none In Progress or draft-only.
+26 non-Done project cards: 11 Review, 5 On Deck, 10 Todo; none In Progress or draft-only.
 
 | Status | Tickets / remaining work |
 |---|---|
-| Review | #26, #80, #81, #83, #84, #85, #88, #90, #91 — implemented and verified; human review/merge of PR #62 |
+| Review | #26, #80, #81, #83, #84, #85, #88, #90, #91, #92, #93 — implemented and verified; human review/merge of PR #62 |
 | On Deck | #21 pricing identity design/implementation; #87 remaining non-price master definitions |
 | On Deck, missing inputs | #51 Spring 2026; #52 discipline lookup; #60 25-institution list |
 | Todo, missing inputs | #23 external pricing; #56 BVA history; #57 campus IA; #72 bookstore brand |
@@ -106,8 +124,9 @@ column names/types/order and recomputed all ten price fields for 10,559 sections
 ```bash
 duckdb -bail -readonly duckdb/commodore.duckdb
 python3 -m unittest discover -s scripts -p 'test_*.py'
-python3 -m unittest metabase.test_price_summaries -v
+python3 -m unittest discover -s metabase -p 'test_*.py'
 python3 scripts/generate_data_dictionary.py --check
+python3 scripts/generate_dashboards_reports.py --check
 NOTION_KEYRING=0 python3 scripts/sync_notion_docs.py --manifest scripts/notion_sync_docs.txt
 NOTION_KEYRING=0 python3 scripts/sync_notion_docs.py --apply --manifest scripts/notion_sync_docs.txt
 NOTION_KEYRING=0 python3 scripts/sync_notion_dictionary.py

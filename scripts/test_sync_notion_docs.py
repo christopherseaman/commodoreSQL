@@ -266,13 +266,14 @@ if sys.argv[1:3] == ['pages', 'get']:
         self.docs.append(two)
         self.assertNotEqual(self.invoke(one, two).returncode, 0)
 
-    def test_manifest_is_explicit_and_has_five_non_dictionary_documents(self):
+    def test_manifest_is_explicit_and_has_six_non_dictionary_documents(self):
         names = SYNC.load_manifest(Path("scripts/notion_sync_docs.txt"), ROOT)
-        self.assertEqual(len(names), 5)
+        self.assertEqual(len(names), 6)
         self.assertEqual(len(names), len(set(names)))
         self.assertEqual(names, [
             "CMM-DATA-FLOW.md", "DASHBOARDS-REPORTS.md",
             "COURSE-MATERIAL-POPULATIONS.md", "MAILING-FLOW.md", "PRICING-CATALOG-MATCHING.md",
+            "TOP125-REPORT.md",
         ])
 
     def test_publication_removes_only_local_links_outside_fences(self):

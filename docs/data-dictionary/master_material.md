@@ -15,7 +15,7 @@ notion-sync: push
 
 | Column | Type | Example / structure | Direct upstream source / derivation | Description |
 |---|---|---|---|---|
-| `isbn13` | `bigint` | 13-digit numeric ISBN or numeric source identifier; NULL when absent | `course_material_use.isbn13` passthrough. | Book or material identifier used for cross-source matching. |
+| `isbn13` | `bigint` | Non-NULL numeric ISBN or source identifier (BIGINT). | `course_material_use.isbn13` passthrough. | Book or material identifier used for cross-source matching. |
 | `book_title` | `varchar` | Material title; source punctuation/casing retained | `course_material_use.book_title` passthrough. | Canonical title selected for the grouped ISBN. |
 | `author` | `varchar` | Person/organization name; source punctuation/casing retained | `course_material_use.author` passthrough. | Author credited for the adopted course material. |
 | `publisher` | `varchar` | Publisher name; original spelling/casing retained | `course_material_use.publisher` passthrough. | Publisher credited for the adopted course material. |
@@ -69,16 +69,16 @@ notion-sync: push
 | `is_opted_out` | `boolean` | TRUE or FALSE | `course_material_use.is_opted_out` passthrough. | Whether the contact appears in the opt-out list. |
 | `opt_out_source` | `varchar` | BVA source-system label for the opt-out entry | `course_material_use.opt_out_source` passthrough. | BVA source label explaining the opt-out record. |
 | `is_required_inferred` | `boolean` | TRUE or FALSE | `course_material_use.is_required_inferred` passthrough. | Whether the material is treated as required after fallback. |
-| `is_recent` | `boolean` | TRUE or FALSE | `course_material_use.is_recent` passthrough. | Whether the term belongs to the newest catalog window. |
-| `has_isbn` | `boolean` | TRUE or FALSE | `course_material_use.has_isbn` passthrough. | Whether the material has a non-NULL ISBN. |
+| `is_recent` | `boolean` | Always TRUE in this relation. | `course_material_use.is_recent` passthrough. | Whether the term belongs to the newest catalog window. |
+| `has_isbn` | `boolean` | Always TRUE in this relation. | `course_material_use.has_isbn` passthrough. | Whether the material has a non-NULL ISBN. |
 | `has_formattype` | `boolean` | TRUE or FALSE | `course_material_use.has_formattype` passthrough. | Whether the material has a nonblank FormatType classification. |
 | `has_enrollment` | `boolean` | TRUE or FALSE | `course_material_use.has_enrollment` passthrough. | Whether usable enrollment information is available. |
 | `has_enrollment_own_seats` | `boolean` | TRUE or FALSE | `course_material_use.has_enrollment_own_seats` passthrough. | Whether the section reports usable occupied seats. |
 | `no_details` | `boolean` | TRUE or FALSE | `course_material_use.no_details` passthrough. | Whether the title carries the no-details placeholder. |
 | `no_materials` | `boolean` | TRUE or FALSE | `course_material_use.no_materials` passthrough. | Whether the row explicitly indicates no course materials. |
 | `is_canada` | `boolean` | TRUE or FALSE | `course_material_use.is_canada` passthrough. | Whether the source row belongs to Canada. |
-| `is_course_material_use` | `boolean` | TRUE or FALSE | `course_material_use.is_course_material_use` passthrough. | Whether the material belongs to the analysis population. |
-| `is_course_material_no_use` | `boolean` | TRUE or FALSE | `course_material_use.is_course_material_no_use` passthrough. | Whether the material belongs to the excluded population. |
+| `is_course_material_use` | `boolean` | Always TRUE in this relation. | `course_material_use.is_course_material_use` passthrough. | Whether the material belongs to the analysis population. |
+| `is_course_material_no_use` | `boolean` | Always FALSE in this relation. | `course_material_use.is_course_material_no_use` passthrough. | Whether the material belongs to the excluded population. |
 | `has_enrollment_sibling` | `boolean` | TRUE or FALSE | `course_material_use.has_enrollment_sibling` passthrough. | Whether a sibling section reports enrollment. |
 | `has_enrollment_sibling_seats` | `boolean` | TRUE or FALSE | `course_material_use.has_enrollment_sibling_seats` passthrough. | Whether a sibling section reports usable occupied seats. |
 | `enrollment_assigned` | `integer` | Rounded student count from the ladder; raw negatives can propagate | `course_material_use.enrollment_assigned` passthrough. | Best available section enrollment from the assignment ladder. |
@@ -132,7 +132,7 @@ notion-sync: push
 | `panel_response_year_variant_count` | `bigint` | Non-negative whole-number count | `course_material_use.panel_response_year_variant_count` passthrough. | Distinct campaign labels found among grouped panel-history rows. |
 | `use_source_row_count` | `bigint` | Non-negative whole-number count | `course_material_use.use_source_row_count` passthrough. | Included catalog rows collapsed into the canonical item. |
 | `no_use_source_row_count` | `bigint` | Non-negative whole-number count | `course_material_use.no_use_source_row_count` passthrough. | Excluded catalog rows collapsed into the canonical item. |
-| `has_use_source_row` | `boolean` | TRUE or FALSE | `course_material_use.has_use_source_row` passthrough. | Whether grouped rows include retained-population evidence. |
+| `has_use_source_row` | `boolean` | Always TRUE in this relation. | `course_material_use.has_use_source_row` passthrough. | Whether grouped rows include retained-population evidence. |
 | `has_no_use_source_row` | `boolean` | TRUE or FALSE | `course_material_use.has_no_use_source_row` passthrough. | Whether grouped rows include excluded-population evidence. |
 | `population_classification_conflict` | `boolean` | TRUE or FALSE | `course_material_use.population_classification_conflict` passthrough. | Flags simultaneous Use and NoUse evidence within groups. |
 | `instructor_variant_count` | `bigint` | Non-negative whole-number count | `course_material_use.instructor_variant_count` passthrough. | Distinct instructor variants found within grouped catalog rows. |

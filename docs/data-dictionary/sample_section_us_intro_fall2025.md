@@ -18,10 +18,10 @@ notion-sync: push
 | `section_id` | `varchar` | `course_id::section-code::period_sortable` composite | Inherited `master_section.section_id` via `SELECT *`. | Period-specific identifier for the distinct section offering. |
 | `course_id` | `varchar` | `unit_id::department-code::course-number` composite | Inherited `master_section.course_id` via `SELECT *`. | Stable identifier for the institution-level course offering. |
 | `period` | `varchar` | Academic term label such as `Fall 2024` | Inherited `master_section.period` via `SELECT *`. | Human-readable academic term label from the source. |
-| `period_sortable` | `varchar` | `YYYY-N`; 1=Winter, 2=Spring, 3=Summer, 4=Fall | Inherited `master_section.period_sortable` via `SELECT *`. | Sortable academic term code used for chronological ordering. |
+| `period_sortable` | `varchar` | Exactly `2025-4`. | Inherited `master_section.period_sortable` via `SELECT *`. | Sortable academic term code used for chronological ordering. |
 | `period_date` | `date` | Canonical date: YYYY-01-01, YYYY-04-01, YYYY-07-01, or YYYY-10-01 | Inherited `master_section.period_date` via `SELECT *`. | Canonical starting date assigned to the academic term. |
 | `unit_id` | `bigint` | IPEDS institution identifier | Inherited `master_section.unit_id` via `SELECT *`. | IPEDS institution identifier used throughout the pipeline. |
-| `state` | `varchar` | Normalized state or province code, such as `CA` or `CAN` | Inherited `master_section.state` via `SELECT *`. | State or province code for the institution. |
+| `state` | `varchar` | Non-NULL state/province code not exactly empty or `CAN`; whitespace-only values can pass. | Inherited `master_section.state` via `SELECT *`. | State or province code for the institution. |
 | `control` | `varchar` | IPEDS label such as `Public` or `Private not-for-profit` | Inherited `master_section.control` via `SELECT *`. | Institution ownership and governance classification used for reporting. |
 | `level` | `varchar` | IPEDS label such as `Four or more years` | Inherited `master_section.level` via `SELECT *`. | IPEDS award-level classification for the institution. |
 | `size` | `varchar` | IPEDS size-band label, such as `20,000 and above` | Inherited `master_section.size` via `SELECT *`. | IPEDS institutional enrollment-size classification used for reporting. |
@@ -35,10 +35,10 @@ notion-sync: push
 | `course_number` | `varchar` | Source course number; zeros/suffixes retained | Inherited `master_section.course_number` via `SELECT *`. | Catalog number identifying the course within its department. |
 | `section` | `varchar` | Source section code; zeros/punctuation retained | Inherited `master_section.section` via `SELECT *`. | Source code distinguishing sections of the same course. |
 | `course_title` | `varchar` | Course title; source punctuation/casing retained | Inherited `master_section.course_title` via `SELECT *`. | Official title assigned to the course. |
-| `course_level` | `varchar` | Category such as `Introductory or general undergraduate` | Inherited `master_section.course_level` via `SELECT *`. | Instructional level assigned to the course. |
+| `course_level` | `varchar` | Exactly `Introductory or general undergraduate` or `Intermediate undergraduate`. | Inherited `master_section.course_level` via `SELECT *`. | Instructional level assigned to the course. |
 | `course_subject` | `varchar` | Source subject, such as `Biology` | Inherited `master_section.course_subject` via `SELECT *`. | Subject area assigned to the course. |
 | `material_count` | `bigint` | COUNT of canonical master_material section×ISBN items; always >0 | Inherited `master_section.material_count` via `SELECT *`. | Canonical course-material items within the section. |
-| `required_count` | `bigint` | COUNT of master_material items WHERE is_required_inferred; A/B split key | Inherited `master_section.required_count` via `SELECT *`. | Required materials within the canonical section. |
+| `required_count` | `bigint` | Whole-number count of at least 1. | Inherited `master_section.required_count` via `SELECT *`. | Required materials within the canonical section. |
 | `optional_count` | `bigint` | COUNT of master_material items WHERE NOT is_required_inferred | Inherited `master_section.optional_count` via `SELECT *`. | Optional or recommended materials within the section. |
 | `has_course_material_use` | `boolean` | Always true: membership requires at least one canonical Use item | Inherited `master_section.has_course_material_use` via `SELECT *`. | Whether the section contains retained canonical materials. |
 | `course_material_use_count` | `bigint` | Canonical material items; equals material_count | Inherited `master_section.course_material_use_count` via `SELECT *`. | Canonical included materials within the retained section. |

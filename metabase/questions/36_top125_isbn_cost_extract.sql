@@ -1,6 +1,6 @@
 -- name: Top-125 ISBN Price Extract — Fall 2025 (institution × course × faculty)
 -- display: table
--- description: Fall-2025 canonical section/ISBN adoptions of 125 most-adopted ISBNs. One row per canonical Use Fall-2025 (period 2025-4) section-adoption of the 125 most common ISBNs (ranked by distinct sections), read from master_material at its canonical (period_sortable, section_id, isbn13) grain. Carries deterministic catalog metadata, institution class, course, faculty, and the full pricing breakdown (buy/rental × new/used × physical/digital). Built for price-difference analysis across institution classes. Current result expectation: 178,058 adoptions; 112,968 (63.44%) have a matched price and 132,775 (74.57%) are inferred-required. Price columns remain NULL when the material has no pricing match.
+-- description: Fall-2025 canonical section/ISBN adoptions of 125 most-adopted ISBNs. One row per canonical Use Fall-2025 (period 2025-4) section-adoption of the 125 most common ISBNs (ranked by distinct sections), read from master_material at its canonical (period_sortable, section_id, isbn13) grain. Carries deterministic catalog metadata, institution class, course, faculty, and the full pricing breakdown (buy/rental × new/used × physical/digital). Built for price-difference analysis across institution classes; the dynamic report output provides current adoption, price-match, and inferred-required counts. Price columns remain NULL when the material has no pricing match.
 WITH top_isbns AS (
     SELECT isbn13
     FROM master_material

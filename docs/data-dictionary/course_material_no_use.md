@@ -71,7 +71,7 @@ notion-sync: push
 | `is_opted_out` | `boolean` | TRUE or FALSE | Inherited `course_material_recent.is_opted_out` via `SELECT *`. | Whether the contact appears in the opt-out list. |
 | `opt_out_source` | `varchar` | BVA source-system label for the opt-out entry | Inherited `course_material_recent.opt_out_source` via `SELECT *`. | BVA source label explaining the opt-out record. |
 | `is_required_inferred` | `boolean` | TRUE or FALSE | Inherited `course_material_recent.is_required_inferred` via `SELECT *`. | Whether the material is treated as required after fallback. |
-| `is_recent` | `boolean` | TRUE or FALSE | Inherited `course_material_recent.is_recent` via `SELECT *`. | Whether the term belongs to the newest catalog window. |
+| `is_recent` | `boolean` | Always TRUE in this relation. | Inherited `course_material_recent.is_recent` via `SELECT *`. | Whether the term belongs to the newest catalog window. |
 | `has_isbn` | `boolean` | TRUE or FALSE | Inherited `course_material_recent.has_isbn` via `SELECT *`. | Whether the material has a non-NULL ISBN. |
 | `has_formattype` | `boolean` | TRUE or FALSE | Inherited `course_material_recent.has_formattype` via `SELECT *`. | Whether the material has a nonblank FormatType classification. |
 | `has_enrollment` | `boolean` | TRUE or FALSE | Inherited `course_material_recent.has_enrollment` via `SELECT *`. | Whether usable enrollment information is available. |
@@ -79,8 +79,8 @@ notion-sync: push
 | `no_details` | `boolean` | TRUE or FALSE | Inherited `course_material_recent.no_details` via `SELECT *`. | Whether the title carries the no-details placeholder. |
 | `no_materials` | `boolean` | TRUE or FALSE | Inherited `course_material_recent.no_materials` via `SELECT *`. | Whether the row explicitly indicates no course materials. |
 | `is_canada` | `boolean` | TRUE or FALSE | Inherited `course_material_recent.is_canada` via `SELECT *`. | Whether the source row belongs to Canada. |
-| `is_course_material_use` | `boolean` | TRUE or FALSE | Inherited `course_material_recent.is_course_material_use` via `SELECT *`. | Whether the material belongs to the analysis population. |
-| `is_course_material_no_use` | `boolean` | TRUE or FALSE | Inherited `course_material_recent.is_course_material_no_use` via `SELECT *`. | Whether the material belongs to the excluded population. |
+| `is_course_material_use` | `boolean` | Always FALSE in this relation. | Inherited `course_material_recent.is_course_material_use` via `SELECT *`. | Whether the material belongs to the analysis population. |
+| `is_course_material_no_use` | `boolean` | Always TRUE in this relation. | Inherited `course_material_recent.is_course_material_no_use` via `SELECT *`. | Whether the material belongs to the excluded population. |
 | `has_enrollment_sibling` | `boolean` | TRUE or FALSE | Inherited `course_material_recent.has_enrollment_sibling` via `SELECT *`. | Whether a sibling section reports enrollment. |
 | `has_enrollment_sibling_seats` | `boolean` | TRUE or FALSE | Inherited `course_material_recent.has_enrollment_sibling_seats` via `SELECT *`. | Whether a sibling section reports usable occupied seats. |
 | `enrollment_assigned` | `integer` | Rounded student count from the ladder; raw negatives can propagate | Inherited `course_material_recent.enrollment_assigned` via `SELECT *`. | Best available section enrollment from the assignment ladder. |
@@ -101,8 +101,8 @@ notion-sync: push
 | `is_ia_conflict` | `boolean` | TRUE or FALSE | Inherited `course_material_recent.is_ia_conflict` via `SELECT *`. | Whether grouped rows disagree on inclusive-access classification. |
 | `use_source_row_count` | `bigint` | Non-negative whole-number count | Inherited `course_material_recent.use_source_row_count` via `SELECT *`. | Included catalog rows collapsed into the canonical item. |
 | `no_use_source_row_count` | `bigint` | Non-negative whole-number count | Inherited `course_material_recent.no_use_source_row_count` via `SELECT *`. | Excluded catalog rows collapsed into the canonical item. |
-| `has_use_source_row` | `boolean` | TRUE or FALSE | Inherited `course_material_recent.has_use_source_row` via `SELECT *`. | Whether grouped rows include retained-population evidence. |
-| `has_no_use_source_row` | `boolean` | TRUE or FALSE | Inherited `course_material_recent.has_no_use_source_row` via `SELECT *`. | Whether grouped rows include excluded-population evidence. |
+| `has_use_source_row` | `boolean` | Always FALSE in this relation. | Inherited `course_material_recent.has_use_source_row` via `SELECT *`. | Whether grouped rows include retained-population evidence. |
+| `has_no_use_source_row` | `boolean` | Always TRUE in this relation. | Inherited `course_material_recent.has_no_use_source_row` via `SELECT *`. | Whether grouped rows include excluded-population evidence. |
 | `population_classification_conflict` | `boolean` | TRUE or FALSE | Inherited `course_material_recent.population_classification_conflict` via `SELECT *`. | Flags simultaneous Use and NoUse evidence within groups. |
 | `instructor_variant_count` | `bigint` | Non-negative whole-number count | Inherited `course_material_recent.instructor_variant_count` via `SELECT *`. | Distinct instructor variants found within grouped catalog rows. |
 | `email_variant_count` | `bigint` | Non-negative whole-number count | Inherited `course_material_recent.email_variant_count` via `SELECT *`. | Distinct email variants found within grouped catalog rows. |

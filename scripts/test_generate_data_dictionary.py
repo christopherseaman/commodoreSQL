@@ -377,6 +377,61 @@ class DataDictionaryTest(unittest.TestCase):
                     source = self.field_metadata[(view_name, column.name)].source
                     self.assertIn(f"`{base_name}.{column.name}`", source)
 
+    def test_filtered_relation_contracts_exclude_impossible_values_and_nulls(self) -> None:
+        true_fields = {
+            "course_material_recent": ("is_recent",),
+            "course_material_use": ("is_recent", "has_isbn", "has_use_source_row", "is_course_material_use"),
+            "course_material_no_use": ("is_recent", "has_no_use_source_row", "is_course_material_no_use"),
+            "master_material": ("is_recent", "has_isbn", "has_use_source_row", "is_course_material_use"),
+            "sample_material_10pct": ("is_recent", "has_isbn", "has_use_source_row", "is_course_material_use"),
+        }
+        false_fields = {
+            "course_material_use": ("is_course_material_no_use",),
+            "course_material_no_use": ("has_use_source_row", "is_course_material_use"),
+            "master_material": ("is_course_material_no_use",),
+            "sample_material_10pct": ("is_course_material_no_use",),
+        }
+        for relation, names in true_fields.items():
+            for name in names:
+                with self.subTest(relation=relation, field=name):
+                    item = self.field_metadata[(relation, name)]
+                    self.assertEqual(item.values, "Always TRUE in this relation.")
+                    self.assertIn("Never NULL", item.null_meaning)
+        for relation, names in false_fields.items():
+            for name in names:
+                with self.subTest(relation=relation, field=name):
+                    item = self.field_metadata[(relation, name)]
+                    self.assertEqual(item.values, "Always FALSE in this relation.")
+                    self.assertIn("Never NULL", item.null_meaning)
+
+        for relation in ("course_material_use", "master_material", "sample_material_10pct"):
+            isbn = self.field_metadata[(relation, "isbn13")]
+            self.assertEqual(
+                isbn.values, "Non-NULL numeric ISBN or source identifier (BIGINT)."
+            )
+            self.assertNotIn("13-digit", isbn.values)
+            self.assertIn("Never NULL", isbn.null_meaning)
+
+        sample_contracts = {
+            "period_sortable": "Exactly `2025-4`.",
+            "required_count": "Whole-number count of at least 1.",
+            "course_level": "Exactly `Introductory or general undergraduate` or `Intermediate undergraduate`.",
+            "state": "Non-NULL state/province code not exactly empty or `CAN`; whitespace-only values can pass.",
+        }
+        for name, values in sample_contracts.items():
+            item = self.field_metadata[("sample_section_us_intro_fall2025", name)]
+            self.assertEqual(item.values, values)
+            self.assertIn("Never NULL", item.null_meaning)
+        state = self.field_metadata[("sample_section_us_intro_fall2025", "state")]
+        self.assertNotIn("nonblank", state.values.lower())
+        self.assertIn("without trimming", state.null_meaning)
+
+        # A grouped key may contain both a qualifying Use row and raw exclusion
+        # evidence.  The definitive BOOL_OR audit flags must remain unconstrained.
+        for relation in ("course_material_use", "master_material", "sample_material_10pct"):
+            for name in ("is_supply", "no_details", "no_materials", "is_canada"):
+                self.assertIn("TRUE or FALSE", self.field_metadata[(relation, name)].values)
+
     def test_reviewed_semantic_contracts_match_executable_sql(self) -> None:
         self.assertEqual(
             generator.RELATION_METADATA["current_mailing"].stage,
@@ -419,9 +474,17 @@ class DataDictionaryTest(unittest.TestCase):
         with tempfile.TemporaryDirectory() as directory:
             database = Path(directory) / "fixture.duckdb"
             test_flow_pipeline.cli(database, test_flow_pipeline.RenamedFlowPipelineTest.fixture_sql())
+            test_flow_pipeline.cli(database, """
+                INSERT INTO course_catalog_20251215
+                SELECT * REPLACE ('*No Book Details*' AS Title, 'CAN' AS state)
+                FROM course_catalog_20251215
+                WHERE ISBN13 = 9780000000001
+                LIMIT 1;
+            """)
             for stage in ("0c_recent_period.sql", "1a_supply_classification.sql",
                           "1b_section_enrollment.sql", "2_oer_classification.sql",
-                          "2b_course_material.sql", "2c_pricing_wide.sql"):
+                          "2b_course_material.sql", "2c_pricing_wide.sql",
+                          "3b_master_material.sql"):
                 test_flow_pipeline.cli(database, test_flow_pipeline.render(test_flow_pipeline.SQL / stage))
             self.assertEqual(test_flow_pipeline.cli(database, """
                 SELECT COUNT(*) FROM pricing_wide
@@ -440,7 +503,16 @@ class DataDictionaryTest(unittest.TestCase):
                 WHERE is_section_required_direct IS NULL
                    OR has_enrollment_sibling IS NULL
                    OR enrollment_source IS NULL;
-            """), ["0", "0", "0"])
+                SELECT COUNT(*) FROM master_material
+                WHERE isbn13 = 9780000000001
+                  AND has_use_source_row
+                  AND is_course_material_use
+                  AND no_details
+                  AND is_canada;
+                SELECT COUNT(*)
+                FROM (VALUES ('   ')) AS whitespace_state(state)
+                WHERE state NOT IN ('CAN', '');
+            """), ["0", "0", "0", "1", "1"])
 
         for relation in ("course_material_recent", "course_material_use", "master_material"):
             for name in ("is_section_required_direct", "has_enrollment_sibling",

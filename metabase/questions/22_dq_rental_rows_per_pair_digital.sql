@@ -1,6 +1,6 @@
--- name: DQ — Raw Digital Rental Rows per (Section × Item)
+-- name: DQ — Digital Rental Observations per (Section × Item)
 -- display: bar
--- description: All raw digital rentals, counting rows per section/ISBN pair. Histogram of raw vendor digital rental rows per (section, isbn) pair across all pricing data. X = rows per pair; Y = number of pairs. No catalog-derived inferred-required or canonical-Use filter is applied.
+-- description: All deduplicated digital-rental observations, counted per section/ISBN pair. Histogram across the latest pricing snapshot. X = observations per pair; Y = number of pairs. No catalog-derived inferred-required or canonical-Use filter is applied.
 
 WITH counts_per_pair AS (
     SELECT section_id, isbn13,

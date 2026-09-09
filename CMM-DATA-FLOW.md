@@ -176,8 +176,10 @@ enrollment but have NULL section context and assignment. Precedence: own enrollm
 (`<9999`) → course/term medians (enrollment, then seats) → control/level/term median →
 level/term median → NULL. Reference medians use intro/intermediate/non-degree/uncategorized
 courses at public, nonprofit, or for-profit two-/four-year institutions.
-Round medians to integers. Carry `enrollment_assigned` and `enrollment_source` downstream;
-source labels are `own`, `own_seats`, `sibling_enroll`, `sibling_seats`, `class_median`,
+Round medians to integers. Material tables and `master_section` inherit `enrollment_assigned`
+and `enrollment_source`; `master_isbn` and `master_institution` aggregate assigned enrollment.
+Provisional `master_course` instead sums raw enrollment/seats; its enrollment definition remains pending (#87).
+Source labels are `own`, `own_seats`, `sibling_enroll`, `sibling_seats`, `class_median`,
 `level_median`, or `none`. Preserve raw values.
 
 `is_required_direct` means literal required, non-supply evidence. Within recent terms,

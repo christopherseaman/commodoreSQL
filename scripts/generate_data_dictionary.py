@@ -194,6 +194,52 @@ VIEW_FILTER_CONTEXT: dict[str, str] = {
     "sample_section_us_intro_fall2025": "Rows where `period_sortable = '2025-4'`, `required_count >= 1`, `course_level` is exactly `Introductory or general undergraduate` or `Intermediate undergraduate`, and non-NULL `state NOT IN ('CAN', '')`.",
 }
 
+
+# Filtered projections narrow field contracts as well as row populations.  Keep
+# these guarantees at the generator boundary so every rendered format describes
+# the values that can actually occur in that relation, rather than blindly
+# repeating the broader upstream contract.
+RELATION_FIELD_CONSTRAINTS: dict[str, dict[str, tuple[str, str]]] = {
+    "course_material_recent": {
+        "is_recent": ("Always TRUE in this relation.", "Never NULL; the view requires `is_recent` to be true."),
+    },
+    "course_material_use": {
+        "is_recent": ("Always TRUE in this relation.", "Never NULL; inherited from the recent-period view."),
+        "isbn13": ("Non-NULL numeric ISBN or source identifier (BIGINT).", "Never NULL; every retained source Use row requires an ISBN."),
+        "has_isbn": ("Always TRUE in this relation.", "Never NULL; every retained source Use row requires an ISBN."),
+        "has_use_source_row": ("Always TRUE in this relation.", "Never NULL; the view retains groups with source Use evidence."),
+        "is_course_material_use": ("Always TRUE in this relation.", "Never NULL; required by the view filter."),
+        "is_course_material_no_use": ("Always FALSE in this relation.", "Never NULL; NoUse is recomputed as recent AND NOT grouped Use evidence."),
+    },
+    "course_material_no_use": {
+        "is_recent": ("Always TRUE in this relation.", "Never NULL; inherited from the recent-period view."),
+        "has_use_source_row": ("Always FALSE in this relation.", "Never NULL; NoUse is recomputed from the absence of grouped Use evidence."),
+        "has_no_use_source_row": ("Always TRUE in this relation.", "Never NULL; every recent raw row without grouped Use evidence is NoUse."),
+        "is_course_material_use": ("Always FALSE in this relation.", "Never NULL; no grouped source row qualifies for Use."),
+        "is_course_material_no_use": ("Always TRUE in this relation.", "Never NULL; required by the view filter."),
+    },
+    "sample_section_us_intro_fall2025": {
+        "period_sortable": ("Exactly `2025-4`.", "Never NULL; required by the sample filter."),
+        "required_count": ("Whole-number count of at least 1.", "Never NULL; the sample filter requires `required_count >= 1`."),
+        "course_level": ("Exactly `Introductory or general undergraduate` or `Intermediate undergraduate`.", "Never NULL; required by the sample filter."),
+        "state": ("Non-NULL state/province code not exactly empty or `CAN`; whitespace-only values can pass.", "Never NULL; SQL `NOT IN ('CAN', '')` excludes NULL and the exact values `''` and `CAN` without trimming."),
+    },
+}
+
+
+def _apply_relation_field_constraint(
+    relation_name: str, column_name: str, item: FieldMetadata
+) -> FieldMetadata:
+    constraint = RELATION_FIELD_CONSTRAINTS.get(relation_name, {}).get(column_name)
+    if constraint is None and relation_name in {"master_material", "sample_material_10pct"}:
+        constraint = RELATION_FIELD_CONSTRAINTS["course_material_use"].get(column_name)
+    if constraint is None:
+        return item
+    values, null_meaning = constraint
+    return FieldMetadata(
+        item.source, values, item.population, null_meaning, item.metadata_kind, item.description
+    )
+
 _TABLE_RE = re.compile(
     r"^Table\s+([A-Za-z_][A-Za-z0-9_]*)(?:\s+\[note:\s*'(table|view)'\])?\s*\{$"
 )
@@ -597,13 +643,16 @@ def resolve_field_metadata(
                     null_meaning,
                     "inherited",
                 )
-                resolved[(relation_name, column.name)] = FieldMetadata(
+                inherited_item = FieldMetadata(
                     inherited_item.source,
                     field_example(relation_name, column, inherited_item),
                     inherited_item.population,
                     inherited_item.null_meaning,
                     inherited_item.metadata_kind,
                     field_description(relation_name, column),
+                )
+                resolved[(relation_name, column.name)] = _apply_relation_field_constraint(
+                    relation_name, column.name, inherited_item
                 )
             resolving.remove(relation_name)
             return
@@ -620,6 +669,7 @@ def resolve_field_metadata(
                 item.metadata_kind,
                 field_description(relation.name, column),
             )
+            item = _apply_relation_field_constraint(relation.name, column.name, item)
             for label, value in (
                 ("source", item.source), ("values", item.values),
                 ("population", item.population), ("NULL meaning", item.null_meaning),

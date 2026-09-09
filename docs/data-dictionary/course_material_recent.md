@@ -71,7 +71,7 @@ notion-sync: push
 | `is_opted_out` | `boolean` | TRUE or FALSE | Inherited `course_material.is_opted_out` via `SELECT *`. | Whether the contact appears in the opt-out list. |
 | `opt_out_source` | `varchar` | BVA source-system label for the opt-out entry | Inherited `course_material.opt_out_source` via `SELECT *`. | BVA source label explaining the opt-out record. |
 | `is_required_inferred` | `boolean` | TRUE or FALSE | Inherited `course_material.is_required_inferred` via `SELECT *`. | Whether the material is treated as required after fallback. |
-| `is_recent` | `boolean` | TRUE or FALSE | Inherited `course_material.is_recent` via `SELECT *`. | Whether the term belongs to the newest catalog window. |
+| `is_recent` | `boolean` | Always TRUE in this relation. | Inherited `course_material.is_recent` via `SELECT *`. | Whether the term belongs to the newest catalog window. |
 | `has_isbn` | `boolean` | TRUE or FALSE | Inherited `course_material.has_isbn` via `SELECT *`. | Whether the material has a non-NULL ISBN. |
 | `has_formattype` | `boolean` | TRUE or FALSE | Inherited `course_material.has_formattype` via `SELECT *`. | Whether the material has a nonblank FormatType classification. |
 | `has_enrollment` | `boolean` | TRUE or FALSE | Inherited `course_material.has_enrollment` via `SELECT *`. | Whether usable enrollment information is available. |

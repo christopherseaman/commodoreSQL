@@ -95,7 +95,7 @@ ID `19` · [`bmg_coverage_scope`](metabase/dashboards/bmg_coverage_scope.json) �
 | Coverage & Scope — Course Material Exclusion Overlap | [`174`](metabase/questions/66_coverage_course_material_exclusion_overlap.sql) | Recent canonical item groups; overlapping exclusion flags, not source rows. |
 | Coverage & Scope — Canonical Material Classification by Term | [`175`](metabase/questions/67_coverage_course_material_classification_by_term.sql) | Canonical master_material items per term/classification dimension, including unclassified. |
 | Coverage & Scope — Complete Section Enrollment by Term | [`176`](metabase/questions/68_coverage_section_enrollment_by_term.sql) | Complete valid recent-term section spine from comprehensive_data. |
-| Coverage & Scope — Raw Pricing Options by Term | [`177`](metabase/questions/69_coverage_pricing_source_options_by_term.sql) | All raw pricing observations by term/option/condition/format; no Use/required filter. |
+| Coverage & Scope — Source Pricing Options by Term | [`177`](metabase/questions/69_coverage_pricing_source_options_by_term.sql) | All deduplicated source-pricing observations by term/option/condition/format; no Use/required filter. |
 | Coverage & Scope — Canonical Use Pricing by Term | [`178`](metabase/questions/70_coverage_canonical_pricing_by_term.sql) | Canonical master_material item denominator; exact matches versus valid prices. |
 | Coverage & Scope — Canonical Retained Sections by Institution Profile | [`179`](metabase/questions/71_coverage_canonical_by_institution.sql) | Institution-profile rollups; percentages divide by retained canonical sections. |
 | Coverage & Scope — Canonical Price Cells by Term | [`180`](metabase/questions/72_coverage_canonical_price_cells_by_term.sql) | Canonical term/ISBN rollups; section-item occurrences denominator, overlapping price cells. |
@@ -103,7 +103,7 @@ ID `19` · [`bmg_coverage_scope`](metabase/dashboards/bmg_coverage_scope.json) �
 | OER/IA Rate Among Classified Materials (Recent) | [`82`](metabase/questions/31_oer_ia_rate_among_classified.sql) | Canonical Use items with FormatType; unclassified items excluded. |
 | FormatType Coverage by Supply Status (Recent) | [`162`](metabase/questions/57_formattype_coverage_by_supply.sql) | Raw recent-term ISBN-bearing catalog rows, by supply status; no Use filter. |
 | Coverage — Enrollment Fill-Potential (sections, Recent) | [`91`](metabase/questions/33_coverage_enrollment_fill.sql) | Material-bearing Master Section denominator; overlapping enrollment-availability signals, not imputations. |
-| DQ — Pricing → Catalog Match Rate by Period | [`60`](metabase/questions/10_dq_pricing_match_by_period.sql) | All raw pricing rows by term; exact catalog section/ISBN match rate. |
+| DQ — Pricing → Catalog Match Rate by Period | [`60`](metabase/questions/10_dq_pricing_match_by_period.sql) | Deduplicated pricing observations by term; exact catalog section/ISBN match rate. |
 | DQ — Canonical Required Material format_count Distribution | [`78`](metabase/questions/27_dq_pricing_format_count_distribution_filtered.sql) | Canonical inferred-required section/ISBN items with exact pricing matches. format_count distribution for canonical Course Materials Use items that are inferred-required and have an exact pricing match. |
 
 ### Data Lineage — by School
@@ -114,7 +114,7 @@ ID `14` · [`data_lineage`](metabase/dashboards/data_lineage.json) · Catalog/pr
 |---|---:|---|
 | Lineage 1 — Raw Catalog (BMG course materials) | [`84`](metabase/questions/50_lineage_catalog.sql) | Raw recent-term catalog rows for selected school; no Use exclusions. |
 | Lineage 2 — Merged (catalog × IPEDS × OER/IA) | [`85`](metabase/questions/51_lineage_merged.sql) | All recent-term comprehensive_data rows for selected school; no Use exclusions. |
-| Lineage 3 — Raw Cost (BMG pricing) | [`86`](metabase/questions/52_lineage_pricing.sql) | All raw pricing option rows for selected school. |
+| Lineage 3 — Raw Cost (BMG pricing) | [`86`](metabase/questions/52_lineage_pricing.sql) | All deduplicated latest-snapshot pricing observations for selected school. |
 | Lineage 4 — Pricing Wide (pivoted) | [`87`](metabase/questions/53_lineage_pricing_wide.sql) | Pricing-wide section/ISBN pairs for selected school. |
 | Lineage 5 — Master Material | [`88`](metabase/questions/54_lineage_master_material.sql) | Canonical material-cost rows for selected school; unmatched and unpriced items remain. |
 | Lineage 6 — Master Section (wide record) | [`89`](metabase/questions/55_lineage_master_section.sql) | Material-bearing Master Section rows for selected school. |
@@ -156,41 +156,41 @@ ID `7` · [`data_quality_catalog`](metabase/dashboards/data_quality_catalog.json
 
 ### Data Quality — Pricing
 
-ID `8` · [`data_quality_pricing`](metabase/dashboards/data_quality_pricing.json) · Raw pricing pipeline; deduplication, validity, and catalog matching.
+ID `8` · [`data_quality_pricing`](metabase/dashboards/data_quality_pricing.json) · Pricing import and latest-snapshot observations; deduplication, validity, and catalog matching.
 
 | Card | ID | Scope |
 |---|---:|---|
 | DQ — Critical Metrics (should be 0) | [`68`](metabase/questions/18_dq_critical_should_be_zero.sql) | Pricing grain/pivot/price-bound and catalog classification regression checks. |
-| DQ — Pricing Dedupe Stages | [`56`](metabase/questions/06_dq_pricing_dedupe_stages.sql) | Raw pricing rows through successive deduplication stages. |
-| DQ — Pricing Price Outliers | [`57`](metabase/questions/07_dq_pricing_price_outliers.sql) | Raw pricing rows at zero, sentinel, and outlier boundaries. |
-| DQ — Pricing Buy/Rental Discipline | [`58`](metabase/questions/08_dq_pricing_buy_rental_discipline.sql) | Raw pricing rows with option/rental-term inconsistencies. |
-| DQ — Digital Rental Days Consistency | [`59`](metabase/questions/09_dq_pricing_digital_rental_days.sql) | Raw digital rentals grouped by section/ISBN; mixed NULL terms flagged. |
-| DQ — Pricing → Catalog Match Rate by Period | [`60`](metabase/questions/10_dq_pricing_match_by_period.sql) | All raw pricing rows by term; exact catalog section/ISBN match rate. |
+| DQ — Pricing Import Row Summary | [`56`](metabase/questions/06_dq_pricing_dedupe_stages.sql) | Imported pricing rows before and after deduplication. |
+| DQ — Pricing Boundaries & Availability | [`57`](metabase/questions/07_dq_pricing_price_outliers.sql) | Deduplicated pricing observations at zero, sentinel, and outlier boundaries, plus wide rows lacking price bounds. |
+| DQ — Pricing Buy/Rental Discipline | [`58`](metabase/questions/08_dq_pricing_buy_rental_discipline.sql) | Deduplicated pricing observations with option/rental-term inconsistencies. |
+| DQ — Digital Rental Days Consistency | [`59`](metabase/questions/09_dq_pricing_digital_rental_days.sql) | Deduplicated digital-rental observations grouped by section/ISBN; mixed NULL terms flagged. |
+| DQ — Pricing → Catalog Match Rate by Period | [`60`](metabase/questions/10_dq_pricing_match_by_period.sql) | Deduplicated pricing observations by term; exact catalog section/ISBN match rate. |
 | DQ — Pricing Wide format_count Distribution | [`61`](metabase/questions/11_dq_pricing_format_count_distribution.sql) | Pricing-wide pairs by offered buy/rental tuple count, regardless of price validity. |
-| DQ — Top Unmatched Pricing Section Cohorts | [`62`](metabase/questions/12_dq_pricing_top_unmatched_sections.sql) | All raw pricing sections lacking exact catalog matches, by institution/term. |
-| DQ — Raw Physical Rental Rows per (Section × Item) | [`72`](metabase/questions/21_dq_rental_rows_per_pair_physical.sql) | All raw physical rentals, counting rows per section/ISBN pair. |
-| DQ — Raw Digital Rental Rows per (Section × Item) | [`73`](metabase/questions/22_dq_rental_rows_per_pair_digital.sql) | All raw digital rentals, counting rows per section/ISBN pair. |
-| DQ — Raw Digital Rental Period Length Distribution | [`70`](metabase/questions/20_dq_rental_period_length_distribution.sql) | All raw digital rental rows with non-NULL rental_days. |
-| DQ — Rental Row-Shape Distribution per (Section × Item) | [`69`](metabase/questions/19_dq_rental_rows_per_section_item.sql) | All raw rental section/ISBN pairs, by physical/digital row-count shape. |
+| DQ — Top Unmatched Pricing Section Cohorts | [`62`](metabase/questions/12_dq_pricing_top_unmatched_sections.sql) | Deduplicated pricing sections lacking exact catalog matches, by institution/term. |
+| DQ — Physical Rental Observations per (Section × Item) | [`72`](metabase/questions/21_dq_rental_rows_per_pair_physical.sql) | All deduplicated physical-rental observations, counted per section/ISBN pair. |
+| DQ — Digital Rental Observations per (Section × Item) | [`73`](metabase/questions/22_dq_rental_rows_per_pair_digital.sql) | All deduplicated digital-rental observations, counted per section/ISBN pair. |
+| DQ — Digital Rental Period Length Distribution | [`70`](metabase/questions/20_dq_rental_period_length_distribution.sql) | All deduplicated digital-rental observations with non-NULL rental_days. |
+| DQ — Rental Row-Shape Distribution per (Section × Item) | [`69`](metabase/questions/19_dq_rental_rows_per_section_item.sql) | All deduplicated rental section/ISBN pairs, by physical/digital observation-count shape. |
 
-### Data Quality — Raw Pricing + Canonical Required Materials
+### Data Quality — Pricing Observations + Canonical Required Materials
 
-ID `11` · [`data_quality_pricing_filtered`](metabase/dashboards/data_quality_pricing_filtered.json) · All raw pricing; matched canonical inferred-required items only for Q27.
+ID `11` · [`data_quality_pricing_filtered`](metabase/dashboards/data_quality_pricing_filtered.json) · All deduplicated latest-snapshot pricing observations; matched canonical inferred-required items only for Q27.
 
 | Card | ID | Scope |
 |---|---:|---|
 | DQ — Critical Metrics (should be 0) | [`68`](metabase/questions/18_dq_critical_should_be_zero.sql) | Pricing grain/pivot/price-bound and catalog classification regression checks. |
-| DQ — Pricing Dedupe Stages | [`56`](metabase/questions/06_dq_pricing_dedupe_stages.sql) | Raw pricing rows through successive deduplication stages. |
-| DQ — Pricing Price Outliers | [`57`](metabase/questions/07_dq_pricing_price_outliers.sql) | Raw pricing rows at zero, sentinel, and outlier boundaries. |
-| DQ — Pricing Buy/Rental Discipline | [`58`](metabase/questions/08_dq_pricing_buy_rental_discipline.sql) | Raw pricing rows with option/rental-term inconsistencies. |
-| DQ — Digital Rental Days Consistency | [`59`](metabase/questions/09_dq_pricing_digital_rental_days.sql) | Raw digital rentals grouped by section/ISBN; mixed NULL terms flagged. |
-| DQ — Pricing → Catalog Match Rate by Period | [`60`](metabase/questions/10_dq_pricing_match_by_period.sql) | All raw pricing rows by term; exact catalog section/ISBN match rate. |
+| DQ — Pricing Import Row Summary | [`56`](metabase/questions/06_dq_pricing_dedupe_stages.sql) | Imported pricing rows before and after deduplication. |
+| DQ — Pricing Boundaries & Availability | [`57`](metabase/questions/07_dq_pricing_price_outliers.sql) | Deduplicated pricing observations at zero, sentinel, and outlier boundaries, plus wide rows lacking price bounds. |
+| DQ — Pricing Buy/Rental Discipline | [`58`](metabase/questions/08_dq_pricing_buy_rental_discipline.sql) | Deduplicated pricing observations with option/rental-term inconsistencies. |
+| DQ — Digital Rental Days Consistency | [`59`](metabase/questions/09_dq_pricing_digital_rental_days.sql) | Deduplicated digital-rental observations grouped by section/ISBN; mixed NULL terms flagged. |
+| DQ — Pricing → Catalog Match Rate by Period | [`60`](metabase/questions/10_dq_pricing_match_by_period.sql) | Deduplicated pricing observations by term; exact catalog section/ISBN match rate. |
 | DQ — Canonical Required Material format_count Distribution | [`78`](metabase/questions/27_dq_pricing_format_count_distribution_filtered.sql) | Canonical inferred-required section/ISBN items with exact pricing matches. format_count distribution for canonical Course Materials Use items that are inferred-required and have an exact pricing match. |
-| DQ — Top Unmatched Pricing Section Cohorts | [`62`](metabase/questions/12_dq_pricing_top_unmatched_sections.sql) | All raw pricing sections lacking exact catalog matches, by institution/term. |
-| DQ — Raw Physical Rental Rows per (Section × Item) | [`72`](metabase/questions/21_dq_rental_rows_per_pair_physical.sql) | All raw physical rentals, counting rows per section/ISBN pair. |
-| DQ — Raw Digital Rental Rows per (Section × Item) | [`73`](metabase/questions/22_dq_rental_rows_per_pair_digital.sql) | All raw digital rentals, counting rows per section/ISBN pair. |
-| DQ — Raw Digital Rental Period Length Distribution | [`70`](metabase/questions/20_dq_rental_period_length_distribution.sql) | All raw digital rental rows with non-NULL rental_days. |
-| DQ — Rental Row-Shape Distribution per (Section × Item) | [`69`](metabase/questions/19_dq_rental_rows_per_section_item.sql) | All raw rental section/ISBN pairs, by physical/digital row-count shape. |
+| DQ — Top Unmatched Pricing Section Cohorts | [`62`](metabase/questions/12_dq_pricing_top_unmatched_sections.sql) | Deduplicated pricing sections lacking exact catalog matches, by institution/term. |
+| DQ — Physical Rental Observations per (Section × Item) | [`72`](metabase/questions/21_dq_rental_rows_per_pair_physical.sql) | All deduplicated physical-rental observations, counted per section/ISBN pair. |
+| DQ — Digital Rental Observations per (Section × Item) | [`73`](metabase/questions/22_dq_rental_rows_per_pair_digital.sql) | All deduplicated digital-rental observations, counted per section/ISBN pair. |
+| DQ — Digital Rental Period Length Distribution | [`70`](metabase/questions/20_dq_rental_period_length_distribution.sql) | All deduplicated digital-rental observations with non-NULL rental_days. |
+| DQ — Rental Row-Shape Distribution per (Section × Item) | [`69`](metabase/questions/19_dq_rental_rows_per_section_item.sql) | All deduplicated rental section/ISBN pairs, by physical/digital observation-count shape. |
 
 ## Standalone cards
 

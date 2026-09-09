@@ -22,8 +22,8 @@
 - `HANDOFF.md` — current work status, how to run things, gotchas (read first when picking up)
 - `README.md` — project overview, execution order, runner configuration, and export commands
 
-Notion prose sync uses `scripts/notion_sync_docs.txt`: flow, reports, and three issue-detail
-pages beneath CMM Data Flow. It strips ordinary repository-relative links and preserves
+Notion prose sync uses `scripts/notion_sync_docs.txt`: flow, reports, three issue-detail
+pages beneath CMM Data Flow, and the Top-125 report page. It strips ordinary repository-relative links and preserves
 native child pages. No recursive repository sweep.
 
 Data Dictionary uses dedicated field and download publishers, configured by
