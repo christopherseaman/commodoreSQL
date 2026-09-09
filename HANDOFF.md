@@ -1,10 +1,13 @@
 # HANDOFF — CommodoreSQL
 
 State: 2026-09-08. Branch: `cmm-spring-2026`. PR #62 remains open.
+Latest code/Notion verification: `45a8cd5` (pushed).
 
 ## Current state
 
-- Full database rebuild completed; counts and reconciliation evidence are in RERUN.md.
+- Full database rebuild completed September 5; September 8 changes are row-neutral.
+  Historical [run evidence](https://github.com/christopherseaman/commodoreSQL/blob/45a8cd52a7f83ec7c5ca537826e0027f95dee590/RERUN.md)
+  remains in Git; no active run diary is needed.
 - Both grains remain: `comprehensive_data` preserves enriched source rows;
   `course_material` groups term × section × ISBN, including NULL-ISBN audit groups.
   #86 is canceled. Do not restart consolidation.
@@ -36,20 +39,29 @@ State: 2026-09-08. Branch: `cmm-spring-2026`. PR #62 remains open.
 
 ## Tickets and next step
 
-#80, #81, #83, #84, #85, #88, #90 and #91 are in Review with implementation/verification evidence;
-historical rebuild-hold notes are superseded. Next: review/merge PR #62, then pending inputs
-and definitions. #87 is On Deck for final Master
-Course/Institution definitions; current provisional rollups and URL lineage are implemented.
+24 non-Done project cards: 8 Review, 5 On Deck, 11 Todo; none In Progress or draft-only.
 
-Known inputs/decisions stay in their existing tickets:
-#21 pricing identity; #23 external pricing; #26 owned-cost reporting;
-#51 Spring 2026; #52 discipline; #56 BVA history; #57 campus IA;
-#60 institution list/samples; #72 bookstore brand; #76 snapshot retention.
-These do not require recreating placeholder database schemas.
+| Status | Tickets / remaining work |
+|---|---|
+| Review | #80, #81, #83, #84, #85, #88, #90, #91 — implemented and verified; human review/merge of PR #62 |
+| On Deck | #21 pricing identity design/implementation; #87 final Master Course/Institution definitions |
+| On Deck, missing inputs | #51 Spring 2026; #52 discipline lookup; #60 25-institution list |
+| Todo, missing inputs | #23 external pricing; #56 BVA history; #57 campus IA; #72 bookstore brand |
+| Todo, decisions | #26 owned-cost semantics; #76 snapshot retention |
+| Older Todo backlog | #19 DQ logging; #30 Metabase organization; #43 cost/OER modeling; #47 drill-down tools; #48 program-level ideas |
+
+Next: human review/merge PR #62, then select #21 work or resolve #87 definitions/inputs.
+Provisional masters and institution URL lineage already exist. Do not reopen completed
+rebuild/migration work based on superseded ticket notes or the stale September 5 project overview.
+Canonical-stage runtime/spill optimization has no dedicated ticket; it is a non-blocking
+observation, not active work. Known DuckDB resource-limit behavior is not a release blocker.
 
 ## Validation
 
-RERUN.md records the completed full-data checks and corrected sample counts.
+September 5 baseline: 102,885,609 source/enriched rows; 96,663,781 canonical materials;
+19,387,814 `master_material` rows; 10,514,319 `master_section` rows.
+Release/key/material reconciliations: 241 passed. Samples: 254 passed, zero failed,
+34 not applicable. See the historical run evidence for full counts and DQ findings.
 The 10% sample is 1,937,043 materials / 1,050,536 sections; the separate
 `sample_section_us_intro_fall2025` has 773,613 rows.
 Shared-window expansion intentionally changes old fixed-2024+ totals.
@@ -60,10 +72,21 @@ standalone cleanup/mailing checks and dictionary/report generation checks pass.
 All 15 canonical output names/types also match the live database. No extended rebuild or
 new overall-count scan was performed. The September 5 full-data evidence remains the baseline.
 
+## Handoff rules
+
+- Read this file, project `AGENTS.md`, and user `~/.codex/AGENTS.md` first; fetch current
+  ticket/project statuses before starting. Project status, not issue-open state, tracks completion.
+- Do not restart #86 consolidation, broaden the pricing join, invent missing-source schemas,
+  or run another extended rebuild without a new request.
+- Preserve `.notion/` state and `output/`. Do not publish repo-only handoff/run history to Notion.
+- Update this file after each completed work batch: verified commit, remaining work,
+  validation limits, and next action. Keep detailed evidence in tickets or Git history.
+
 ## Commands
 
 ```bash
 duckdb -bail -readonly duckdb/commodore.duckdb
+python3 -m unittest discover -s scripts -p 'test_*.py'
 python3 scripts/generate_data_dictionary.py --check
 NOTION_KEYRING=0 python3 scripts/sync_notion_docs.py --manifest scripts/notion_sync_docs.txt
 NOTION_KEYRING=0 python3 scripts/sync_notion_docs.py --apply --manifest scripts/notion_sync_docs.txt
