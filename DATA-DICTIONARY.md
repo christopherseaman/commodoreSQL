@@ -8,9 +8,11 @@ notion-sync: push
 
 # CommodoreSQL data dictionary
 
-Canonical field definitions for the implemented data flow, generated from `schema.dbml`.
+Canonical field definitions for the declared pipeline schema, generated from `schema.dbml`.
 
-Declared scope: 25 relations and 1,201 fields.
+Declared scope: 25 relations and 1,198 fields.
+
+Price summaries on `master_section`, `master_course`, and the inherited section sample describe the staged SQL contract; the live database retains its old 1,201-field schema until migration.
 
 <details>
 <summary>Downloads</summary>

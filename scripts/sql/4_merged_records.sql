@@ -78,14 +78,14 @@ SELECT
     COALESCE(BOOL_OR(has_formattype), FALSE) AS has_formattype,
     COUNT(*) FILTER (WHERE has_isbn)       AS isbn_count,
     COUNT(*) FILTER (WHERE has_formattype) AS classified_count,
-    SUM(price_min) FILTER (WHERE is_required_inferred) AS required_cost_total_min,
-    SUM(price_max) FILTER (WHERE is_required_inferred) AS required_cost_total_max,
-    SUM(price_min) FILTER (WHERE NOT is_required_inferred) AS optional_cost_total_min,
-    SUM(price_max) FILTER (WHERE NOT is_required_inferred) AS optional_cost_total_max,
-    SUM(price_buy_min) FILTER (WHERE is_required_inferred) AS required_cost_owned_min,
-    SUM(price_buy_max) FILTER (WHERE is_required_inferred) AS required_cost_owned_max,
-    SUM(price_buy_min) FILTER (WHERE NOT is_required_inferred) AS optional_cost_owned_min,
-    SUM(price_buy_max) FILTER (WHERE NOT is_required_inferred) AS optional_cost_owned_max,
+    SUM(price_min) FILTER (WHERE is_required_inferred) AS required_price_min,
+    SUM(price_max) FILTER (WHERE is_required_inferred) AS required_price_max,
+    SUM(price_buy_min) FILTER (WHERE is_required_inferred) AS required_price_buy_min,
+    SUM(price_buy_max) FILTER (WHERE is_required_inferred) AS required_price_buy_max,
+    SUM(price_min) AS all_price_min,
+    SUM(price_max) AS all_price_max,
+    SUM(price_buy_min) AS all_price_buy_min,
+    SUM(price_buy_max) AS all_price_buy_max,
     COUNT(*) FILTER (WHERE is_required_inferred AND price_min IS NOT NULL) AS required_priced_count,
     COUNT(*) FILTER (WHERE NOT is_required_inferred AND price_min IS NOT NULL) AS optional_priced_count,
     ANY_VALUE(section_course_material_no_use_count) AS course_material_no_use_count,
@@ -233,14 +233,14 @@ SELECT
     s.enrollment_assigned,
     s.enrollment_source,
     s.is_required_direct,
-    s.required_cost_total_min,
-    s.required_cost_total_max,
-    s.optional_cost_total_min,
-    s.optional_cost_total_max,
-    s.required_cost_owned_min,
-    s.required_cost_owned_max,
-    s.optional_cost_owned_min,
-    s.optional_cost_owned_max,
+    s.required_price_min,
+    s.required_price_max,
+    s.required_price_buy_min,
+    s.required_price_buy_max,
+    s.all_price_min,
+    s.all_price_max,
+    s.all_price_buy_min,
+    s.all_price_buy_max,
     s.required_priced_count,
     s.optional_priced_count,
     url.bookstore_url
@@ -282,11 +282,23 @@ DROP TABLE _ms_bookstore_url;
 
 CREATE TABLE master_section AS
 SELECT
-    base.* EXCLUDE (required_priced_count, optional_priced_count, bookstore_url),
+    base.* EXCLUDE (
+        required_price_min, required_price_max,
+        required_price_buy_min, required_price_buy_max,
+        all_price_min, all_price_max, all_price_buy_min, all_price_buy_max,
+        required_priced_count, optional_priced_count, bookstore_url
+    ),
     -- price_avg convention: (min + max) / 2, NOT an arithmetic mean (see CLAUDE.md)
-    (base.required_cost_total_min + base.required_cost_total_max) / 2.0 AS required_cost_avg,
-    (base.required_cost_owned_min + base.required_cost_owned_max) / 2.0 AS required_cost_owned_avg,
-    (base.optional_cost_total_min + base.optional_cost_total_max) / 2.0 AS optional_cost_avg,
+    base.required_price_min,
+    (base.required_price_min + base.required_price_max) / 2.0 AS required_price_avg,
+    base.required_price_max,
+    base.required_price_buy_min,
+    base.required_price_buy_max,
+    base.all_price_min,
+    (base.all_price_min + base.all_price_max) / 2.0 AS all_price_avg,
+    base.all_price_max,
+    base.all_price_buy_min,
+    base.all_price_buy_max,
     base.required_priced_count,
     base.optional_priced_count,
     base.bookstore_url
@@ -295,7 +307,7 @@ FROM _ms_enriched base;
 DROP TABLE _ms_enriched;
 
 -- Create master_course: one row per course per period.
--- Cost rolls up master_section via MIN(min)/MAX(max)/AVG(avg) across the course's
+-- Price rolls up master_section via MIN(min)/MAX(max) across the course's
 -- sections (sections of a course usually share materials, so SUM would multiply a
 -- shared book's cost). Attached at (course_id, period_sortable).
 DROP VIEW IF EXISTS master_course;
@@ -341,17 +353,16 @@ SELECT
     COUNT(*) FILTER (WHERE has_enrollment_sibling_seats) AS has_enrollment_sibling_seats_sections,
     LIST(publishers) FILTER (WHERE publishers IS NOT NULL) AS all_publishers,
     SUM(required_publisher_count) AS unique_required_publishers,
-    MIN(required_cost_total_min) AS required_cost_total_min,
-    MAX(required_cost_total_max) AS required_cost_total_max,
-    MIN(optional_cost_total_min) AS optional_cost_total_min,
-    MAX(optional_cost_total_max) AS optional_cost_total_max,
-    MIN(required_cost_owned_min) AS required_cost_owned_min,
-    MAX(required_cost_owned_max) AS required_cost_owned_max,
-    MIN(optional_cost_owned_min) AS optional_cost_owned_min,
-    MAX(optional_cost_owned_max) AS optional_cost_owned_max,
-    AVG((required_cost_total_min + required_cost_total_max) / 2.0) AS required_cost_avg,
-    AVG((required_cost_owned_min + required_cost_owned_max) / 2.0) AS required_cost_owned_avg,
-    AVG((optional_cost_total_min + optional_cost_total_max) / 2.0) AS optional_cost_avg
+    MIN(required_price_min) AS required_price_min,
+    (MIN(required_price_min) + MAX(required_price_max)) / 2.0 AS required_price_avg,
+    MAX(required_price_max) AS required_price_max,
+    MIN(required_price_buy_min) AS required_price_buy_min,
+    MAX(required_price_buy_max) AS required_price_buy_max,
+    MIN(all_price_min) AS all_price_min,
+    (MIN(all_price_min) + MAX(all_price_max)) / 2.0 AS all_price_avg,
+    MAX(all_price_max) AS all_price_max,
+    MIN(all_price_buy_min) AS all_price_buy_min,
+    MAX(all_price_buy_max) AS all_price_buy_max
 FROM master_section
 GROUP BY course_id, period_sortable;
 
@@ -390,13 +401,29 @@ SELECT 'master_section OER/IA invariant' AS metric,
        COUNT(*) FILTER (WHERE is_oer <> (oer_count > 0) OR is_ia <> (ia_count > 0)) AS violations
 FROM master_section
 UNION ALL
-SELECT 'master_section cost min<=max' AS metric,
+SELECT 'master_section price bounds and midpoint' AS metric,
        COUNT(*) AS rows,
-       COUNT(*) FILTER (WHERE required_cost_total_min > required_cost_total_max
-                           OR optional_cost_total_min > optional_cost_total_max
-                           OR required_cost_owned_min > required_cost_owned_max
-                           OR optional_cost_owned_min > optional_cost_owned_max) AS violations
+       COUNT(*) FILTER (WHERE required_price_min > required_price_max
+                           OR required_price_buy_min > required_price_buy_max
+                           OR all_price_min > all_price_max
+                           OR all_price_buy_min > all_price_buy_max
+                           OR required_price_avg IS DISTINCT FROM
+                              (required_price_min + required_price_max) / 2.0
+                           OR all_price_avg IS DISTINCT FROM
+                              (all_price_min + all_price_max) / 2.0) AS violations
 FROM master_section
+UNION ALL
+SELECT 'master_course price bounds and midpoint' AS metric,
+       COUNT(*) AS rows,
+       COUNT(*) FILTER (WHERE required_price_min > required_price_max
+                           OR required_price_buy_min > required_price_buy_max
+                           OR all_price_min > all_price_max
+                           OR all_price_buy_min > all_price_buy_max
+                           OR required_price_avg IS DISTINCT FROM
+                              (required_price_min + required_price_max) / 2.0
+                           OR all_price_avg IS DISTINCT FROM
+                              (all_price_min + all_price_max) / 2.0) AS violations
+FROM master_course
 UNION ALL
 SELECT 'master_section supply invariant (#36)' AS metric,
        COUNT(*) AS rows,

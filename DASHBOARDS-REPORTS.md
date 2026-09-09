@@ -16,16 +16,16 @@ ID `13` · [`report`](metabase/dashboards/report.json) · Material-bearing secti
 | Card | ID | Scope |
 |---|---:|---|
 | Report — Section / OER / IA Overview | [`80`](metabase/questions/30_report_overview.sql) | Material-bearing sections/institutions under selected report filters. |
-| Report — Materials Cost Summary | [`81`](metabase/questions/40_report_cost.sql) | Material-bearing recent-term sections under report filters; canonical required/optional costs. |
+| Report — Materials Price Summary | [`81`](metabase/questions/40_report_cost.sql) | Material-bearing recent-term sections under report filters; canonical required/all-material prices. |
 
-### Course Materials Cost
+### Course Materials Price
 
-ID `9` · [`course_materials_cost`](metabase/dashboards/course_materials_cost.json) · Master Section required costs; buy-priced subset for owned.
+ID `9` · [`course_materials_cost`](metabase/dashboards/course_materials_cost.json) · Master Section required prices; buy-priced subset for purchase-only.
 
 | Card | ID | Scope |
 |---|---:|---|
-| Required Materials Cost by Subject (Recent) | [`75`](metabase/questions/24_cost_required_by_subject.sql) | Master Section required costs per section; buy-priced subset for owned. |
-| Owned vs All-Options Cost by Course Level (Recent) | [`76`](metabase/questions/25_cost_owned_vs_all.sql) | Master Section required costs by level; buy-priced subset for owned. |
+| Required Materials Price by Subject (Recent) | [`75`](metabase/questions/24_cost_required_by_subject.sql) | Master Section required price bounds by course subject; buy-priced subset for purchase-only. |
+| Buy vs All-Options Required Price by Course Level (Recent) | [`76`](metabase/questions/25_cost_owned_vs_all.sql) | Master Section required prices by level; buy-priced subset for purchase-only. |
 
 ### OER/IA Adoption
 
@@ -63,16 +63,16 @@ ID `17` · [`bmg_enrollment_dq`](metabase/dashboards/bmg_enrollment_dq.json) · 
 | Coverage — Enrollment Fill-Potential (sections, Recent) | [`91`](metabase/questions/33_coverage_enrollment_fill.sql) | Material-bearing Master Section denominator; overlapping enrollment-availability signals, not imputations. |
 | Fall 2025 — Section Enrollment Assignment (persisted fill + provenance) | [`133`](metabase/questions/44_fall2025_enrollment_assigned.sql) | Fall-2025 BMG-scope material-bearing sections; persisted full-spine enrollment assignments. |
 
-### BMG · Cost Hypothesis
+### BMG · Price Hypothesis
 
-ID `16` · [`bmg_cost_hypothesis`](metabase/dashboards/bmg_cost_hypothesis.json) · Fall-2025 BMG canonical materials; enrollment-weighted section costs and same-ISBN prices.
+ID `16` · [`bmg_cost_hypothesis`](metabase/dashboards/bmg_cost_hypothesis.json) · Fall-2025 BMG canonical materials; enrollment-weighted section price midpoints and same-ISBN prices.
 
 | Card | ID | Scope |
 |---|---:|---|
-| Fall 2025 — Hypothesis: Enrollment-Weighted Required Cost by Class | [`160`](metabase/questions/47_fall2025_hypothesis_enrollwt_cost.sql) | Fall-2025 BMG Set-A priced-required sections; enrollment-weighted cost midpoints. |
+| Fall 2025 — Hypothesis: Enrollment-Weighted Required Price by Class | [`160`](metabase/questions/47_fall2025_hypothesis_enrollwt_cost.sql) | Fall-2025 BMG Set-A priced-required sections; enrollment-weighted section price midpoints. |
 | Fall 2025 — Hypothesis: Same-Item Price by Class (course-mix vs price) | [`161`](metabase/questions/48_fall2025_hypothesis_sameitem_price.sql) | Fall-2025 BMG inferred-required priced Use adoptions; ISBNs with ≥10 adoptions. |
-| Fall 2025 — Course-material cost by institution class (control x level x set) | [`131`](metabase/questions/42_fall2025_tally_cost_by_class.sql) | Fall-2025 BMG-scope material-bearing sections; section-weighted cost midpoints, not means. |
-| Top-125 ISBN Cost Extract — Fall 2025 (institution × course × faculty) | [`125`](metabase/questions/36_top125_isbn_cost_extract.sql) | Fall-2025 canonical section/ISBN adoptions of 125 most-adopted ISBNs. |
+| Fall 2025 — Course-material price by institution class (control x level x set) | [`131`](metabase/questions/42_fall2025_tally_cost_by_class.sql) | Fall-2025 BMG-scope material-bearing sections; section-weighted price midpoints. |
+| Top-125 ISBN Price Extract — Fall 2025 (institution × course × faculty) | [`125`](metabase/questions/36_top125_isbn_cost_extract.sql) | Fall-2025 canonical section/ISBN adoptions of 125 most-adopted ISBNs. |
 
 ## Coverage & lineage
 
@@ -108,7 +108,7 @@ ID `19` · [`bmg_coverage_scope`](metabase/dashboards/bmg_coverage_scope.json) �
 
 ### Data Lineage — by School
 
-ID `14` · [`data_lineage`](metabase/dashboards/data_lineage.json) · Catalog/pricing checkpoints through Material Costs, Master Section, and Master Course.
+ID `14` · [`data_lineage`](metabase/dashboards/data_lineage.json) · Catalog/pricing checkpoints through Master Material, Master Section, and Master Course.
 
 | Card | ID | Scope |
 |---|---:|---|
@@ -224,7 +224,7 @@ ID `11` · [`data_quality_pricing_filtered`](metabase/dashboards/data_quality_pr
 |---|---:|---|
 | Master Institution by Term (draft) | [`170`](metabase/models/master_institution.sql) | Draft institution/term rollup; material-bearing sections, including unknown institutions. |
 | Master ISBN by Term | [`171`](metabase/models/master_isbn.sql) | Canonical Use population, one row per recent term/ISBN. |
-| Master Section | [`158`](metabase/models/master_section.sql) | Material-bearing sections; inherited enrollment/audits, costs, and modal URL. |
+| Master Section | [`158`](metabase/models/master_section.sql) | Material-bearing sections; inherited enrollment/audits, required/all-material price bounds, and modal URL. |
 | Section Sample — US Intro/Intermediate, Fall 2025 (BMG scope) | [`159`](metabase/models/sample_section_us_intro_fall2025.sql) | Fall-2025 required intro/intermediate sections; nonblank/non-Canada state proxy, not validated US. |
 
 ## Coverage checks

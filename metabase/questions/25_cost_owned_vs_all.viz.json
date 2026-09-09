@@ -1,6 +1,6 @@
 {
   "graph.dimensions": ["course_level"],
-  "graph.metrics": ["avg_all_options", "avg_owned"],
+  "graph.metrics": ["all_options_price_midrange", "buy_price_midrange"],
   "graph.x_axis.title_text": "Course Level",
-  "graph.y_axis.title_text": "Avg Required Cost ($)"
+  "graph.y_axis.title_text": "Required Price Midrange ($)"
 }

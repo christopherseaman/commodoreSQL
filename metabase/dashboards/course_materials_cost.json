@@ -1,5 +1,5 @@
 [
-  { "__meta__": { "name": "Course Materials Cost", "description": "Master Section required costs; buy-priced subset for owned. Required-material cost by subject and level; owned (buy-only) vs all-options. Recent-term section grain." } },
+  { "__meta__": { "name": "Course Materials Price", "description": "Master Section required prices; buy-priced subset for purchase-only. Required-material price midranges by subject and level; buy-only vs all-options. Recent-term sections are the source population." } },
   { "question": "24_cost_required_by_subject", "row": 0, "col": 0, "size_x": 24, "size_y": 8 },
   { "question": "25_cost_owned_vs_all", "row": 8, "col": 0, "size_x": 24, "size_y": 8 }
 ]

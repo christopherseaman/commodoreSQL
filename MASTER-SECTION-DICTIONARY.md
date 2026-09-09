@@ -89,25 +89,27 @@ with `ANY_VALUE`; use `comprehensive_data`/`section_enrollment` for complete-pop
 Medians are per-term, use the documented four BMG levels and six sectors, and are rounded to
 integers. Raw enrollment fields remain unchanged.
 
-## Cost and price coverage
+## Price summaries and coverage
 
 `master_section` aggregates canonical `(period_sortable, section_id, isbn13)` Use items from
-`master_material`. Missing prices are not zero; Owned is buy-only (not rental); Average is the
-legacy midpoint, not arithmetic mean.
+`master_material`. This is the approved staged SQL definition; the live database retains the old
+monetary schema until migration. `required_*` uses `is_required_inferred` (direct plus fallback),
+and `all_*` includes every Use item. `SUM` ignores partial NULL prices, returns NULL when no item
+qualifies or every qualifying input is missing, and preserves a true zero. `price_avg` is a legacy-named MIDRANGE, never a mean
+or median. Buy columns exclude rentals; no buy average is published.
 
 | Column | Business label | Source / derivation | Population / denominator | NULL meaning |
 |---|---|---|---|---|
-| `required_cost_total_min` | Required all-options minimum | Sum required Use ISBN `price_min` | Distinct priced required Items | No valid price |
-| `required_cost_total_max` | Required all-options maximum | Sum required Use ISBN `price_max` | Distinct priced required Items | No valid price |
-| `optional_cost_total_min` | Optional all-options minimum | Sum optional Use ISBN `price_min` | Distinct priced optional Items | No valid price |
-| `optional_cost_total_max` | Optional all-options maximum | Sum optional Use ISBN `price_max` | Distinct priced optional Items | No valid price |
-| `required_cost_owned_min` | Required buy minimum | Sum required Use ISBN `price_buy_min` | Buy-priced required Items | No valid buy price |
-| `required_cost_owned_max` | Required buy maximum | Sum required Use ISBN `price_buy_max` | Buy-priced required Items | No valid buy price |
-| `optional_cost_owned_min` | Optional buy minimum | Sum optional Use ISBN `price_buy_min` | Buy-priced optional Items | No valid buy price |
-| `optional_cost_owned_max` | Optional buy maximum | Sum optional Use ISBN `price_buy_max` | Buy-priced optional Items | No valid buy price |
-| `required_cost_avg` | Required midpoint | `(required_cost_total_min + required_cost_total_max)/2` | Required total population | Either bound NULL |
-| `required_cost_owned_avg` | Required buy midpoint | `(required_cost_owned_min + required_cost_owned_max)/2` | Required owned population | Either bound NULL |
-| `optional_cost_avg` | Optional midpoint | `(optional_cost_total_min + optional_cost_total_max)/2` | Optional total population | Either bound NULL |
+| `required_price_min` | Required minimum | `SUM(master_material.price_min) FILTER (WHERE is_required_inferred)` | Required Use Items | No required item, or every required item price is NULL |
+| `required_price_avg` | Required midrange | `(required_price_min + required_price_max) / 2.0` | Required section bounds | Either bound is NULL |
+| `required_price_max` | Required maximum | `SUM(master_material.price_max) FILTER (WHERE is_required_inferred)` | Required Use Items | No required item, or every required item price is NULL |
+| `required_price_buy_min` | Required buy minimum | `SUM(master_material.price_buy_min) FILTER (WHERE is_required_inferred)` | Required Use Items | No required item, or every required buy price is NULL |
+| `required_price_buy_max` | Required buy maximum | `SUM(master_material.price_buy_max) FILTER (WHERE is_required_inferred)` | Required Use Items | No required item, or every required buy price is NULL |
+| `all_price_min` | All-item minimum | `SUM(master_material.price_min)` | All Use Items | Every item price is NULL |
+| `all_price_avg` | All-item midrange | `(all_price_min + all_price_max) / 2.0` | All-item section bounds | Either bound is NULL |
+| `all_price_max` | All-item maximum | `SUM(master_material.price_max)` | All Use Items | Every item price is NULL |
+| `all_price_buy_min` | All-item buy minimum | `SUM(master_material.price_buy_min)` | All Use Items | Every item buy price is NULL |
+| `all_price_buy_max` | All-item buy maximum | `SUM(master_material.price_buy_max)` | All Use Items | Every item buy price is NULL |
 | `required_priced_count` | Required priced count | Required Items with non-NULL `price_min` | Required Items | Zero means none |
 | `optional_priced_count` | Optional priced count | Optional Items with non-NULL `price_min` | Optional Items | Zero means none |
 

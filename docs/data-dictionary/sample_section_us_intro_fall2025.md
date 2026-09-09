@@ -10,7 +10,7 @@ notion-sync: push
 
 - Relation kind: view
 - Grain / key: Filtered master_section rows
-- Pipeline stage: EDA records / 4_merged_records.sql
+- Pipeline stage: STAGED SQL / 4_merged_records.sql
 - Direct upstream relations: `master_section`
 
 | Column | Type | Example / structure | Direct upstream source / derivation | Description |
@@ -69,17 +69,16 @@ notion-sync: push
 | `enrollment_assigned` | `integer` | Rounded student count from the ladder; raw negatives can propagate | Inherited `master_section.enrollment_assigned` via `SELECT *`. | Best available section enrollment from the assignment ladder. |
 | `enrollment_source` | `varchar` | Fill rung for enrollment_assigned: `own`, `own_seats`, `sibling_enroll`, `sibling_seats`, `class_median`, `level_median`, or `none` | Inherited `master_section.enrollment_source` via `SELECT *`. | Assignment-ladder rung that supplied the section enrollment. |
 | `is_required_direct` | `boolean` | section-grain supply-aware direct requiredness inherited from master_material context | Inherited `master_section.is_required_direct` via `SELECT *`. | Whether direct required evidence is present at the relation grain. |
-| `required_cost_total_min` | `decimal(38,2)` | USD amount such as `123.45`; stored as `DECIMAL(38,2)` | Inherited `master_section.required_cost_total_min` via `SELECT *`. | Lower total cost bound for required materials. |
-| `required_cost_total_max` | `decimal(38,2)` | USD amount such as `123.45`; stored as `DECIMAL(38,2)` | Inherited `master_section.required_cost_total_max` via `SELECT *`. | Upper total cost bound for required materials. |
-| `optional_cost_total_min` | `decimal(38,2)` | USD amount such as `123.45`; stored as `DECIMAL(38,2)` | Inherited `master_section.optional_cost_total_min` via `SELECT *`. | Lower total cost bound for optional materials. |
-| `optional_cost_total_max` | `decimal(38,2)` | USD amount such as `123.45`; stored as `DECIMAL(38,2)` | Inherited `master_section.optional_cost_total_max` via `SELECT *`. | Upper total cost bound for optional materials. |
-| `required_cost_owned_min` | `decimal(38,2)` | USD amount such as `123.45`; stored as `DECIMAL(38,2)` | Inherited `master_section.required_cost_owned_min` via `SELECT *`. | Lower buy-only cost bound for required materials. |
-| `required_cost_owned_max` | `decimal(38,2)` | USD amount such as `123.45`; stored as `DECIMAL(38,2)` | Inherited `master_section.required_cost_owned_max` via `SELECT *`. | Upper buy-only cost bound for required materials. |
-| `optional_cost_owned_min` | `decimal(38,2)` | USD amount such as `123.45`; stored as `DECIMAL(38,2)` | Inherited `master_section.optional_cost_owned_min` via `SELECT *`. | Lower buy-only cost bound for optional materials. |
-| `optional_cost_owned_max` | `decimal(38,2)` | USD amount such as `123.45`; stored as `DECIMAL(38,2)` | Inherited `master_section.optional_cost_owned_max` via `SELECT *`. | Upper buy-only cost bound for optional materials. |
-| `required_cost_avg` | `double` | USD midpoint of lower and upper total cost bounds | Inherited `master_section.required_cost_avg` via `SELECT *`. | Legacy midpoint of total required-material cost bounds. |
-| `required_cost_owned_avg` | `double` | USD midpoint of lower and upper buy-only cost bounds | Inherited `master_section.required_cost_owned_avg` via `SELECT *`. | Legacy midpoint of buy-only required-material cost bounds. |
-| `optional_cost_avg` | `double` | USD midpoint of lower and upper total cost bounds | Inherited `master_section.optional_cost_avg` via `SELECT *`. | Legacy midpoint of total optional-material cost bounds. |
+| `required_price_min` | `decimal(38,2)` | USD amount such as `123.45`; stored as `DECIMAL(38,2)` | Inherited `master_section.required_price_min` via `SELECT *`. | Lower all-offer price bound for required materials. |
+| `required_price_avg` | `double` | USD MIDRANGE `(required_price_min + required_price_max) / 2.0`, not mean | Inherited `master_section.required_price_avg` via `SELECT *`. | Legacy-named midrange of required price bounds. |
+| `required_price_max` | `decimal(38,2)` | USD amount such as `123.45`; stored as `DECIMAL(38,2)` | Inherited `master_section.required_price_max` via `SELECT *`. | Upper all-offer price bound for required materials. |
+| `required_price_buy_min` | `decimal(38,2)` | USD amount such as `123.45`; stored as `DECIMAL(38,2)` | Inherited `master_section.required_price_buy_min` via `SELECT *`. | Lower buy-only price bound for required materials. |
+| `required_price_buy_max` | `decimal(38,2)` | USD amount such as `123.45`; stored as `DECIMAL(38,2)` | Inherited `master_section.required_price_buy_max` via `SELECT *`. | Upper buy-only price bound for required materials. |
+| `all_price_min` | `decimal(38,2)` | USD amount such as `123.45`; stored as `DECIMAL(38,2)` | Inherited `master_section.all_price_min` via `SELECT *`. | Lower all-offer price bound for all-item materials. |
+| `all_price_avg` | `double` | USD MIDRANGE `(all_price_min + all_price_max) / 2.0`, not mean | Inherited `master_section.all_price_avg` via `SELECT *`. | Legacy-named midrange of all-item price bounds. |
+| `all_price_max` | `decimal(38,2)` | USD amount such as `123.45`; stored as `DECIMAL(38,2)` | Inherited `master_section.all_price_max` via `SELECT *`. | Upper all-offer price bound for all-item materials. |
+| `all_price_buy_min` | `decimal(38,2)` | USD amount such as `123.45`; stored as `DECIMAL(38,2)` | Inherited `master_section.all_price_buy_min` via `SELECT *`. | Lower buy-only price bound for all-item materials. |
+| `all_price_buy_max` | `decimal(38,2)` | USD amount such as `123.45`; stored as `DECIMAL(38,2)` | Inherited `master_section.all_price_buy_max` via `SELECT *`. | Upper buy-only price bound for all-item materials. |
 | `required_priced_count` | `bigint` | distinct required materials with ANY price (total coverage; NOT owned-only — can be >0 while owned cost is NULL when priced materials are rental-only) | Inherited `master_section.required_priced_count` via `SELECT *`. | Required materials having at least one valid price. |
 | `optional_priced_count` | `bigint` | Non-negative whole-number count | Inherited `master_section.optional_priced_count` via `SELECT *`. | Optional materials having at least one valid price. |
 | `bookstore_url` | `varchar` | Absolute `http://` or `https://` bookstore URL | Inherited `master_section.bookstore_url` via `SELECT *`. | Bookstore page providing the observed material prices. |

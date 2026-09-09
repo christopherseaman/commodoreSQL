@@ -90,11 +90,11 @@ class RenamedFlowPipelineTest(unittest.TestCase):
             self.assertEqual(
                 cli(database, """
                     SELECT material_count, required_count, optional_count,
-                           required_cost_total_min, optional_cost_total_min
+                           required_price_min, all_price_min
                     FROM master_section
                     WHERE section_id = '1::BIO::101::002::2025-4'
                 """),
-                ["2,1,1,40.00,20.00"],
+                ["2,1,1,40.00,60.00"],
             )
             self.assertEqual(
                 cli(database, "SELECT COUNT(*) FROM course_material_no_use WHERE is_canada"),
@@ -159,6 +159,124 @@ class RenamedFlowPipelineTest(unittest.TestCase):
             self.assertEqual(cli(database, "SELECT COUNT(*) FROM master_institution"), ["1"])
             self.assertEqual(cli(database, "SELECT COUNT(*) FROM master_isbn"), ["2"])
             self.assert_release_exports(database)
+
+    @unittest.skipIf(DUCKDB is None, "DuckDB CLI is required")
+    def test_master_price_rollups_execute_production_sql(self) -> None:
+        with tempfile.TemporaryDirectory() as directory:
+            database = Path(directory) / "price-rollup.duckdb"
+            cli(database, self.fixture_sql())
+            for stage in (
+                "0c_recent_period.sql", "1a_supply_classification.sql",
+                "1b_section_enrollment.sql", "2_oer_classification.sql",
+                "2b_course_material.sql", "2c_pricing_wide.sql",
+                "3_mailing_lists.sql", "3b_master_material.sql",
+            ):
+                cli(database, render(SQL / stage))
+
+            # Clone a valid production-shaped row so this fixture exercises the real
+            # stage rather than a reduced SQL transcription. Values cover inferred
+            # requiredness, optional/all scope, NULL, zero, and rental-only pricing.
+            cli(database, """
+                CREATE TEMP TABLE seed AS SELECT * FROM master_material LIMIT 1;
+                DELETE FROM master_material;
+                INSERT INTO master_material
+                SELECT seed.* REPLACE (
+                    'course-a' AS course_id,
+                    'section-' || v.section_no || '::2025-4' AS section_id,
+                    v.isbn AS isbn13,
+                    v.required_direct AS is_section_required_direct,
+                    v.required_inferred AS is_required_inferred,
+                    v.price_min AS price_min,
+                    (v.price_min + v.price_max) / 2.0 AS price_avg,
+                    v.price_max AS price_max,
+                    v.buy_min AS price_buy_min,
+                    v.buy_max AS price_buy_max
+                )
+                FROM seed, (VALUES
+                    ('1', '9780000000101', false, true,  10.0,  20.0, 12.0, 18.0),
+                    ('1', '9780000000102', false, false,  5.0,   9.0,  6.0,  8.0),
+                    ('2', '9780000000201', true,  true,  30.0,  40.0, 31.0, 39.0),
+                    ('3', '9780000000301', true,  true, 100.0, 200.0, NULL, NULL)
+                ) AS v(section_no, isbn, required_direct, required_inferred,
+                       price_min, price_max, buy_min, buy_max);
+                INSERT INTO master_material
+                SELECT seed.* REPLACE (
+                    v.course_id AS course_id,
+                    v.section_id AS section_id,
+                    v.isbn AS isbn13,
+                    v.required AS is_required_inferred,
+                    v.price_min AS price_min,
+                    (v.price_min + v.price_max) / 2.0 AS price_avg,
+                    v.price_max AS price_max,
+                    v.buy_min AS price_buy_min,
+                    v.buy_max AS price_buy_max
+                )
+                FROM seed, (VALUES
+                    ('course-null', 'section-null::2025-4', '9780000000401', true, NULL, NULL, NULL, NULL),
+                    ('course-zero', 'section-zero::2025-4', '9780000000501', true, 0.0, 0.0, 0.0, 0.0),
+                    ('course-rental', 'section-rental::2025-4', '9780000000601', true, 7.0, 11.0, NULL, NULL),
+                    ('course-optional', 'section-optional::2025-4', '9780000000701', false, 13.0, 21.0, 14.0, 20.0),
+                    ('course-partial', 'section-partial::2025-4', '9780000000801', true, 2.0, 6.0, 3.0, 5.0),
+                    ('course-partial', 'section-partial::2025-4', '9780000000802', true, NULL, NULL, NULL, NULL)
+                ) AS v(course_id, section_id, isbn, required,
+                       price_min, price_max, buy_min, buy_max);
+            """)
+            cli(database, render(SQL / "4_merged_records.sql"))
+
+            expected = {
+                "required_price_min", "required_price_avg", "required_price_max",
+                "required_price_buy_min", "required_price_buy_max",
+                "all_price_min", "all_price_avg", "all_price_max",
+                "all_price_buy_min", "all_price_buy_max",
+            }
+            for relation in ("master_section", "master_course"):
+                columns = set(cli(database, f"""
+                    SELECT column_name FROM information_schema.columns
+                    WHERE table_name = '{relation}'
+                      AND (column_name LIKE 'required_price%'
+                           OR column_name LIKE 'all_price%'
+                           OR column_name LIKE '%cost%')
+                      AND column_name <> 'required_priced_count'
+                    ORDER BY column_name
+                """))
+                self.assertEqual(columns, expected)
+
+            self.assertEqual(cli(database, """
+                SELECT required_price_min, required_price_avg, required_price_max,
+                       required_price_buy_min, required_price_buy_max,
+                       all_price_min, all_price_avg, all_price_max,
+                       all_price_buy_min, all_price_buy_max
+                FROM master_section WHERE section_id = 'section-1::2025-4'
+            """), ["10.00,15.0,20.00,12.00,18.00,15.00,22.0,29.00,18.00,26.00"])
+            expected_rollups = [
+                "course-a,10.00,105.0,200.00,12.00,39.00,15.00,107.5,200.00,18.00,39.00",
+                "course-null,,,,,,,,,,",
+                "course-optional,,,,,,13.00,17.0,21.00,14.00,20.00",
+                "course-partial,2.00,4.0,6.00,3.00,5.00,2.00,4.0,6.00,3.00,5.00",
+                "course-rental,7.00,9.0,11.00,,,7.00,9.0,11.00,,",
+                "course-zero,0.00,0.0,0.00,0.00,0.00,0.00,0.0,0.00,0.00,0.00",
+            ]
+            price_projection = """
+                required_price_min, required_price_avg, required_price_max,
+                required_price_buy_min, required_price_buy_max,
+                all_price_min, all_price_avg, all_price_max,
+                all_price_buy_min, all_price_buy_max
+            """
+            self.assertEqual(cli(database, f"""
+                SELECT course_id, {price_projection}
+                FROM master_course
+                WHERE course_id LIKE 'course-%'
+                ORDER BY course_id
+            """), expected_rollups)
+            self.assertEqual(cli(database, f"""
+                SELECT course_id, {price_projection}
+                FROM master_section
+                WHERE course_id <> 'course-a' OR section_id = 'section-1::2025-4'
+                ORDER BY course_id
+            """), [
+                "course-a,10.00,15.0,20.00,12.00,18.00,15.00,22.0,29.00,18.00,26.00",
+                *expected_rollups[1:],
+            ])
 
     @staticmethod
     def materialize_models(database: Path) -> None:

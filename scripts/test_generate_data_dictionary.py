@@ -86,12 +86,12 @@ class DataDictionaryTest(unittest.TestCase):
             cls.relations, cls.appendix_body
         )
 
-    def test_canonical_scope_is_32_relations_and_1231_fields(self) -> None:
+    def test_canonical_scope_is_32_relations_and_1228_fields(self) -> None:
         self.assertEqual(len(self.relations), 32)
         self.assertEqual(sum(r.kind == "table" for r in self.relations), 25)
         self.assertEqual(sum(r.kind == "view" for r in self.relations), 7)
         field_count = sum(len(relation.columns) for relation in self.relations)
-        self.assertEqual(field_count, 1_231)
+        self.assertEqual(field_count, 1_228)
 
     def test_one_deterministically_named_document_per_relation(self) -> None:
         expected_names = {relation.name for relation in self.relations}
@@ -106,7 +106,7 @@ class DataDictionaryTest(unittest.TestCase):
         body = _body(self.index)
         self.assertIn("<details>\n<summary>Downloads</summary>", body)
         self.assertEqual(body.count("[All fields](docs/data-dictionary.tsv)"), 1)
-        self.assertIn("Declared scope: 25 relations and 1,201 fields.", body)
+        self.assertIn("Declared scope: 25 relations and 1,198 fields.", body)
         self.assertNotIn("| Relation | Kind | Grain / key | Stage |", body)
         self.assertNotIn(generator.NOTION_CHILD_CONTAINER, body)
         for name in generator.DICTIONARY_RELATIONS:
@@ -145,7 +145,7 @@ class DataDictionaryTest(unittest.TestCase):
                 self.assertEqual(len(rows), len(relation.columns))
                 self.assertEqual(len({row[0] for row in rows}), len(rows))
             total_rows += len(rows)
-        self.assertEqual(total_rows, 1_231)
+        self.assertEqual(total_rows, 1_228)
 
     def test_sample_materials_preserve_material_costs_schema(self) -> None:
         material = self.by_name["master_material"]
@@ -194,7 +194,7 @@ class DataDictionaryTest(unittest.TestCase):
                         self.assertNotIn(fragment, lowered)
         self.assertEqual(
             len({column.name for relation in self.relations for column in relation.columns}),
-            303,
+            302,
         )
 
     def test_representative_descriptions_are_conceptual_and_relation_aware(self) -> None:
@@ -207,7 +207,7 @@ class DataDictionaryTest(unittest.TestCase):
             ("master_mailing", "email"): "Normalized instructor email used for contact and matching.",
             ("pricing_historical", "price"): "Observed amount for the specific pricing offering.",
             ("comprehensive_data", "section_enrollment_assigned"): "Best available enrollment assigned to the source section.",
-            ("master_course", "required_cost_owned_avg"): "Mean buy-only required-cost midpoint across course sections.",
+            ("master_course", "required_price_avg"): "Midrange of course required-price bounds, not mean.",
             ("__data_quality_metrics", "metric_value"): "Scalar result identified by its three metric keys.",
         }
         for key, description in expected.items():
@@ -284,10 +284,7 @@ class DataDictionaryTest(unittest.TestCase):
             examples[("__data_quality_metrics", "metric_value")],
         )
         self.assertIn("midpoint", examples[("pricing_wide", "price_avg")])
-        self.assertIn(
-            "mean of section-level buy-only cost midpoints",
-            examples[("master_course", "required_cost_owned_avg")],
-        )
+        self.assertIn("MIDRANGE", examples[("master_course", "required_price_avg")])
 
     def test_old_four_part_prose_columns_are_absent(self) -> None:
         generated = self.index + "\n" + "\n".join(self.docs.values())
@@ -332,7 +329,7 @@ class DataDictionaryTest(unittest.TestCase):
                     ]
                 )
         self.assertEqual(rows[1:], expected)
-        self.assertEqual(len(rows) - 1, 1_201)
+        self.assertEqual(len(rows) - 1, 1_198)
 
     def test_per_relation_tsvs_are_exact_global_slices(self) -> None:
         self.assertEqual(set(self.relation_tsvs), set(generator.DICTIONARY_RELATIONS))
@@ -455,19 +452,19 @@ class DataDictionaryTest(unittest.TestCase):
             self.field_metadata[("course_material", "department")].null_meaning,
         )
 
-        for status in ("required", "optional"):
-            for scope in ("total", "owned"):
+        for status in ("required", "all"):
+            for scope in ("", "_buy"):
                 for bound in ("min", "max"):
-                    name = f"{status}_cost_{scope}_{bound}"
+                    name = f"{status}_price{scope}_{bound}"
                     self.assertIn(
                         f"master_section.{name}",
                         self.field_metadata[("master_course", name)].source,
                     )
-        owned_avg = self.field_metadata[("master_course", "required_cost_owned_avg")]
-        self.assertIn("master_section.required_cost_owned_min", owned_avg.source)
-        self.assertIn("master_section.required_cost_owned_max", owned_avg.source)
-        self.assertNotIn("required_cost_owned_midpoint", owned_avg.source)
-        self.assertIn("midpoint", owned_avg.description)
+        required_avg = self.field_metadata[("master_course", "required_price_avg")]
+        self.assertIn("MIN(master_section.required_price_min)", required_avg.source)
+        self.assertIn("MAX(master_section.required_price_max)", required_avg.source)
+        self.assertIn("never AVG", required_avg.source)
+        self.assertIn("Midrange", required_avg.description)
 
     def test_dq_immediate_upstreams_and_keyed_derivations_are_precise(self) -> None:
         expected_upstreams = {
@@ -527,7 +524,11 @@ class DataDictionaryTest(unittest.TestCase):
             pricing_wide,
         )
         self.assertIn(
-            "(base.required_cost_owned_min + base.required_cost_owned_max) / 2.0",
+            "(base.required_price_min + base.required_price_max) / 2.0",
+            merged,
+        )
+        self.assertIn(
+            "(MIN(required_price_min) + MAX(required_price_max)) / 2.0",
             merged,
         )
         self.assertRegex(

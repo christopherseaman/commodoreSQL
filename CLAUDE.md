@@ -127,6 +127,12 @@ Pricing is at `(section_id, isbn13, book_option, book_condition, book_format, re
 
 `price_avg` = `(price_min + price_max) / 2.0` — **legacy** definition kept for backward compatibility. Wherever surfaced in Metabase or exports, label clearly so consumers don't assume `AVG()`.
 
+The rule also applies to summary names: `required_price_avg` and `all_price_avg` are
+MIDRANGES of their relation's own min/max bounds. Section bounds sum item bounds; course
+bounds take section extrema before deriving the course midrange. Never use `AVG()` of section
+midranges. Buy-only summaries use the `_price_buy_min` / `_price_buy_max` suffixes and do not
+publish an average. Missing prices remain NULL, while genuine zero prices remain zero.
+
 ## When in doubt
 
 - Prefer **DuckDB-native** functions (`BOOL_OR`, `LIST`, `FILTER (WHERE …)`, `IS NOT DISTINCT FROM`) over portable SQL where they're clearer.

@@ -1,7 +1,7 @@
 [
   { "__meta__": {
       "name": "Course Materials Report",
-      "description": "Material-bearing sections under shared report filters. Parameterized report surface (#18). 13 dashboard filters (time, geography, institution, course, material) auto-mapped to every card. Overview = sections/OER/IA; Cost = required/optional/owned cost over the selected sections.",
+      "description": "Material-bearing sections under shared report filters. Parameterized report surface (#18). 13 dashboard filters (time, geography, institution, course, material) auto-mapped to every card. Overview = sections/OER/IA; Price = required/all-material/buy-only section price summaries over the selected sections.",
       "parameters": [
         { "name": "State",               "slug": "state" },
         { "name": "Region",              "slug": "region" },

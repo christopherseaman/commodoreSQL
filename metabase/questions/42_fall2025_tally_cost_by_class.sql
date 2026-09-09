@@ -1,6 +1,6 @@
--- name: Fall 2025 — Course-material cost by institution class (control x level x set)
+-- name: Fall 2025 — Course-material price by institution class (control x level x set)
 -- display: table
--- description: Fall-2025 BMG-scope material-bearing sections; section-weighted cost midpoints, not means. Per-section course-material cost summaries for material-bearing Fall-2025 Master Section rows in the BMG scope, broken out by institution control × level × A/B set. All medians are section-weighted, not enrollment-weighted, and use the project (min+max)/2 summaries rather than arithmetic means. Set B is optional-only, so required-cost medians are NULL by construction; sections_priced_required counts retained sections with required_priced_count > 0. Treat small cells cautiously.
+-- description: Fall-2025 BMG-scope material-bearing sections; section-weighted price midpoints. Per-section course-material price summaries for material-bearing Fall-2025 Master Section rows in the BMG scope, broken out by institution control × level × A/B set. All medians are section-weighted, not enrollment-weighted; each section price_avg is its own (min+max)/2 midpoint. Set B has no required items, so required-price medians are NULL by construction; all-material price still covers its optional items. sections_priced_required counts retained sections with required_priced_count > 0. Treat small cells cautiously.
 WITH scope AS (
   SELECT * FROM master_section
   WHERE period_sortable = '2025-4'
@@ -13,9 +13,10 @@ SELECT
   CASE WHEN required_count > 0 THEN 'A: >=1 required' ELSE 'B: no required' END AS set,
   COUNT(*) AS sections_count,
   COUNT(*) FILTER (WHERE required_priced_count > 0) AS sections_priced_required,
-  ROUND(MEDIAN(required_cost_avg), 2)       AS "required_cost_median (min+max)/2",
-  ROUND(MEDIAN(required_cost_owned_avg), 2) AS "required_cost_owned_median (min+max)/2",
-  ROUND(MEDIAN(optional_cost_avg), 2)       AS "optional_cost_median (min+max)/2"
+  ROUND(MEDIAN(required_price_avg), 2) AS "section_median_required_price",
+  ROUND(MEDIAN((required_price_buy_min + required_price_buy_max) / 2.0), 2)
+                                          AS "section_median_required_buy_price",
+  ROUND(MEDIAN(all_price_avg), 2)      AS "section_median_all_material_price"
 FROM scope
 GROUP BY control, lvl, set
 ORDER BY control, lvl, set

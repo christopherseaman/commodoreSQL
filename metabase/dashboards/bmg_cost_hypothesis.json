@@ -1,8 +1,8 @@
 [
   {
     "__meta__": {
-      "name": "BMG · Cost Hypothesis",
-      "description": "Fall-2025 BMG canonical materials; enrollment-weighted section costs and same-ISBN prices. Tests whether 2-year (esp. public) students pay more for course materials. Enrollment-weighted cost (top): Public 2yr students face ~$149/student in required materials vs ~$114 for Public 4yr (+31%), robust to enrollment imputation (own-only) and cost outliers (winsorized). Same-item price (second): for the IDENTICAL book, Public 2yr pays only ~$2 above market — so the class gap is overwhelmingly course-mix (which/how many books), NOT same-item price discrimination. Section-level cost medians by class (third) and the Top-125 same-item extract (bottom) support the read. All *_cost columns are (min+max)/2 summaries, NOT arithmetic means; cost aggregates use the canonical #58 Course Materials Use population; enrollment_assigned (#32) drives the weighting."
+      "name": "BMG · Price Hypothesis",
+      "description": "Fall-2025 BMG canonical materials; enrollment-weighted section price midpoints and same-ISBN prices. Tests whether 2-year (especially public) students face higher course-material prices. The top card preserves the commissioned enrollment-weighted estimator over each section's required_price_avg midpoint, including own-enrollment and winsorized sensitivity measures. The same-item card isolates price differences for identical books; the third card reports section-weighted price medians, and the Top-125 extract supports review. Canonical Course Materials Use items define the material population; enrollment_assigned drives weighting."
     }
   },
   { "question": "47_fall2025_hypothesis_enrollwt_cost",  "row": 0,  "col": 0, "size_x": 24, "size_y": 6 },

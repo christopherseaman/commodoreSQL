@@ -90,9 +90,9 @@ RELATION_METADATA: dict[str, RelationMetadata] = {
     "recent_period": RelationMetadata("IMPORT derived / 0c_recent_period.sql", "One of the newest 12 distinct non-NULL catalog periods", ("course_catalog_20251215",), "Shared rolling catalog-term boundary for mailing and materials.", "Declared one-column projection from course_catalog_20251215."),
     "current_mailing": RelationMetadata("Release / 3_mailing_lists.sql", "One non-opted-out cleaned email selected in the latest 12 catalog periods", ("master_mailing", "recent_period", "panel_email", "opt_out"), "Whiteboard Mailing Working view with panel response enrichment.", "Master fields pass through; panel_response_year is LEFT-joined; recent-period and opt-out filters define population."),
     "master_material": RelationMetadata("EDA records / 3b_master_material.sql", "One canonical Use period × section × ISBN item", ("course_material_use", "pricing_wide"), "Approved item-level input with optional LEFT pricing enrichment."),
-    "master_section": RelationMetadata("EDA records / 4_merged_records.sql", "One material-bearing period × section", ("master_material",), "Canonical materialized per-term section release table."),
-    "master_course": RelationMetadata("Release / 4_merged_records.sql", "One material-bearing period × course", ("master_section",), "Provisional course-level section and cost rollup pending finalized Master definition.", "Declared aggregate projection; no inherited base schema."),
-    "sample_section_us_intro_fall2025": RelationMetadata("EDA records / 4_merged_records.sql", "Filtered master_section rows", ("master_section",), "Fall 2025 required intro/intermediate scope using the executable non-Canada/nonblank-state proxy.", "All columns inherited from master_section; filtered projection only."),
+    "master_section": RelationMetadata("STAGED SQL / 4_merged_records.sql", "One material-bearing period × section", ("master_material",), "Canonical per-term section release contract; staged schema replaces the live database's old monetary columns."),
+    "master_course": RelationMetadata("STAGED SQL / 4_merged_records.sql", "One material-bearing period × course", ("master_section",), "Provisional course rollup for unresolved definitions; its approved price portion is staged while the live database retains the old schema.", "Declared aggregate projection; no inherited base schema."),
+    "sample_section_us_intro_fall2025": RelationMetadata("STAGED SQL / 4_merged_records.sql", "Filtered master_section rows", ("master_section",), "Fall 2025 required intro/intermediate scope using the executable non-Canada/nonblank-state proxy; its schema changes with staged master_section.", "All columns inherited from master_section; filtered projection only."),
     "master_institution": RelationMetadata("Release model / models/master_institution.sql", "One period × institution, including an explicit NULL-institution bucket", ("master_section",), "Provisional institution release rollup pending finalized Master definition."),
     "master_isbn": RelationMetadata("Release model / models/master_isbn.sql", "One period × non-NULL ISBN", ("master_material",), "Canonical materialized per-term ISBN release table."),
     "sample_material_10pct": RelationMetadata("Sampling / models/sample_material_10pct.sql", "One sampled Material Costs period × section × ISBN item", ("master_material",), "Stable deterministic 10% section-cluster sample with the full Material Costs payload."),
@@ -1050,10 +1050,11 @@ def _master_course_metadata(column: Column) -> FieldMetadata | None:
         if n == "enrollment_total":
             source += " Uses raw `master_section.enrollments`, without imputation."
         return _metadata(column, source, pop, null, "aggregate")
-    cost = re.fullmatch(r"(required|optional)_cost_(total|owned)_(min|max)", n)
-    if cost:
-        status, scope, agg = cost.groups()
+    price = re.fullmatch(r"(required|all)_price(_buy)?_(min|max)", n)
+    if price:
+        status, buy, agg = price.groups()
         sqlagg = {"min": "MIN", "max": "MAX"}[agg]
+        scope = "buy-only" if buy else "all-offer"
         return _metadata(
             column,
             f"`{sqlagg}(master_section.{n})` across course sections.",
@@ -1061,18 +1062,14 @@ def _master_course_metadata(column: Column) -> FieldMetadata | None:
             f"No contributing section has a non-NULL {status} {scope} {agg} bound.",
             "aggregate",
         )
-    if n in {"required_cost_avg", "required_cost_owned_avg", "optional_cost_avg"}:
-        bounds = {
-            "required_cost_avg": "required_cost_total_min + required_cost_total_max",
-            "required_cost_owned_avg": "required_cost_owned_min + required_cost_owned_max",
-            "optional_cost_avg": "optional_cost_total_min + optional_cost_total_max",
-        }[n]
+    if n in {"required_price_avg", "all_price_avg"}:
+        prefix = n.removesuffix("_avg")
         return _metadata(
             column,
-            f"`AVG((master_section.{bounds.split(' + ')[0]} + "
-            f"master_section.{bounds.split(' + ')[1]}) / 2.0)` across course sections.",
+            f"`(MIN(master_section.{prefix}_min) + "
+            f"MAX(master_section.{prefix}_max)) / 2.0`; never AVG of section midranges.",
             pop,
-            "No contributing section has both scope-specific price bounds.",
+            "Either course-level bound is NULL.",
             "aggregate",
         )
     return None
@@ -1492,9 +1489,8 @@ _RELATION_FIELD_DESCRIPTION_OVERRIDES = {
     ("opt_out", "email"): "Normalized email address listed for mailing opt-out.",
     ("opt_out", "source"): "BVA source label explaining the opt-out entry.",
     ("panel_email", "email"): "Normalized contact email used for panel-history matching.",
-    ("master_course", "required_cost_avg"): "Mean required-cost midpoint across contributing course sections.",
-    ("master_course", "required_cost_owned_avg"): "Mean buy-only required-cost midpoint across course sections.",
-    ("master_course", "optional_cost_avg"): "Mean optional-cost midpoint across contributing course sections.",
+    ("master_course", "required_price_avg"): "Midrange of course required-price bounds, not mean.",
+    ("master_course", "all_price_avg"): "Midrange of course all-item price bounds, not mean.",
     ("master_institution", "bookstore_url"): "Bookstore URL chosen from material-bearing sections.",
     ("master_section", "bookstore_url"): "Bookstore URL selected across canonical section items.",
     ("master_section", "course_material_no_use_count"): "Excluded canonical items audited within retained sections.",
@@ -1663,22 +1659,20 @@ def field_description(relation_name: str, column: Column) -> str:
     }
     if description is None:
         description = simple_prices.get(name)
-    cost_match = re.fullmatch(r"(required|optional)_cost_(total|owned)_(min|max)", name)
-    if description is None and cost_match:
-        status, scope, bound = cost_match.groups()
-        scope_label = "total" if scope == "total" else "buy-only"
+    summary_price_match = re.fullmatch(r"(required|all)_price(_buy)?_(min|max)", name)
+    if description is None and summary_price_match:
+        status, buy, bound = summary_price_match.groups()
+        status_label = "required" if status == "required" else "all-item"
+        scope_label = "buy-only" if buy else "all-offer"
         if relation_name == "master_course":
             extreme = "Lowest" if bound == "min" else "Highest"
-            description = f"{extreme} section-level {status} {scope_label} cost bound."
+            description = f"{extreme} section-level {status_label} {scope_label} price bound."
         else:
             direction = "Lower" if bound == "min" else "Upper"
-            description = f"{direction} {scope_label} cost bound for {status} materials."
-    if description is None and name in {
-        "required_cost_avg", "required_cost_owned_avg", "optional_cost_avg"
-    }:
-        status = "optional" if name.startswith("optional") else "required"
-        scope = "buy-only " if "owned" in name else "total "
-        description = f"Legacy midpoint of {scope}{status}-material cost bounds."
+            description = f"{direction} {scope_label} price bound for {status_label} materials."
+    if description is None and name in {"required_price_avg", "all_price_avg"}:
+        status = "required" if name.startswith("required") else "all-item"
+        description = f"Legacy-named midrange of {status} price bounds."
     percentages = {
         "match_pct": "Percentage of pricing observations matching catalog rows.",
         "null_pct": "Percentage of catalog rows lacking an ISBN.",
@@ -1722,11 +1716,9 @@ def field_example(
         )
     if name == "price_avg":
         return "USD midpoint `(price_min + price_max) / 2.0`, not `AVG()`"
-    if name in {"required_cost_avg", "required_cost_owned_avg", "optional_cost_avg"}:
-        scope = "buy-only" if "owned" in name else "total"
-        if relation_name == "master_course":
-            return f"USD mean of section-level {scope} cost midpoints"
-        return f"USD midpoint of lower and upper {scope} cost bounds"
+    if name in {"required_price_avg", "all_price_avg"}:
+        prefix = name.removesuffix("_avg")
+        return f"USD MIDRANGE `({prefix}_min + {prefix}_max) / 2.0`, not mean"
     if ("price" in name or "cost" in name) and not name.endswith("_count"):
         return f"USD amount such as `123.45`; stored as `{column.data_type.upper()}`"
     if name in _TEXT_VALUE_STRUCTURES:
@@ -1809,10 +1801,12 @@ def render_index(relations: list[Relation]) -> str:
         "",
         "# CommodoreSQL data dictionary",
         "",
-        "Canonical field definitions for the implemented data flow, generated from `schema.dbml`.",
+        "Canonical field definitions for the declared pipeline schema, generated from `schema.dbml`.",
         "",
         f"Declared scope: {len(selected)} relations and "
         f"{sum(len(relation.columns) for relation in selected):,} fields.",
+        "",
+        "Price summaries on `master_section`, `master_course`, and the inherited section sample describe the staged SQL contract; the live database retains its old 1,201-field schema until migration.",
         "",
         "<details>",
         "<summary>Downloads</summary>",

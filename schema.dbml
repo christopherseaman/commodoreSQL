@@ -1024,17 +1024,16 @@ Table master_section [note: 'table'] {
   enrollment_assigned integer [note: '#32: filled enrollment. own -> own_seats(<9999) -> sibling_enroll -> sibling_seats -> class_median(control x level) -> level_median. NULL only when enrollment_source=none']
   enrollment_source varchar [note: 'Fill rung for enrollment_assigned: `own`, `own_seats`, `sibling_enroll`, `sibling_seats`, `class_median`, `level_median`, or `none`']
   is_required_direct boolean [note: 'section-grain supply-aware direct requiredness inherited from master_material context']
-  required_cost_total_min decimal(38,2) [note: 'SUM of per-material price_min over distinct required materials (from master_material)']
-  required_cost_total_max decimal(38,2)
-  optional_cost_total_min decimal(38,2)
-  optional_cost_total_max decimal(38,2)
-  required_cost_owned_min decimal(38,2) [note: 'buy-only (rentals excluded)']
-  required_cost_owned_max decimal(38,2)
-  optional_cost_owned_min decimal(38,2)
-  optional_cost_owned_max decimal(38,2)
-  required_cost_avg double [note: '(min+max)/2 — legacy price_avg convention, NOT arithmetic mean']
-  required_cost_owned_avg double
-  optional_cost_avg double
+  required_price_min decimal(38,2) [note: 'SUM(price_min) for is_required_inferred Use items; NULL prices ignored, all missing yields NULL']
+  required_price_avg double [note: '(required_price_min + required_price_max)/2; legacy-named MIDRANGE, not AVG']
+  required_price_max decimal(38,2) [note: 'SUM(price_max) for is_required_inferred Use items; NULL prices ignored, all missing yields NULL']
+  required_price_buy_min decimal(38,2) [note: 'SUM(price_buy_min) for is_required_inferred Use items; rentals excluded']
+  required_price_buy_max decimal(38,2) [note: 'SUM(price_buy_max) for is_required_inferred Use items; rentals excluded']
+  all_price_min decimal(38,2) [note: 'SUM(price_min) for every master_material Use item; NULL prices ignored, all missing yields NULL']
+  all_price_avg double [note: '(all_price_min + all_price_max)/2; legacy-named MIDRANGE, not AVG']
+  all_price_max decimal(38,2) [note: 'SUM(price_max) for every master_material Use item; NULL prices ignored, all missing yields NULL']
+  all_price_buy_min decimal(38,2) [note: 'SUM(price_buy_min) for every master_material Use item; rentals excluded']
+  all_price_buy_max decimal(38,2) [note: 'SUM(price_buy_max) for every master_material Use item; rentals excluded']
   required_priced_count bigint [note: 'distinct required materials with ANY price (total coverage; NOT owned-only — can be >0 while owned cost is NULL when priced materials are rental-only)']
   optional_priced_count bigint
   bookstore_url varchar [note: 'deterministic modal nonblank master_material URL; count descending then lexical ascending']
@@ -1084,19 +1083,18 @@ Table master_course [note: 'view'] {
   has_enrollment_sibling_seats_sections bigint [note: 'sections with a sibling carrying usable seats_taken']
   all_publishers varchar[][] [note: 'nested LIST of publisher arrays']
   unique_required_publishers hugeint
-  required_cost_total_min decimal(38,2) [note: 'MIN(min) across sections — cost rolls up MIN/MAX/AVG, NOT SUM (sections share materials)']
-  required_cost_total_max decimal(38,2)
-  optional_cost_total_min decimal(38,2)
-  optional_cost_total_max decimal(38,2)
-  required_cost_owned_min decimal(38,2)
-  required_cost_owned_max decimal(38,2)
-  optional_cost_owned_min decimal(38,2)
-  optional_cost_owned_max decimal(38,2)
-  required_cost_avg double [note: 'AVG of section (min+max)/2']
-  required_cost_owned_avg double
-  optional_cost_avg double
+  required_price_min decimal(38,2) [note: 'MIN(required_price_min) across sections']
+  required_price_avg double [note: '(required_price_min + required_price_max)/2; never AVG(section midranges)']
+  required_price_max decimal(38,2) [note: 'MAX(required_price_max) across sections']
+  required_price_buy_min decimal(38,2) [note: 'MIN(required_price_buy_min) across sections']
+  required_price_buy_max decimal(38,2) [note: 'MAX(required_price_buy_max) across sections']
+  all_price_min decimal(38,2) [note: 'MIN(all_price_min) across sections']
+  all_price_avg double [note: '(all_price_min + all_price_max)/2; never AVG(section midranges)']
+  all_price_max decimal(38,2) [note: 'MAX(all_price_max) across sections']
+  all_price_buy_min decimal(38,2) [note: 'MIN(all_price_buy_min) across sections']
+  all_price_buy_max decimal(38,2) [note: 'MAX(all_price_buy_max) across sections']
 
-  Note: 'Provisional release output pending finalized Master definition. One row per material-bearing recent course-offering rolled up from master_section. enrollment_total sums raw master_section.enrollments; enrollment_assigned is not substituted. Cost rolls up from master_section via MIN/MAX/AVG.'
+  Note: 'Provisional release output pending OTHER finalized Master definitions. One row per material-bearing recent course-offering rolled up from master_section. enrollment_total sums raw master_section.enrollments; enrollment_assigned is not substituted. Approved price portion takes course bounds from section extrema and derives each price_avg as their midpoint.'
 }
 
 Table sample_section_us_intro_fall2025 [note: 'view'] {
@@ -1154,17 +1152,16 @@ Table sample_section_us_intro_fall2025 [note: 'view'] {
   enrollment_assigned integer
   enrollment_source varchar
   is_required_direct boolean
-  required_cost_total_min decimal(38,2)
-  required_cost_total_max decimal(38,2)
-  optional_cost_total_min decimal(38,2)
-  optional_cost_total_max decimal(38,2)
-  required_cost_owned_min decimal(38,2)
-  required_cost_owned_max decimal(38,2)
-  optional_cost_owned_min decimal(38,2)
-  optional_cost_owned_max decimal(38,2)
-  required_cost_avg double
-  required_cost_owned_avg double
-  optional_cost_avg double
+  required_price_min decimal(38,2)
+  required_price_avg double
+  required_price_max decimal(38,2)
+  required_price_buy_min decimal(38,2)
+  required_price_buy_max decimal(38,2)
+  all_price_min decimal(38,2)
+  all_price_avg double
+  all_price_max decimal(38,2)
+  all_price_buy_min decimal(38,2)
+  all_price_buy_max decimal(38,2)
   required_priced_count bigint
   optional_priced_count bigint
   bookstore_url varchar

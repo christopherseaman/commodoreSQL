@@ -31,14 +31,14 @@ cost_by_section AS MATERIALIZED (
         section_id,
         COUNT(*) FILTER (WHERE is_required_inferred AND price_min IS NOT NULL) AS required_priced_count,
         COUNT(*) FILTER (WHERE NOT is_required_inferred AND price_min IS NOT NULL) AS optional_priced_count,
-        SUM(price_min) FILTER (WHERE is_required_inferred) AS required_cost_total_min,
-        SUM(price_max) FILTER (WHERE is_required_inferred) AS required_cost_total_max,
-        SUM(price_min) FILTER (WHERE NOT is_required_inferred) AS optional_cost_total_min,
-        SUM(price_max) FILTER (WHERE NOT is_required_inferred) AS optional_cost_total_max,
-        SUM(price_buy_min) FILTER (WHERE is_required_inferred) AS required_cost_owned_min,
-        SUM(price_buy_max) FILTER (WHERE is_required_inferred) AS required_cost_owned_max,
-        SUM(price_buy_min) FILTER (WHERE NOT is_required_inferred) AS optional_cost_owned_min,
-        SUM(price_buy_max) FILTER (WHERE NOT is_required_inferred) AS optional_cost_owned_max
+        SUM(price_min) FILTER (WHERE is_required_inferred) AS required_price_min,
+        SUM(price_max) FILTER (WHERE is_required_inferred) AS required_price_max,
+        SUM(price_buy_min) FILTER (WHERE is_required_inferred) AS required_price_buy_min,
+        SUM(price_buy_max) FILTER (WHERE is_required_inferred) AS required_price_buy_max,
+        SUM(price_min) AS all_price_min,
+        SUM(price_max) AS all_price_max,
+        SUM(price_buy_min) AS all_price_buy_min,
+        SUM(price_buy_max) AS all_price_buy_max
     FROM master_material
     GROUP BY period_sortable, section_id
 ),
@@ -48,14 +48,14 @@ costs AS (
         COUNT(*) AS use_bearing_sections,
         SUM(required_priced_count) AS required_priced_materials,
         SUM(optional_priced_count) AS optional_priced_materials,
-        SUM(required_cost_total_min) AS required_cost_total_min,
-        SUM(required_cost_total_max) AS required_cost_total_max,
-        SUM(optional_cost_total_min) AS optional_cost_total_min,
-        SUM(optional_cost_total_max) AS optional_cost_total_max,
-        SUM(required_cost_owned_min) AS required_cost_owned_min,
-        SUM(required_cost_owned_max) AS required_cost_owned_max,
-        SUM(optional_cost_owned_min) AS optional_cost_owned_min,
-        SUM(optional_cost_owned_max) AS optional_cost_owned_max
+        SUM(required_price_min) AS required_price_min,
+        SUM(required_price_max) AS required_price_max,
+        SUM(required_price_buy_min) AS required_price_buy_min,
+        SUM(required_price_buy_max) AS required_price_buy_max,
+        SUM(all_price_min) AS all_price_min,
+        SUM(all_price_max) AS all_price_max,
+        SUM(all_price_buy_min) AS all_price_buy_min,
+        SUM(all_price_buy_max) AS all_price_buy_max
     FROM cost_by_section
     GROUP BY period_sortable
 ),
@@ -67,14 +67,14 @@ sections AS (
         SUM(enrollment_assigned) AS enrollment_assigned_total,
         SUM(required_priced_count) AS required_priced_materials,
         SUM(optional_priced_count) AS optional_priced_materials,
-        SUM(required_cost_total_min) AS required_cost_total_min,
-        SUM(required_cost_total_max) AS required_cost_total_max,
-        SUM(optional_cost_total_min) AS optional_cost_total_min,
-        SUM(optional_cost_total_max) AS optional_cost_total_max,
-        SUM(required_cost_owned_min) AS required_cost_owned_min,
-        SUM(required_cost_owned_max) AS required_cost_owned_max,
-        SUM(optional_cost_owned_min) AS optional_cost_owned_min,
-        SUM(optional_cost_owned_max) AS optional_cost_owned_max
+        SUM(required_price_min) AS required_price_min,
+        SUM(required_price_max) AS required_price_max,
+        SUM(required_price_buy_min) AS required_price_buy_min,
+        SUM(required_price_buy_max) AS required_price_buy_max,
+        SUM(all_price_min) AS all_price_min,
+        SUM(all_price_max) AS all_price_max,
+        SUM(all_price_buy_min) AS all_price_buy_min,
+        SUM(all_price_buy_max) AS all_price_buy_max
     FROM master_section
     GROUP BY period_sortable
 ),
@@ -111,27 +111,27 @@ reconciled AS (
         COALESCE(cost.use_bearing_sections, 0) AS cost_use_bearing_sections,
         COALESCE(cost.required_priced_materials, 0) AS cost_required_priced_materials,
         COALESCE(cost.optional_priced_materials, 0) AS cost_optional_priced_materials,
-        COALESCE(cost.required_cost_total_min, 0) AS cost_required_cost_total_min,
-        COALESCE(cost.required_cost_total_max, 0) AS cost_required_cost_total_max,
-        COALESCE(cost.optional_cost_total_min, 0) AS cost_optional_cost_total_min,
-        COALESCE(cost.optional_cost_total_max, 0) AS cost_optional_cost_total_max,
-        COALESCE(cost.required_cost_owned_min, 0) AS cost_required_cost_owned_min,
-        COALESCE(cost.required_cost_owned_max, 0) AS cost_required_cost_owned_max,
-        COALESCE(cost.optional_cost_owned_min, 0) AS cost_optional_cost_owned_min,
-        COALESCE(cost.optional_cost_owned_max, 0) AS cost_optional_cost_owned_max,
+        COALESCE(cost.required_price_min, 0) AS cost_required_price_min,
+        COALESCE(cost.required_price_max, 0) AS cost_required_price_max,
+        COALESCE(cost.required_price_buy_min, 0) AS cost_required_price_buy_min,
+        COALESCE(cost.required_price_buy_max, 0) AS cost_required_price_buy_max,
+        COALESCE(cost.all_price_min, 0) AS cost_all_price_min,
+        COALESCE(cost.all_price_max, 0) AS cost_all_price_max,
+        COALESCE(cost.all_price_buy_min, 0) AS cost_all_price_buy_min,
+        COALESCE(cost.all_price_buy_max, 0) AS cost_all_price_buy_max,
         COALESCE(s.section_rows, 0) AS master_section_rows,
         COALESCE(s.item_rows, 0) AS master_section_item_rows,
         COALESCE(s.enrollment_assigned_total, 0) AS master_section_enrollment_total,
         COALESCE(s.required_priced_materials, 0) AS master_section_required_priced_materials,
         COALESCE(s.optional_priced_materials, 0) AS master_section_optional_priced_materials,
-        COALESCE(s.required_cost_total_min, 0) AS master_section_required_cost_total_min,
-        COALESCE(s.required_cost_total_max, 0) AS master_section_required_cost_total_max,
-        COALESCE(s.optional_cost_total_min, 0) AS master_section_optional_cost_total_min,
-        COALESCE(s.optional_cost_total_max, 0) AS master_section_optional_cost_total_max,
-        COALESCE(s.required_cost_owned_min, 0) AS master_section_required_cost_owned_min,
-        COALESCE(s.required_cost_owned_max, 0) AS master_section_required_cost_owned_max,
-        COALESCE(s.optional_cost_owned_min, 0) AS master_section_optional_cost_owned_min,
-        COALESCE(s.optional_cost_owned_max, 0) AS master_section_optional_cost_owned_max,
+        COALESCE(s.required_price_min, 0) AS master_section_required_price_min,
+        COALESCE(s.required_price_max, 0) AS master_section_required_price_max,
+        COALESCE(s.required_price_buy_min, 0) AS master_section_required_price_buy_min,
+        COALESCE(s.required_price_buy_max, 0) AS master_section_required_price_buy_max,
+        COALESCE(s.all_price_min, 0) AS master_section_all_price_min,
+        COALESCE(s.all_price_max, 0) AS master_section_all_price_max,
+        COALESCE(s.all_price_buy_min, 0) AS master_section_all_price_buy_min,
+        COALESCE(s.all_price_buy_max, 0) AS master_section_all_price_buy_max,
         COALESCE(i.section_rows, 0) AS master_institution_section_rows,
         COALESCE(i.enrollment_assigned_total, 0) AS master_institution_enrollment_total,
         COALESCE(mi.section_isbn_rows, 0) AS master_isbn_section_isbn_rows,
@@ -158,22 +158,38 @@ metrics AS (
            cost_required_priced_materials, master_section_required_priced_materials FROM reconciled
     UNION ALL SELECT period_sortable, 'master_material_to_master_section_cost', 'optional_priced_materials',
            cost_optional_priced_materials, master_section_optional_priced_materials FROM reconciled
-    UNION ALL SELECT period_sortable, 'master_material_to_master_section_cost', 'required_cost_total_min',
-           cost_required_cost_total_min, master_section_required_cost_total_min FROM reconciled
-    UNION ALL SELECT period_sortable, 'master_material_to_master_section_cost', 'required_cost_total_max',
-           cost_required_cost_total_max, master_section_required_cost_total_max FROM reconciled
-    UNION ALL SELECT period_sortable, 'master_material_to_master_section_cost', 'optional_cost_total_min',
-           cost_optional_cost_total_min, master_section_optional_cost_total_min FROM reconciled
-    UNION ALL SELECT period_sortable, 'master_material_to_master_section_cost', 'optional_cost_total_max',
-           cost_optional_cost_total_max, master_section_optional_cost_total_max FROM reconciled
-    UNION ALL SELECT period_sortable, 'master_material_to_master_section_cost', 'required_cost_owned_min',
-           cost_required_cost_owned_min, master_section_required_cost_owned_min FROM reconciled
-    UNION ALL SELECT period_sortable, 'master_material_to_master_section_cost', 'required_cost_owned_max',
-           cost_required_cost_owned_max, master_section_required_cost_owned_max FROM reconciled
-    UNION ALL SELECT period_sortable, 'master_material_to_master_section_cost', 'optional_cost_owned_min',
-           cost_optional_cost_owned_min, master_section_optional_cost_owned_min FROM reconciled
-    UNION ALL SELECT period_sortable, 'master_material_to_master_section_cost', 'optional_cost_owned_max',
-           cost_optional_cost_owned_max, master_section_optional_cost_owned_max FROM reconciled
+    UNION ALL SELECT period_sortable, 'price_midpoint_invariant', 'master_section',
+           0, COUNT(*) FILTER (
+               WHERE required_price_avg IS DISTINCT FROM
+                     (required_price_min + required_price_max) / 2.0
+                  OR all_price_avg IS DISTINCT FROM
+                     (all_price_min + all_price_max) / 2.0
+           )
+    FROM master_section GROUP BY period_sortable
+    UNION ALL SELECT period_sortable, 'price_midpoint_invariant', 'master_course',
+           0, COUNT(*) FILTER (
+               WHERE required_price_avg IS DISTINCT FROM
+                     (required_price_min + required_price_max) / 2.0
+                  OR all_price_avg IS DISTINCT FROM
+                     (all_price_min + all_price_max) / 2.0
+           )
+    FROM master_course GROUP BY period_sortable
+    UNION ALL SELECT period_sortable, 'master_material_to_master_section_price', 'required_price_min',
+           cost_required_price_min, master_section_required_price_min FROM reconciled
+    UNION ALL SELECT period_sortable, 'master_material_to_master_section_price', 'required_price_max',
+           cost_required_price_max, master_section_required_price_max FROM reconciled
+    UNION ALL SELECT period_sortable, 'master_material_to_master_section_price', 'required_price_buy_min',
+           cost_required_price_buy_min, master_section_required_price_buy_min FROM reconciled
+    UNION ALL SELECT period_sortable, 'master_material_to_master_section_price', 'required_price_buy_max',
+           cost_required_price_buy_max, master_section_required_price_buy_max FROM reconciled
+    UNION ALL SELECT period_sortable, 'master_material_to_master_section_price', 'all_price_min',
+           cost_all_price_min, master_section_all_price_min FROM reconciled
+    UNION ALL SELECT period_sortable, 'master_material_to_master_section_price', 'all_price_max',
+           cost_all_price_max, master_section_all_price_max FROM reconciled
+    UNION ALL SELECT period_sortable, 'master_material_to_master_section_price', 'all_price_buy_min',
+           cost_all_price_buy_min, master_section_all_price_buy_min FROM reconciled
+    UNION ALL SELECT period_sortable, 'master_material_to_master_section_price', 'all_price_buy_max',
+           cost_all_price_buy_max, master_section_all_price_buy_max FROM reconciled
     UNION ALL SELECT period_sortable, 'master_section_to_master_institution', 'section_rows',
            master_section_rows, master_institution_section_rows FROM reconciled
     UNION ALL SELECT period_sortable, 'master_section_to_master_institution', 'enrollment_assigned_total',

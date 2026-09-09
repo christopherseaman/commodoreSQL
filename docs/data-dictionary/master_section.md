@@ -10,7 +10,7 @@ notion-sync: push
 
 - Relation kind: table
 - Grain / key: One material-bearing period × section
-- Pipeline stage: EDA records / 4_merged_records.sql
+- Pipeline stage: STAGED SQL / 4_merged_records.sql
 - Direct upstream relations: `master_material`
 
 | Column | Type | Example / structure | Direct upstream source / derivation | Description |
@@ -69,17 +69,16 @@ notion-sync: push
 | `enrollment_assigned` | `integer` | Rounded student count from the ladder; raw negatives can propagate | First available own enrollment, own seats, sibling medians, control×level median, level median | Best available section enrollment from the assignment ladder. |
 | `enrollment_source` | `varchar` | Fill rung for enrollment_assigned: `own`, `own_seats`, `sibling_enroll`, `sibling_seats`, `class_median`, `level_median`, or `none` | Section-canonical label inherited through `master_material` | Assignment-ladder rung that supplied the section enrollment. |
 | `is_required_direct` | `boolean` | section-grain supply-aware direct requiredness inherited from master_material context | `BOOL_OR(is_section_required_direct)` over retained items | Whether direct required evidence is present at the relation grain. |
-| `required_cost_total_min` | `decimal(38,2)` | USD amount such as `123.45`; stored as `DECIMAL(38,2)` | Sum required Use ISBN `price_min` | Lower total cost bound for required materials. |
-| `required_cost_total_max` | `decimal(38,2)` | USD amount such as `123.45`; stored as `DECIMAL(38,2)` | Sum required Use ISBN `price_max` | Upper total cost bound for required materials. |
-| `optional_cost_total_min` | `decimal(38,2)` | USD amount such as `123.45`; stored as `DECIMAL(38,2)` | Sum optional Use ISBN `price_min` | Lower total cost bound for optional materials. |
-| `optional_cost_total_max` | `decimal(38,2)` | USD amount such as `123.45`; stored as `DECIMAL(38,2)` | Sum optional Use ISBN `price_max` | Upper total cost bound for optional materials. |
-| `required_cost_owned_min` | `decimal(38,2)` | USD amount such as `123.45`; stored as `DECIMAL(38,2)` | Sum required Use ISBN `price_buy_min` | Lower buy-only cost bound for required materials. |
-| `required_cost_owned_max` | `decimal(38,2)` | USD amount such as `123.45`; stored as `DECIMAL(38,2)` | Sum required Use ISBN `price_buy_max` | Upper buy-only cost bound for required materials. |
-| `optional_cost_owned_min` | `decimal(38,2)` | USD amount such as `123.45`; stored as `DECIMAL(38,2)` | Sum optional Use ISBN `price_buy_min` | Lower buy-only cost bound for optional materials. |
-| `optional_cost_owned_max` | `decimal(38,2)` | USD amount such as `123.45`; stored as `DECIMAL(38,2)` | Sum optional Use ISBN `price_buy_max` | Upper buy-only cost bound for optional materials. |
-| `required_cost_avg` | `double` | USD midpoint of lower and upper total cost bounds | `(required_cost_total_min + required_cost_total_max)/2` | Legacy midpoint of total required-material cost bounds. |
-| `required_cost_owned_avg` | `double` | USD midpoint of lower and upper buy-only cost bounds | `(required_cost_owned_min + required_cost_owned_max)/2` | Legacy midpoint of buy-only required-material cost bounds. |
-| `optional_cost_avg` | `double` | USD midpoint of lower and upper total cost bounds | `(optional_cost_total_min + optional_cost_total_max)/2` | Legacy midpoint of total optional-material cost bounds. |
+| `required_price_min` | `decimal(38,2)` | USD amount such as `123.45`; stored as `DECIMAL(38,2)` | `SUM(master_material.price_min) FILTER (WHERE is_required_inferred)` | Lower all-offer price bound for required materials. |
+| `required_price_avg` | `double` | USD MIDRANGE `(required_price_min + required_price_max) / 2.0`, not mean | `(required_price_min + required_price_max) / 2.0` | Legacy-named midrange of required price bounds. |
+| `required_price_max` | `decimal(38,2)` | USD amount such as `123.45`; stored as `DECIMAL(38,2)` | `SUM(master_material.price_max) FILTER (WHERE is_required_inferred)` | Upper all-offer price bound for required materials. |
+| `required_price_buy_min` | `decimal(38,2)` | USD amount such as `123.45`; stored as `DECIMAL(38,2)` | `SUM(master_material.price_buy_min) FILTER (WHERE is_required_inferred)` | Lower buy-only price bound for required materials. |
+| `required_price_buy_max` | `decimal(38,2)` | USD amount such as `123.45`; stored as `DECIMAL(38,2)` | `SUM(master_material.price_buy_max) FILTER (WHERE is_required_inferred)` | Upper buy-only price bound for required materials. |
+| `all_price_min` | `decimal(38,2)` | USD amount such as `123.45`; stored as `DECIMAL(38,2)` | `SUM(master_material.price_min)` | Lower all-offer price bound for all-item materials. |
+| `all_price_avg` | `double` | USD MIDRANGE `(all_price_min + all_price_max) / 2.0`, not mean | `(all_price_min + all_price_max) / 2.0` | Legacy-named midrange of all-item price bounds. |
+| `all_price_max` | `decimal(38,2)` | USD amount such as `123.45`; stored as `DECIMAL(38,2)` | `SUM(master_material.price_max)` | Upper all-offer price bound for all-item materials. |
+| `all_price_buy_min` | `decimal(38,2)` | USD amount such as `123.45`; stored as `DECIMAL(38,2)` | `SUM(master_material.price_buy_min)` | Lower buy-only price bound for all-item materials. |
+| `all_price_buy_max` | `decimal(38,2)` | USD amount such as `123.45`; stored as `DECIMAL(38,2)` | `SUM(master_material.price_buy_max)` | Upper buy-only price bound for all-item materials. |
 | `required_priced_count` | `bigint` | distinct required materials with ANY price (total coverage; NOT owned-only — can be >0 while owned cost is NULL when priced materials are rental-only) | Required Items with non-NULL `price_min` | Required materials having at least one valid price. |
 | `optional_priced_count` | `bigint` | Non-negative whole-number count | Optional Items with non-NULL `price_min` | Optional materials having at least one valid price. |
 | `bookstore_url` | `varchar` | Absolute `http://` or `https://` bookstore URL | Deterministic modal nonblank `master_material.bookstore_url`: count DESC, URL ASC | Bookstore URL selected across canonical section items. |
