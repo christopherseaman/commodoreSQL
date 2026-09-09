@@ -161,7 +161,7 @@ Source refreshes reuse existing boxes. History retention is a separate pending d
 ### Materials
 
 1. `recent_period` selects the newest 12 distinct non-NULL catalog terms. Materials and mailing share this window; older terms remain upstream.
-2. `supply_isbn_classification` applies supply title rules to recent catalog ISBN/title variants, producing one classified row per ISBN. Blank/unmatched ISBNs are not supplies.
+2. `supply_isbn_classification` applies supply title rules to recent catalog ISBN/title variants, producing one classified row per ISBN. Its matches label all catalog history; blank/unmatched ISBNs are not supplies.
 3. `section_enrollment` groups recent catalog sections, including those without materials. It takes maximum reported enrollment/seats and finds sibling availability; no IPEDS or supply dependency.
 4. `comprehensive_data` enriches every source row with lookups, institution/contact history, section enrollment, and classification flags. Contact history does not filter materials.
 5. `course_material` groups by term × section × ISBN. Require non-NULL term/section; retain `UNKNOWN` ID components and one NULL-ISBN group per section when present. Keep source counts and metadata/contact conflicts; choose a deterministic representative. Both tables remain: source-row and item grain serve different reports.
@@ -171,7 +171,8 @@ omits section and term. Missing components become `UNKNOWN`. Terms encode
 Winter/Spring/Summer/Fall as `YYYY-1/2/3/4`, dated Jan/Apr/Jul/Oct 1.
 Rows rejected by canonical admission remain in `comprehensive_data` and DQ.
 
-Enrollment assignment happens in `comprehensive_data`: own enrollment → own usable seats
+Enrollment assignment covers recent sections in `comprehensive_data`; older rows retain raw
+enrollment but have NULL section context and assignment. Precedence: own enrollment → own usable seats
 (`<9999`) → course/term medians (enrollment, then seats) → control/level/term median →
 level/term median → NULL. Reference medians use intro/intermediate/non-degree/uncategorized
 courses at public, nonprofit, or for-profit two-/four-year institutions.

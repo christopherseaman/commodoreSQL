@@ -23,13 +23,14 @@ class SyncTests(unittest.TestCase):
         self.docs = []
         self.log = self.tmp / "log.jsonl"
         self.fake = self.tmp / "fake-ntn"
+        self.state_file = self.tmp / "prose-state.json"
         self.fake.write_text("""#!/usr/bin/env python3
 import json, os, sys
 log = os.environ['FAKE_LOG']
-state = log + '.state'
 stdin = sys.stdin.buffer.read().decode()
 with open(log, 'a') as f: f.write(json.dumps({'argv': sys.argv[1:], 'keyring': os.environ.get('NOTION_KEYRING'), 'stdin': stdin})+'\\n')
 if sys.argv[1:2] == ['api']:
+ state = log + '.state.' + sys.argv[2].split('/')[-2]
  count = sum(1 for x in open(log) if '"api"' in x)
  mode = os.environ.get('API_MODE', 'sync')
  if mode == 'submit-fail':
@@ -56,16 +57,20 @@ if sys.argv[1:2] == ['api']:
   else: print(json.dumps({'object': 'async_task', 'id': 'task-1', 'status': 'succeeded'}))
  else:
   request = json.loads(stdin)
-  open(state, 'w').write(request['replace_content']['new_str'])
-  print(json.dumps({'object': 'page_markdown', 'id': sys.argv[2].split('/')[-2], 'markdown': request['replace_content']['new_str'], 'truncated': False, 'unknown_block_ids': []}))
+  canonical = request['replace_content']['new_str'].replace('hello', 'Notion-rendered hello') if os.environ.get('CANONICALIZE') else request['replace_content']['new_str']
+  open(state, 'w').write(canonical)
+  print(json.dumps({'object': 'page_markdown', 'id': sys.argv[2].split('/')[-2], 'markdown': canonical, 'truncated': False, 'unknown_block_ids': []}))
  raise SystemExit(0)
 if sys.argv[1:3] == ['pages', 'get']:
+ state = log + '.state.' + sys.argv[3]
  if os.environ.get('FAIL_GET_ID') and sys.argv[3].endswith('abd'):
   raise SystemExit(7)
- if os.environ.get('FAIL_VERIFY') and sum(1 for x in open(log) if '"get"' in x) > 1:
+ if os.environ.get('FAIL_VERIFY') and sum(1 for x in open(log) if '"get"' in x) > 2:
   print('{}')
  else:
-  markdown = '' if os.environ.get('EMPTY_PAGE') else ('# Doc title\\n\\n## Wrong\\nbody' if os.environ.get('MISMATCH_HEADINGS') else (open(state).read() if os.path.exists(state) else '# Doc title\\n\\nmeaningful body'))
+  get_count = sum(1 for x in open(log) if '"get"' in x)
+  markdown = '' if os.environ.get('EMPTY_PAGE') else ('# Doc title\\n\\n## Wrong\\nbody' if os.environ.get('MISMATCH_HEADINGS') else (open(state).read() if os.path.exists(state) else os.environ.get('REMOTE_MARKDOWN', '# Doc title\\n\\nmeaningful body')))
+  if os.environ.get('MUTATE_BEFORE_SECOND_GET') and get_count == 2: markdown += '\\nHUMAN EDIT'
   if os.environ.get('MULTI_TERMINAL_NEWLINE'): markdown += '\\n'
   print(json.dumps({'page': {'id': sys.argv[3], 'parent': {'block_id': 'parent-1', 'type': 'page_id'}, 'properties': {'title': {'type': 'title', 'title': [{'plain_text': 'Doc title'}]}}}, 'markdown': {'id': sys.argv[3], 'object': 'page_markdown', 'request_id': 'req-1', 'truncated': bool(os.environ.get('TRUNCATED')), 'unknown_block_ids': ['block-1'] if os.environ.get('UNKNOWN') else [], 'markdown': markdown}}))
 """)
@@ -93,19 +98,57 @@ if sys.argv[1:3] == ['pages', 'get']:
         return path
 
     def invoke(self, *args):
-        return subprocess.run(["python3", str(SCRIPT), "--ntn", str(self.fake), *map(str, args)], cwd="/", env=self.env, text=True, capture_output=True)
+        return subprocess.run(["python3", str(SCRIPT), "--ntn", str(self.fake), "--state-file", str(self.state_file), *map(str, args)], cwd="/", env=self.env, text=True, capture_output=True)
+
+    def seed_baseline(self, markdown="# Doc title\n\nmeaningful body", desired=None):
+        entry = {"path": "test.md", "markdown": markdown}
+        if desired is not None:
+            entry["desired_sha256"] = SYNC.markdown_digest(SYNC.normalize_markdown(desired) or "")
+        self.state_file.write_text(json.dumps({"version": 1, "pages": {PAGE: entry}}))
 
     def entries(self):
         return [json.loads(x) for x in self.log.read_text().splitlines()] if self.log.exists() else []
 
     def test_check_does_not_write_and_strips_frontmatter(self):
+        self.seed_baseline()
         result = self.invoke(self.doc())
         self.assertEqual(result.returncode, 0, result.stderr)
         entries = self.entries()
         self.assertEqual([e["argv"][:3] for e in entries], [["pages", "get", PAGE]])
         self.assertEqual(entries[0]["keyring"], "0")
 
+    def test_unchanged_local_and_remote_make_zero_writes(self):
+        desired = "# Doc title\n\nhello"
+        remote = "# Doc title\n\nNotion-rendered hello"
+        self.seed_baseline(remote, desired)
+        self.env["REMOTE_MARKDOWN"] = remote
+        result = self.invoke("--apply", self.doc())
+        self.assertEqual(result.returncode, 0, result.stderr)
+        self.assertEqual([entry["argv"][0] for entry in self.entries()], ["pages"])
+
+    def test_initialize_requires_remote_to_equal_desired(self):
+        result = self.invoke("--initialize-state", self.doc())
+        self.assertNotEqual(result.returncode, 0)
+        self.assertFalse(self.state_file.exists())
+        self.assertFalse(any(entry["argv"][0] == "api" for entry in self.entries()))
+        self.log.unlink()
+        self.env["REMOTE_MARKDOWN"] = "# Doc title\n\nhello"
+        result = self.invoke("--initialize-state", self.doc())
+        self.assertEqual(result.returncode, 0, result.stderr)
+        entry = json.loads(self.state_file.read_text())["pages"][PAGE]
+        self.assertEqual(entry["markdown"], "# Doc title\n\nhello")
+        self.assertEqual(entry["desired_sha256"], SYNC.markdown_digest("# Doc title\n\nhello"))
+
+    def test_human_edit_detected_immediately_before_patch(self):
+        self.seed_baseline()
+        self.env["MUTATE_BEFORE_SECOND_GET"] = "1"
+        result = self.invoke("--apply", self.doc())
+        self.assertNotEqual(result.returncode, 0)
+        self.assertIn("immediately before edit", result.stderr)
+        self.assertFalse(any(entry["argv"][0] == "api" for entry in self.entries()))
+
     def test_live_shape_empty_page_is_valid_for_check(self):
+        self.seed_baseline("")
         self.env["EMPTY_PAGE"] = "1"
         result = self.invoke(self.doc())
         self.assertEqual(result.returncode, 0, result.stderr)
@@ -117,37 +160,43 @@ if sys.argv[1:3] == ['pages', 'get']:
             self.env.pop(variable)
 
     def test_apply_order_and_body(self):
+        self.seed_baseline()
         result = self.invoke("--apply", self.doc(body="# Doc title\n\n[hello](README.md) and [web](https://example.com)\n"))
         self.assertEqual(result.returncode, 0, result.stderr)
         entries = self.entries()
-        self.assertEqual([e["argv"][0] for e in entries], ["pages", "api", "pages"])
-        request = json.loads(entries[1]["stdin"])
+        self.assertEqual([e["argv"][0] for e in entries], ["pages", "pages", "api", "pages"])
+        request = json.loads(entries[2]["stdin"])
         self.assertIs(request["allow_async"], False)
         self.assertIn("replace_content", request)
-        self.assertIn("hello and [web](https://example.com)", entries[1]["stdin"])
-        self.assertNotIn("README.md", entries[1]["stdin"])
-        self.assertEqual(entries[1]["keyring"], "0")
+        self.assertIn("hello and [web](https://example.com)", entries[2]["stdin"])
+        self.assertNotIn("README.md", entries[2]["stdin"])
+        self.assertEqual(entries[2]["keyring"], "0")
 
     def test_synchronous_success(self):
+        self.seed_baseline()
         result = self.invoke("--apply", self.doc())
         self.assertEqual(result.returncode, 0, result.stderr)
 
     def test_heading_mismatch_is_reported(self):
+        self.seed_baseline("# Doc title\n\n## Wrong\nbody")
         self.env["MISMATCH_HEADINGS"] = "1"
         result = self.invoke("--apply", self.doc())
         self.assertIn("title, parent, or H1", result.stderr)
 
-    def test_multiple_terminal_newlines_are_rejected(self):
+    def test_terminal_newline_transport_difference_is_normalized(self):
+        self.seed_baseline()
         self.env["MULTI_TERMINAL_NEWLINE"] = "1"
         result = self.invoke("--apply", self.doc())
-        self.assertNotEqual(result.returncode, 0)
+        self.assertEqual(result.returncode, 0, result.stderr)
 
     def test_submit_failure_includes_error(self):
+        self.seed_baseline()
         self.env["API_MODE"] = "submit-fail"
         result = self.invoke("--apply", self.doc())
         self.assertIn("too large", result.stderr)
 
     def test_malformed_response(self):
+        self.seed_baseline()
         self.env["API_MODE"] = "malformed"
         result = self.invoke("--apply", self.doc())
         self.assertIn("invalid JSON", result.stderr)
@@ -172,10 +221,31 @@ if sys.argv[1:3] == ['pages', 'get']:
             comms_doc.unlink()
 
     def test_verification_failure_is_reported(self):
+        self.seed_baseline()
         self.env["FAIL_VERIFY"] = "1"
         result = self.invoke("--apply", self.doc())
         self.assertNotEqual(result.returncode, 0)
         self.assertTrue(any(e["argv"][0] == "api" for e in self.entries()))
+
+    def test_interrupted_canonicalized_edit_recovers_without_second_mutation(self):
+        self.seed_baseline()
+        self.env["CANONICALIZE"] = "1"
+        self.env["FAIL_VERIFY"] = "1"
+        doc = self.doc()
+        first = self.invoke("--apply", doc)
+        self.assertNotEqual(first.returncode, 0)
+        self.assertEqual(sum(entry["argv"][0] == "api" for entry in self.entries()), 1)
+        pending = json.loads(self.state_file.read_text())["pages"][PAGE]
+        self.assertIn("pending_sha256", pending)
+        self.assertIn("Notion-rendered hello", pending["markdown"])
+
+        self.env.pop("FAIL_VERIFY")
+        second = self.invoke("--apply", doc)
+        self.assertEqual(second.returncode, 0, second.stderr)
+        self.assertEqual(sum(entry["argv"][0] == "api" for entry in self.entries()), 1)
+        recovered = json.loads(self.state_file.read_text())["pages"][PAGE]
+        self.assertNotIn("pending_sha256", recovered)
+        self.assertIn("desired_sha256", recovered)
 
     def test_all_preflights_before_edit(self):
         one = self.doc("one.md")
@@ -230,21 +300,20 @@ if sys.argv[1:3] == ['pages', 'get']:
         self.assertIn("sync_notion_dictionary_downloads.py", result.stderr)
         self.assertFalse(self.log.exists())
 
-    def test_direct_dictionary_child_is_allowed(self):
+    def test_direct_dictionary_child_is_rejected_before_network(self):
         path = self.data_dictionary_doc_path("allowed.md")
         path.write_text(f"---\nnotion-id: {PAGE}\nnotion-url: https://www.notion.so/workspace/{PAGE}\nnotion-sync: push\n---\n# Doc title\n\nhello\n")
         result = self.invoke(path)
-        self.assertEqual(result.returncode, 0, result.stderr)
+        self.assertEqual(result.returncode, 2)
+        self.assertFalse(self.log.exists())
 
     def test_generated_ownership_comment_is_stripped_from_body(self):
         path = self.data_dictionary_doc_path("generated.md")
         body = SYNC.GENERATED_OWNERSHIP_COMMENT.decode() + "\n\n# Doc title\n\nhello\n"
         path.write_text(f"---\nnotion-id: {PAGE}\nnotion-url: https://www.notion.so/workspace/{PAGE}\nnotion-sync: push\n---\n{body}")
-        result = self.invoke("--apply", path)
-        self.assertEqual(result.returncode, 0, result.stderr)
-        request = json.loads(self.entries()[1]["stdin"])
-        self.assertNotIn("Generated by scripts/generate_data_dictionary.py", request["replace_content"]["new_str"])
-        self.assertTrue(request["replace_content"]["new_str"].startswith("# Doc title"))
+        _page, _url, parsed_body, _resolved, _h1 = SYNC.parse_document(path, ROOT)
+        self.assertNotIn(b"Generated by scripts/generate_data_dictionary.py", parsed_body)
+        self.assertTrue(parsed_body.startswith(b"# Doc title"))
 
     def test_arbitrary_leading_comment_is_not_allowed(self):
         path = self.data_dictionary_doc_path("comment.md")

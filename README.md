@@ -46,6 +46,8 @@ managed relations. Stop Metabase before database writes and restart it afterward
 `0_setup.sql` also writes `output/email_issues.tsv`. After import, mailing export requires
 `3_mailing_lists.sql`; wrapper-only runs can use previously refreshed mailing relations.
 `0_cleanup.sql` removes exact retired/report/geographic targets and fails if any remain.
+The runner fails if selected canonical producer stages leave missing or wrong-type outputs;
+intentional partial and export-only runs do not require unrelated relations.
 Exports `37`–`39` and `41` contain reconciliation results, which require checking after a run.
 
 ```bash
@@ -93,3 +95,8 @@ Preserve ignored `.notion/` state for remote-edit detection. Conflicts stop publ
 reconcile edits locally before retrying. New columns sync automatically; a changed table
 set requires an explicit attachment migration and adding/removing its filtered Notion views.
 Record view IDs in the target configuration.
+
+Prose baselines live in `.notion/prose-state.json`. For a new page already matching local
+content, initialize with `sync_notion_docs.py --initialize-state --manifest scripts/notion_sync_docs.txt`.
+If Notion reformatted the content, compare the complete page before establishing its baseline;
+do not treat an unrecognized difference as safe to overwrite.

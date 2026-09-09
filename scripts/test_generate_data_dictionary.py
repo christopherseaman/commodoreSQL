@@ -13,6 +13,11 @@ import tempfile
 import unittest
 from pathlib import Path
 
+try:
+    import test_flow_pipeline
+except ModuleNotFoundError:  # unittest discovery from the repository root
+    from scripts import test_flow_pipeline
+
 
 REPO_ROOT = Path(__file__).resolve().parent.parent
 SCHEMA = REPO_ROOT / "schema.dbml"
@@ -393,8 +398,8 @@ class DataDictionaryTest(unittest.TestCase):
 
         format_count = self.field_metadata[("pricing_wide", "format_count")].source
         self.assertIn("COUNT(DISTINCT (pricing_historical.book_option", format_count)
-        self.assertIn("COALESCE(pricing_historical.book_condition,'na')", format_count)
-        self.assertIn("COALESCE(pricing_historical.book_format,'na')", format_count)
+        self.assertNotIn("COALESCE", format_count)
+        self.assertIn("tuple NULLs remain distinct values", format_count)
         instructor = self.field_metadata[("pricing_historical", "instructor_name")].source
         self.assertIn("STRING_AGG(DISTINCT", instructor)
         self.assertIn("ORDER BY", instructor)
@@ -406,6 +411,48 @@ class DataDictionaryTest(unittest.TestCase):
         self.assertIn(
             "May be NULL",
             self.field_metadata[("pricing_wide", "isbn13")].null_meaning,
+        )
+        for name in ("is_supply", "supply_category"):
+            source = self.field_metadata[("comprehensive_data", name)].source
+            self.assertIn("recent-derived", source)
+            self.assertIn("all history", source)
+
+    @unittest.skipIf(test_flow_pipeline.DUCKDB is None, "DuckDB CLI is required")
+    def test_sql_fixture_supports_null_and_representative_contracts(self) -> None:
+        with tempfile.TemporaryDirectory() as directory:
+            database = Path(directory) / "fixture.duckdb"
+            test_flow_pipeline.cli(database, test_flow_pipeline.RenamedFlowPipelineTest.fixture_sql())
+            for stage in ("0c_recent_period.sql", "1a_supply_classification.sql",
+                          "1b_section_enrollment.sql", "2_oer_classification.sql",
+                          "2b_course_material.sql", "2c_pricing_wide.sql"):
+                test_flow_pipeline.cli(database, test_flow_pipeline.render(test_flow_pipeline.SQL / stage))
+            self.assertEqual(test_flow_pipeline.cli(database, """
+                SELECT COUNT(*) FROM pricing_wide
+                WHERE format_count != (
+                    SELECT COUNT(DISTINCT (book_option, book_condition, book_format))
+                    FROM pricing_historical p
+                    WHERE p.section_id = pricing_wide.section_id
+                      AND p.isbn13 = pricing_wide.isbn13
+                      AND book_option IN ('buy', 'rental'));
+                SELECT COUNT(*) FROM comprehensive_data
+                WHERE NOT is_recent AND (
+                    is_section_required_direct IS NOT NULL
+                    OR section_has_enrollment_sibling IS NOT NULL
+                    OR section_enrollment_source IS NOT NULL);
+                SELECT COUNT(*) FROM course_material_recent
+                WHERE is_section_required_direct IS NULL
+                   OR has_enrollment_sibling IS NULL
+                   OR enrollment_source IS NULL;
+            """), ["0", "0", "0"])
+
+        for relation in ("course_material_recent", "course_material_use", "master_material"):
+            for name in ("is_section_required_direct", "has_enrollment_sibling",
+                         "has_enrollment_sibling_seats", "enrollment_source"):
+                with self.subTest(relation=relation, field=name):
+                    self.assertIn("Never NULL", self.field_metadata[(relation, name)].null_meaning)
+        self.assertIn(
+            "another grouped row may have one",
+            self.field_metadata[("course_material", "department")].null_meaning,
         )
 
         for status in ("required", "optional"):

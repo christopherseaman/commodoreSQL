@@ -25,7 +25,7 @@ Each section keeps its ISBN items plus at most one NULL-ISBN row; all-NULL secti
 | `is_recent` | Term appears in `recent_period`; NULL is false. |
 | `has_isbn` | `ISBN13 IS NOT NULL`; blanks become NULL, numeric pseudo-SKUs remain. |
 | `has_formattype` | `FormatType IS NOT NULL AND TRIM(FormatType) <> ''`. |
-| `is_supply` | recent-term ISBN matches title classifier; unmatched/blank is false. |
+| `is_supply` | ISBN matches `supply_isbn_classification`; unmatched/blank is false, regardless of row term. |
 | `no_details` | title exactly `*No Book Details*`. |
 | `no_materials` | title exactly `*No Books Required*` or `supply_category='placeholder_no_material'`. |
 | `is_canada` | state exactly `CAN`. |
@@ -35,7 +35,8 @@ Each section keeps its ISBN items plus at most one NULL-ISBN row; all-NULL secti
 Use/NoUse partition recent-term rows; both are false outside the window. Canada is NoUse. Exclusions may overlap.
 
 `recent_period` selects the newest 12 distinct non-NULL catalog terms, shared with mailing.
-Supply classification, requiredness inference, and enrollment context cover that same window.
+Supply lookup construction, requiredness inference, and enrollment context use that window.
+Supply ISBN matches can also label older source rows.
 
 recent-term required inference is true when:
 
@@ -46,7 +47,7 @@ Otherwise false. Pricing status/required fields remain independent.
 
 ## Canonical aggregation and conflicts
 
-Booleans use `BOOL_OR`; OR/AND differences flag conflicts. Any Use source row routes its key to
+Booleans use `BOOL_OR`; OR/AND differences flag true/false conflicts, ignoring NULLs. Any Use source row routes its key to
 Use; NoUse is `is_recent AND NOT has_use_source_row`. Retain:
 
 - `use_source_row_count`, `no_use_source_row_count`;
@@ -74,7 +75,8 @@ Excluded rows contribute only labeled audit counts; they cannot add release sect
 
 `section_enrollment` owns catalog enrollment/seats and availability; raw values use
 `MAX`, and course-level ties resolve lexically. `comprehensive_data` adds IPEDS context
-and assignment once; material/release tables inherit it. Never re-impute downstream.
+and assignment once; material/release tables inherit it. Older rows retain raw enrollment,
+but their inherited section context and assignment are NULL. Never re-impute downstream.
 The assignment ladder is documented in CMM Data Flow.
 
 ## Checks

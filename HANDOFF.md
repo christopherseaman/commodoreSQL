@@ -1,6 +1,6 @@
 # HANDOFF — CommodoreSQL
 
-State: 2026-09-05. Branch: `cmm-spring-2026`. PR #62 remains open.
+State: 2026-09-08. Branch: `cmm-spring-2026`. PR #62 remains open.
 
 ## Current state
 
@@ -27,14 +27,16 @@ State: 2026-09-05. Branch: `cmm-spring-2026`. PR #62 remains open.
 - Notion prose publication uses five explicit manifest pages: flow, reports, and three
   detail pages under CMM Data Flow. All five were published and readback verified.
   Dedicated dictionary publishers use `scripts/notion_dictionary.json`; preserve ignored
-  `.notion/` state. The old dictionary container and 33 static pages are in recoverable trash,
+  `.notion/` state, including the prose baselines in `prose-state.json`. Prose sync rejects
+  remote edits, skips unchanged pages, and recovers acknowledged writes after failed readback.
+  The old dictionary container and 33 static pages are in recoverable trash,
   including the obsolete `section_book_status` page. The home contains Downloads, then the database.
 - Supplies input is CMM-owned title rules (`supply_keywords.tsv`); the derived
   `supply_isbn_classification` assigns categories to catalog ISBNs.
 
 ## Tickets and next step
 
-#80, #81, #83, #84, #85, #88 and #90 are in Review with implementation/verification evidence;
+#80, #81, #83, #84, #85, #88, #90 and #91 are in Review with implementation/verification evidence;
 historical rebuild-hold notes are superseded. Next: review/merge PR #62, then pending inputs
 and definitions. #87 is On Deck for final Master
 Course/Institution definitions; current provisional rollups and URL lineage are implemented.
@@ -52,8 +54,11 @@ The 10% sample is 1,937,043 materials / 1,050,536 sections; the separate
 `sample_section_us_intro_fall2025` has 773,613 rows.
 Shared-window expansion intentionally changes old fixed-2024+ totals.
 The two post-run SQL configuration/summary fixes are row-neutral and fixture-tested.
-Final cleanup validation: 96 tests pass, including flow/SQL agreement and sync safety;
+Adversarial follow-up: 107 tests pass, including actual SQL dictionary fixtures, real-runner
+missing/wrong-type output failures, flow/SQL agreement, and sync safety;
 standalone cleanup/mailing checks and dictionary/report generation checks pass.
+All 15 canonical output names/types also match the live database. No extended rebuild or
+new overall-count scan was performed. The September 5 full-data evidence remains the baseline.
 
 ## Commands
 

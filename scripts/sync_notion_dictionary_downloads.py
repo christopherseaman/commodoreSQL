@@ -204,7 +204,7 @@ class Notion:
 
     def update_file(self, block_id: str, name: str, upload_id: str) -> None:
         self.call(["api", f"/v1/blocks/{block_id}", "--method", "PATCH"],
-                  {"type": "file", "file": file_payload(name, upload_id)})
+                  {"type": "file", "file": update_file_payload(name, upload_id)})
 
     def block(self, block_id: str) -> dict[str, Any]:
         value = self.call(["api", f"/v1/blocks/{block_id}", "--method", "GET"], safe_retry=True)
@@ -215,6 +215,11 @@ class Notion:
 
 def file_payload(name: str, upload_id: str) -> dict[str, Any]:
     return {"type": "file_upload", "file_upload": {"id": upload_id}, "name": name,
+            "caption": rich_text(name)}
+
+
+def update_file_payload(name: str, upload_id: str) -> dict[str, Any]:
+    return {"file_upload": {"id": upload_id}, "name": name,
             "caption": rich_text(name)}
 
 

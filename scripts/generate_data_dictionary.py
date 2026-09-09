@@ -577,11 +577,24 @@ def resolve_field_metadata(
             context = VIEW_FILTER_CONTEXT[relation_name]
             for column in relation.columns:
                 inherited = resolved[(base_name, column.name)]
+                null_meaning = inherited.null_meaning
+                # The recent view's section context is produced from the same
+                # recent catalog spine.  These fields can be NULL on the
+                # all-history base, but not after the recent-period filter.
+                if relation_name == "course_material_recent":
+                    if column.name in {
+                        "is_section_required_direct",
+                        "has_enrollment_sibling",
+                        "has_enrollment_sibling_seats",
+                    }:
+                        null_meaning = "Never NULL in the recent-period view; false means no qualifying section evidence."
+                    elif column.name == "enrollment_source":
+                        null_meaning = "Never NULL in the recent-period view; `none` means no assignment rung produced a value."
                 inherited_item = FieldMetadata(
                     f"Inherited `{base_name}.{column.name}` via `SELECT *`.",
                     inherited.values,
                     f"{inherited.population} View context: {context}",
-                    inherited.null_meaning,
+                    null_meaning,
                     "inherited",
                 )
                 resolved[(relation_name, column.name)] = FieldMetadata(
@@ -679,10 +692,11 @@ def _resolve_non_inherited(
         cm_names = {c.name for c in by_name["course_material"].columns}
         pw_names = {c.name for c in by_name["pricing_wide"].columns}
         if n in cm_names:
-            base = resolved.get(("course_material", n))
+            # master_material consumes the recent Use view, whose filtered
+            # scope strengthens several all-history NULL contracts.
+            base = resolved.get(("course_material_use", n))
             if base is None:
-                base_col = next(c for c in by_name["course_material"].columns if c.name == n)
-                base = _course_materials_metadata(base_col, by_name)
+                raise ValueError(f"missing course_material_use metadata for master field: {n}")
             assert base
             return FieldMetadata(f"`course_material_use.{n}` passthrough.", base.values,
                                  "Canonical Use section×ISBN items retained by `master_material`.", base.null_meaning, "passthrough")
@@ -751,7 +765,7 @@ def _pricing_wide_metadata(column: Column) -> FieldMetadata | None:
         return _metadata(column, f"`MAX(price)` where `book_option = '{option}'`, `{condition_sql}`, and `{format_sql}` after prices >=9999 are normalized to NULL.", pop,
                          "That option/condition/format has no price below the 9999 sentinel ceiling.", "aggregate")
     rules = {
-        "format_count": ("`COUNT(DISTINCT (pricing_historical.book_option, COALESCE(pricing_historical.book_condition,'na'), COALESCE(pricing_historical.book_format,'na')))` FILTERed to buy/rental listings.", "Never NULL; zero means no offered tuple."),
+        "format_count": ("`COUNT(DISTINCT (pricing_historical.book_option, pricing_historical.book_condition, pricing_historical.book_format))` FILTERed to buy/rental listings; tuple NULLs remain distinct values.", "Never NULL; zero means no buy/rental tuple."),
         "has_buy": ("`BOOL_OR(book_option='buy')`.", "NULL when every retained row has book_option = NULL; otherwise TRUE if any row is buy and FALSE when all non-NULL values are not buy."),
         "has_rent": ("`BOOL_OR(book_option='rental')`.", "NULL when every retained row has book_option = NULL; otherwise TRUE if any row is rental and FALSE when all non-NULL values are not rental."),
         "price_min": ("`MIN(price)` after prices >=9999 are normalized to NULL; zero is retained.", "No price below the 9999 sentinel ceiling in the group."),
@@ -775,8 +789,8 @@ def _comprehensive_metadata(column: Column) -> FieldMetadata | None:
         "oer_category": "`format_type_classification.oer_category`, coalesced to `unknown`.",
         "is_ia": "`format_type_classification.is_ia` joined on exact `FormatType`.",
         "ia_category": "`format_type_classification.ia_category`, coalesced to `unknown`.",
-        "is_supply": "True when catalog ISBN matches `supply_isbn_classification.isbn13`; unmatched/NULL ISBN is false.",
-        "supply_category": "`supply_isbn_classification.category` from the matched ISBN row.",
+        "is_supply": "True when catalog ISBN matches recent-derived `supply_isbn_classification.isbn13`; the lookup applies to all history, and unmatched/NULL ISBN is false.",
+        "supply_category": "`supply_isbn_classification.category` from the recent-derived ISBN lookup, applied to all history.",
         "institution_name": "`ipeds_data.instnm` joined on `unit_id = unitid`.",
         "sector": "`ipeds_data.sector` joined on institution ID.", "level": "`ipeds_data.iclevel` joined on institution ID.",
         "control": "`ipeds_data.control` joined on institution ID.", "size": "`ipeds_data.instsize` joined on institution ID.",
@@ -799,10 +813,10 @@ def _comprehensive_metadata(column: Column) -> FieldMetadata | None:
         "section_seats_taken": "`section_enrollment.seats_taken` joined on period_sortable and section_id.",
         "section_has_enrollment": "`section_enrollment.has_enrollment` joined on period_sortable and section_id.",
         "section_has_enrollment_own_seats": "`section_enrollment.has_enrollment_own_seats` joined on period_sortable and section_id.",
-        "section_has_enrollment_sibling": "`section_enrollment.has_enrollment_sibling` joined on period_sortable and section_id.",
-        "section_has_enrollment_sibling_seats": "`section_enrollment.has_enrollment_sibling_seats` joined on period_sortable and section_id.",
+        "section_has_enrollment_sibling": "`section_enrollment.has_enrollment_sibling` joined on period_sortable and section_id for recent-period sections.",
+        "section_has_enrollment_sibling_seats": "`section_enrollment.has_enrollment_sibling_seats` joined on period_sortable and section_id for recent-period sections.",
         "section_enrollment_assigned": "Local assignment context: rounded own/seats/sibling/IPEDS cohort median ladder from section_enrollment signals.",
-        "section_enrollment_source": "Local assignment context: first successful own/seats/sibling/IPEDS cohort median ladder label.",
+        "section_enrollment_source": "Recent-section assignment ladder label; `none` means no rung succeeded.",
         "is_required_inferred": "True for recent-period rows satisfying supply-aware section required-status fallback.",
         "is_recent": "`period_sortable IN (SELECT period_sortable FROM recent_period)`.",
         "has_isbn": "`ISBN13 IS NOT NULL`.", "has_formattype": "`FormatType` is non-NULL and nonblank.",
@@ -817,7 +831,12 @@ def _comprehensive_metadata(column: Column) -> FieldMetadata | None:
     if n not in joins:
         return None
     nullable_join = n in {"is_oer", "is_ia", "supply_category", "institution_name", "sector", "level", "control", "size", "enrollment_2024", "distance_enrollment_2024", "institution_type", "panel_response_year", "panel_source_row_count", "panel_response_year_variant_count", "opt_out_source", "is_section_required_direct", "section_course_id", "section_control", "section_level", "section_sector", "section_course_level", "section_enrollments", "section_seats_taken", "section_has_enrollment", "section_has_enrollment_own_seats", "section_has_enrollment_sibling", "section_has_enrollment_sibling_seats", "section_enrollment_assigned", "section_enrollment_source"}
-    null = "No matching lookup row or the matched lookup value is missing." if nullable_join else "Never NULL; false represents absence or exclusion."
+    if n in {"is_section_required_direct", "section_has_enrollment", "section_has_enrollment_own_seats", "section_has_enrollment_sibling", "section_has_enrollment_sibling_seats"}:
+        null = "NULL outside the recent-period window; within it, false means no qualifying section evidence."
+    elif n == "section_enrollment_source":
+        null = "NULL outside the recent-period window; within it, `none` means no assignment rung succeeded."
+    else:
+        null = "No matching lookup row or the matched lookup value is missing." if nullable_join else "Never NULL; false represents absence or exclusion."
     return _metadata(column, joins[n], pop, null, "joined" if nullable_join else "derived")
 
 
@@ -884,11 +903,16 @@ def _course_materials_metadata(column: Column, by_name: dict[str, Relation]) -> 
         "has_enrollment_own_seats": "section_has_enrollment_own_seats",
     }
     if n in section_owned:
+        null = (
+            "Never NULL; false means neither section-canonical nor source-row evidence qualifies."
+            if n in {"has_enrollment", "has_enrollment_own_seats"}
+            else "Neither the section-canonical value nor representative source row has a value."
+        )
         return _metadata(column, f"`COALESCE(comprehensive_data.{section_owned[n]}, representative comprehensive_data.{source_name})`.", pop,
-                         "Neither the section-canonical value nor representative source row has a value.", "joined")
+                         null, "joined")
     if source_name in comprehensive and n not in COURSE_MATERIAL_DERIVED_FIELDS:
         return _metadata(column, f"Representative `comprehensive_data.{source_name}` from grouped rows.", pop,
-                         "No grouped source row has a nonmissing representative value.", "aggregate")
+                         "The selected representative row has no value; another grouped row may have one.", "aggregate")
     if n not in COURSE_MATERIAL_DERIVED_FIELDS:
         return None
     if n.startswith("isbn_") and n.endswith("_variant_count"):
@@ -906,8 +930,14 @@ def _course_materials_metadata(column: Column, by_name: dict[str, Relation]) -> 
         "enrollment_source": "section_enrollment_source",
     }
     if n in inherited_section:
+        if n in {"has_enrollment_sibling", "has_enrollment_sibling_seats"}:
+            null = "NULL outside the recent window; within it, false means no sibling evidence."
+        elif n == "enrollment_source":
+            null = "NULL outside the recent window; within it, `none` means no rung succeeded."
+        else:
+            null = "NULL outside the recent window or when no assignment rung succeeds."
         return _metadata(column, f"`comprehensive_data.{inherited_section[n]}` from the upstream section join.", pop,
-                         "Only `enrollment_assigned` is nullable: no assignment ladder rung produced a value; flags/source are non-NULL.", "joined")
+                         null, "joined")
     if n.endswith("_variant_count"):
         attr = n.removesuffix("_variant_count")
         return _metadata(column, f"Distinct nonmissing `{attr}` count in grouped catalog rows.", pop,

@@ -65,6 +65,35 @@ Duplicate Data Lineage/CMM ETL pages and the old container with 33 static dictio
 were moved to recoverable Notion trash after content checks. The dictionary home now
 contains only Downloads followed by the inline fields database.
 
+### Adversarial follow-up — September 8
+
+Independent agents compared the dictionary and all five published prose pages against
+SQL and captured stakeholder requests. Corrected older-period enrollment NULL meanings,
+representative-row NULL meanings, exact `format_count` derivation, and supply lookup scope
+(built from recent titles, applied by ISBN to all catalog history). No additional mismatches
+were found in the diagram, mailing, release/sample filters, or Jeff's raw Fall 2025 bookstore report.
+Pending inputs, final master definitions, and the pricing identity issue remain explicit.
+
+The runner now fails on missing or wrong-type outputs of selected canonical producers;
+partial/export-only runs remain supported. Prose publication now detects remote edits,
+skips unchanged pages, and recovers acknowledged writes after failed readback.
+Changed-download publication exposed a separate API payload bug: file-block updates
+must omit the nested creation-only `type`. The rejected request left the old attachment
+intact; the update path was corrected and given a transport-level regression test.
+
+Validation: 107 tests pass, including actual SQL dictionary fixtures and five real-runner
+DuckDB cases (valid, missing output, wrong type, partial, export-only). Independent review,
+standalone cleanup/mailing checks, and both generator freshness checks pass. Read-only
+live metadata confirms all 15 canonical output names/types. All 74 live Metabase queries
+and filter tags match local definitions; 14 dashboards have no dangling card mappings.
+No extended rebuild, fresh overall-count scan, or external file release was performed.
+
+Notion readback verifies both corrected prose pages, all 1,201 dictionary records
+(266 updated), and all 26 TSV download hashes (nine updated). A transport interruption
+after six attachment updates was reconciled by live hashes; only the remaining three
+were applied. Repeated prose, dictionary, and download applies made zero remote writes.
+Tracking: #90 and #91 are in Review pending PR #62 review/merge.
+
 ## Small fixes made after the run
 
 1. Added `${CONFIG}` to `scripts/sql/2_oer_classification.sql`. That file was the one

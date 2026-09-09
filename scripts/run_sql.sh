@@ -92,6 +92,16 @@ MAILING_EXPORT_SQL=(
 # Build SQL_FILES array based on stage flags
 SQL_FILES=()
 
+# Relations whose producers ran in this invocation. Keep this tied to canonical
+# producer files so custom and intentionally partial runs validate only their scope.
+EXPECTED_RELATION_NAMES=()
+EXPECTED_RELATION_TYPES=()
+
+add_expected_relation() {
+    EXPECTED_RELATION_NAMES+=("$1")
+    EXPECTED_RELATION_TYPES+=("$2")
+}
+
 # Add IMPORT stage unless NO_IMPORT is set
 if [ -z "${NO_IMPORT+x}" ]; then
     SQL_FILES+=("${IMPORT_SQL[@]}")
@@ -119,6 +129,38 @@ if [ ! -z "${CUSTOM_SQL_FILES+x}" ]; then
     SQL_FILES=("${CUSTOM_SQL_FILES[@]}")
     echo "Using custom SQL files: ${SQL_FILES[@]}"
 fi
+
+for sql_file in "${SQL_FILES[@]}"; do
+    case "$sql_file" in
+        2_oer_classification.sql)
+            add_expected_relation "comprehensive_data" "BASE TABLE"
+            ;;
+        2b_course_material.sql)
+            add_expected_relation "course_material" "BASE TABLE"
+            add_expected_relation "course_material_recent" "VIEW"
+            add_expected_relation "course_material_use" "VIEW"
+            add_expected_relation "course_material_no_use" "VIEW"
+            ;;
+        2c_pricing_wide.sql)
+            add_expected_relation "pricing_wide" "BASE TABLE"
+            ;;
+        3_mailing_lists.sql)
+            add_expected_relation "master_mailing" "BASE TABLE"
+            add_expected_relation "current_mailing" "VIEW"
+            ;;
+        3b_master_material.sql)
+            add_expected_relation "master_material" "BASE TABLE"
+            ;;
+        4_merged_records.sql)
+            add_expected_relation "master_section" "BASE TABLE"
+            add_expected_relation "master_course" "VIEW"
+            add_expected_relation "sample_section_us_intro_fall2025" "VIEW"
+            ;;
+        models/*.sql)
+            add_expected_relation "$(basename "$sql_file" .sql)" "BASE TABLE"
+            ;;
+    esac
+done
 
 # Reject only the unsafe same-invocation dependency gap. Wrapper-only runs with
 # NO_IMPORT reuse the last validated mailing selection; normal full runs include the
@@ -295,13 +337,39 @@ for sql_file in "${SQL_FILES[@]}"; do
     fi
 done
 
-# Verify critical tables exist before proceeding
-echo "Verifying critical tables exist..."
-${DUCKDB} -bail "${MAIN_DB}" -c "
-    SELECT name FROM sqlite_master 
-    WHERE type='table' 
-    AND name IN ('comprehensive_data', 'master_mailing', 'master_section', 'master_course');
-"
+# Verify the canonical outputs produced by the selected stages exist with their
+# expected relation types. Export-only and other custom partial runs have no
+# producer contract to check here.
+if [ ${#EXPECTED_RELATION_NAMES[@]} -gt 0 ]; then
+    echo "Verifying selected stage outputs..."
+    expected_values=""
+    for relation_index in "${!EXPECTED_RELATION_NAMES[@]}"; do
+        if [ -n "$expected_values" ]; then
+            expected_values+=", "
+        fi
+        expected_values+="('${EXPECTED_RELATION_NAMES[$relation_index]}', '${EXPECTED_RELATION_TYPES[$relation_index]}')"
+    done
+
+    validation_failures=$(
+        ${DUCKDB} -bail -csv -noheader "${MAIN_DB}" -c "
+            WITH expected(table_name, table_type) AS (VALUES ${expected_values})
+            SELECT expected.table_name || ': expected ' || expected.table_type ||
+                   ', found ' || COALESCE(actual.table_type, 'MISSING')
+            FROM expected
+            LEFT JOIN information_schema.tables actual
+              ON actual.table_catalog = current_database()
+             AND actual.table_schema = 'main'
+             AND actual.table_name = expected.table_name
+            WHERE actual.table_type IS DISTINCT FROM expected.table_type
+            ORDER BY expected.table_name;
+        "
+    )
+    if [ -n "$validation_failures" ]; then
+        echo "Error: selected stage output validation failed:" >&2
+        printf '%s\n' "$validation_failures" >&2
+        exit 1
+    fi
+fi
 
 # Clean up temporary files
 echo "Cleaning up temporary files..."

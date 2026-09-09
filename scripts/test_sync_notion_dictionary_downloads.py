@@ -75,6 +75,24 @@ class DownloadSyncTests(unittest.TestCase):
         self.assertEqual(request["file"]["file_upload"], {"id": "upload-1"})
         self.assertEqual(request["file"]["name"], "x.tsv")
 
+    def test_update_file_omits_creation_only_nested_type(self):
+        notion = SYNC.Notion("ntn", interval=0)
+        with mock.patch.object(notion, "call", return_value={}) as call:
+            notion.update_file("block-1", "x.tsv", "upload-1")
+
+        call.assert_called_once_with(
+            ["api", "/v1/blocks/block-1", "--method", "PATCH"],
+            {"type": "file", "file": {
+                "file_upload": {"id": "upload-1"},
+                "name": "x.tsv",
+                "caption": SYNC.rich_text("x.tsv"),
+            }},
+        )
+        update_body = call.call_args.args[1]
+        self.assertNotIn("type", update_body["file"])
+        self.assertEqual(SYNC.file_request("x.tsv", "upload-1")["file"]["type"],
+                         "file_upload")
+
     def test_unique_unmanaged_exact_toggle_is_recovery_candidate(self):
         self.assertEqual(SYNC.find_toggle([toggle()], None)["id"], "toggle-1")
 
