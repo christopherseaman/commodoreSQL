@@ -13,9 +13,9 @@ notion-sync: push
 - Pipeline stage: IMPORT / 0_setup.sql
 - Direct upstream relations: `BVA panel_20260108.csv`
 
-| Column | Type | Example / structure | Direct upstream source / derivation | Description |
-|---|---|---|---|---|
-| `email` | `varchar` | Lowercase, trimmed email text | Normalized BVA panel CSV field `Unique` group key. | Normalized contact email used for panel-history matching. |
-| `panel_response_year` | `varchar` | Campaign label shaped `OER_YYYY`, such as `OER_2025` | `MAX` of normalized BVA panel CSV field `Year`. | Latest recorded panel response campaign label. |
-| `panel_source_row_count` | `bigint` | Non-negative whole-number count | `COUNT(*)` of normalized BVA panel CSV rows. | Panel-history rows collapsed into the contact lookup. |
-| `panel_response_year_variant_count` | `bigint` | Non-negative whole-number count | `COUNT(DISTINCT Year)` of normalized BVA panel CSV rows. | Distinct campaign labels found among grouped panel-history rows. |
+| Column | Type | Upstream table | Derivation | Sample values | Description | NULL meaning |
+|---|---|---|---|---|---|---|
+| `email` | `varchar` | BVA panel_20260108.csv | Normalized BVA panel CSV field `Unique` group key. | instructor@example.edu | Normalized contact email used for panel-history matching. | Not expected; NULL emails group together if present in source. |
+| `panel_response_year` | `varchar` | BVA panel_20260108.csv | `MAX` of normalized BVA panel CSV field `Year`. | OER_2025 | Latest recorded panel response campaign label. | No nonmissing response year for the email. |
+| `panel_source_row_count` | `bigint` | BVA panel_20260108.csv | `COUNT(*)` of normalized BVA panel CSV rows. | 42 | Panel-history rows collapsed into the contact lookup. | Never NULL; at least one. |
+| `panel_response_year_variant_count` | `bigint` | BVA panel_20260108.csv | `COUNT(DISTINCT Year)` of normalized BVA panel CSV rows. | 42 | Distinct campaign labels found among grouped panel-history rows. | Never NULL; zero means all years missing. |

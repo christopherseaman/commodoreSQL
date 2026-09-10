@@ -13,11 +13,11 @@ notion-sync: push
 - Pipeline stage: Data quality / 2d_data_quality.sql
 - Direct upstream relations: `comprehensive_data`
 
-| Column | Type | Example / structure | Direct upstream source / derivation | Description |
-|---|---|---|---|---|
-| `school` | `varchar` | Institution name; source spelling/casing retained | Group key from `comprehensive_data.school` in `2d_data_quality.sql`. | Institution or school name attached to the course. |
-| `null_isbn_rows` | `bigint` | Non-negative whole-number count | `COUNT(*) FILTER (WHERE comprehensive_data.ISBN13 IS NULL)` in `2d_data_quality.sql`. | Catalog rows lacking a non-NULL ISBN. |
-| `non_null_isbn_rows` | `bigint` | Non-negative whole-number count | `COUNT(*) FILTER (WHERE comprehensive_data.ISBN13 IS NOT NULL)` in `2d_data_quality.sql`. | Catalog rows containing a non-NULL ISBN. |
-| `total_rows` | `bigint` | Non-negative whole-number count | `COUNT(*)` of filtered `comprehensive_data` rows in `2d_data_quality.sql`. | Catalog rows included in the school diagnostic. |
-| `null_pct` | `double` | Percentage from 0 through 100 | `ROUND(100.0 * null_isbn_rows / total_rows, 2)` in `2d_data_quality.sql`. | Percentage of catalog rows lacking an ISBN. |
-| `distinct_sections` | `bigint` | Non-negative whole-number count | `COUNT(DISTINCT comprehensive_data.section_id)` among NULL-ISBN rows in `2d_data_quality.sql`. | Distinct catalog sections included in the school diagnostic. |
+| Column | Type | Upstream table | Derivation | Sample values | Description | NULL meaning |
+|---|---|---|---|---|---|---|
+| `school` | `varchar` | comprehensive_data | Group key from `comprehensive_data.school` in `2d_data_quality.sql`. | Example University | Institution or school name attached to the course. | Group key can be NULL when the source dimension is missing; computed measures are non-NULL. |
+| `null_isbn_rows` | `bigint` | comprehensive_data | `COUNT(*) FILTER (WHERE comprehensive_data.ISBN13 IS NULL)` in `2d_data_quality.sql`. | 42 | Catalog rows lacking a non-NULL ISBN. | Never NULL for an emitted diagnostic row. |
+| `non_null_isbn_rows` | `bigint` | comprehensive_data | `COUNT(*) FILTER (WHERE comprehensive_data.ISBN13 IS NOT NULL)` in `2d_data_quality.sql`. | 42 | Catalog rows containing a non-NULL ISBN. | Never NULL for an emitted diagnostic row. |
+| `total_rows` | `bigint` | comprehensive_data | `COUNT(*)` of filtered `comprehensive_data` rows in `2d_data_quality.sql`. | 42 | Catalog rows included in the school diagnostic. | Never NULL for an emitted diagnostic row. |
+| `null_pct` | `double` | comprehensive_data | `ROUND(100.0 * null_isbn_rows / total_rows, 2)` in `2d_data_quality.sql`. | 12.34 | Percentage of catalog rows lacking an ISBN. | Never NULL for an emitted diagnostic row. |
+| `distinct_sections` | `bigint` | comprehensive_data | `COUNT(DISTINCT comprehensive_data.section_id)` among NULL-ISBN rows in `2d_data_quality.sql`. | 42 | Distinct catalog sections included in the school diagnostic. | Never NULL for an emitted diagnostic row. |

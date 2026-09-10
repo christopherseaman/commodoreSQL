@@ -294,6 +294,152 @@ if sys.argv[1:3] == ['pages', 'get']:
         self.assertIn('<page url="{{child}}">Child</page>', published)
         self.assertIn("[literal](local.md)", published)
 
+    def test_publication_promotes_headings_only_outside_code(self):
+        markdown = b"""# Doc title
+
+## Logic
+### Diagram
+#### table_name
+##### Detail
+###### Leaf
+
+```mermaid
+## literal
+```
+
+    ### indented literal
+"""
+        source = bytes(markdown)
+        published = SYNC.publication_markdown(markdown)
+        self.assertEqual(markdown, source)
+        self.assertEqual(published.decode(), """# Doc title
+
+# Logic
+## Diagram
+### table_name
+#### Detail
+##### Leaf
+
+```mermaid
+## literal
+```
+
+    ### indented literal
+""")
+        self.assertEqual(SYNC.heading_sequence(published), [
+            (1, "Doc title"), (1, "Logic"), (2, "Diagram"),
+            (3, "table_name"), (4, "Detail"), (5, "Leaf"),
+        ])
+
+    def test_publication_unwraps_only_paragraphs_and_list_continuations(self):
+        markdown = b"""# Doc title
+
+One soft-wrapped
+paragraph.
+
+- first item wraps
+  onto another line
+  - nested item
+- second item\x20\x20
+  explicit break
+
+| A | B |
+|---|---|
+| one | two |
+
+    indented
+    code
+
+> quoted
+> lines
+
+```mermaid
+A --> B
+```
+"""
+        self.assertEqual(SYNC.publication_markdown(markdown).decode(), """# Doc title
+
+One soft-wrapped paragraph.
+
+- first item wraps onto another line
+  - nested item
+- second item\x20\x20
+  explicit break
+
+| A | B |
+|---|---|
+| one | two |
+
+    indented
+    code
+
+> quoted
+> lines
+
+```mermaid
+A --> B
+```
+""")
+
+    def test_joined_continuation_retains_explicit_break(self):
+        for marker in ("  ", "\\"):
+            source = f"A wrapped\ncontinuation{marker}\nnext line\n".encode()
+            expected = f"A wrapped continuation{marker}\nnext line\n".encode()
+            published = SYNC.publication_markdown(source)
+            self.assertEqual(published, expected)
+            # Publication is applied once at the source-to-Notion boundary. This
+            # heading-free input also documents that unrelated content is stable.
+            self.assertEqual(SYNC.publication_markdown(published), published)
+
+    def test_apply_sends_unwrapped_body_and_then_becomes_noop(self):
+        desired = "\n# Doc title\n\nhello wrapped"
+        doc = self.doc(body="# Doc title\n\nhello\nwrapped\n")
+        self.env["REMOTE_MARKDOWN"] = desired
+        result = self.invoke("--initialize-state", doc)
+        self.assertEqual(result.returncode, 0, result.stderr)
+        self.assertFalse(any(entry["argv"][0] == "api" for entry in self.entries()))
+
+        self.log.unlink()
+        result = self.invoke("--apply", doc)
+        self.assertEqual(result.returncode, 0, result.stderr)
+        self.assertFalse(any(entry["argv"][0] == "api" for entry in self.entries()))
+
+        self.log.unlink()
+        doc.write_text(doc.read_text().replace("hello\nwrapped", "hello new\nwrapped"))
+        result = self.invoke("--apply", doc)
+        self.assertEqual(result.returncode, 0, result.stderr)
+        request = json.loads(next(entry["stdin"] for entry in self.entries() if entry["argv"][0] == "api"))
+        self.assertEqual(request["replace_content"]["new_str"], "\n# Doc title\n\nhello new wrapped\n")
+
+    def test_apply_sends_promoted_headings_then_repeat_is_noop(self):
+        doc = self.doc(body="# Doc title\n\n## Logic\n### Diagram\n#### table_name\n")
+        self.seed_baseline()
+        first = self.invoke("--apply", doc)
+        self.assertEqual(first.returncode, 0, first.stderr)
+        request = json.loads(next(entry["stdin"] for entry in self.entries() if entry["argv"][0] == "api"))
+        self.assertEqual(request["replace_content"]["new_str"], "\n# Doc title\n\n# Logic\n## Diagram\n### table_name\n")
+
+        self.log.unlink()
+        second = self.invoke("--apply", doc)
+        self.assertEqual(second.returncode, 0, second.stderr)
+        self.assertFalse(any(entry["argv"][0] == "api" for entry in self.entries()))
+
+    def test_heading_promotion_does_not_hide_remote_conflict(self):
+        self.seed_baseline("# Doc title\n\n# Logic\nold body")
+        self.env["REMOTE_MARKDOWN"] = "# Doc title\n\n# Logic\nhuman edit"
+        result = self.invoke("--apply", self.doc(body="# Doc title\n\n## Logic\nnew body\n"))
+        self.assertNotEqual(result.returncode, 0)
+        self.assertIn("remote content changed", result.stderr)
+        self.assertFalse(any(entry["argv"][0] == "api" for entry in self.entries()))
+
+    def test_unwrapping_does_not_hide_remote_conflict(self):
+        self.seed_baseline("# Doc title\n\nold body")
+        self.env["REMOTE_MARKDOWN"] = "# Doc title\n\nhuman edit"
+        result = self.invoke("--apply", self.doc(body="# Doc title\n\nhello\nwrapped\n"))
+        self.assertNotEqual(result.returncode, 0)
+        self.assertIn("remote content changed", result.stderr)
+        self.assertFalse(any(entry["argv"][0] == "api" for entry in self.entries()))
+
     def test_explicit_dictionary_publication_is_rejected_before_network(self):
         result = self.invoke(ROOT / "DATA-DICTIONARY.md")
         self.assertEqual(result.returncode, 2)

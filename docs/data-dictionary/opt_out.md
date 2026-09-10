@@ -13,7 +13,7 @@ notion-sync: push
 - Pipeline stage: IMPORT / 0_setup.sql
 - Direct upstream relations: `BVA OptOut_20251215.csv`
 
-| Column | Type | Example / structure | Direct upstream source / derivation | Description |
-|---|---|---|---|---|
-| `email` | `varchar` | Lowercase, trimmed email text | BVA opt-out field `Email`; lowercase + trim. | Normalized email address listed for mailing opt-out. |
-| `source` | `varchar` | BVA source-system label text | BVA opt-out field `Source`; direct import. | BVA source label explaining the opt-out entry. |
+| Column | Type | Upstream table | Derivation | Sample values | Description | NULL meaning |
+|---|---|---|---|---|---|---|
+| `email` | `varchar` | BVA OptOut_20251215.csv | BVA opt-out field `Email`; lowercase + trim. | instructor@example.edu | Normalized email address listed for mailing opt-out. | External field absent or normalized from a configured null token. |
+| `source` | `varchar` | BVA OptOut_20251215.csv | BVA opt-out field `Source`; direct import. | survey | BVA source label explaining the opt-out entry. | External field absent or normalized from a configured null token. |

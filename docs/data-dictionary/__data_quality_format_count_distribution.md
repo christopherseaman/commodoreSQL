@@ -13,7 +13,7 @@ notion-sync: push
 - Pipeline stage: Data quality / 2d_data_quality.sql
 - Direct upstream relations: `pricing_wide`
 
-| Column | Type | Example / structure | Direct upstream source / derivation | Description |
-|---|---|---|---|---|
-| `format_count` | `bigint` | Non-negative whole-number count | `pricing_wide.format_count` distribution key in `2d_data_quality.sql`. | Distinct option-condition-format combinations offered for the material. |
-| `pricing_wide_rows` | `bigint` | Non-negative whole-number count | COUNT(*) of wide-pricing rows in the bucket in `2d_data_quality.sql`. | Wide-pricing rows having the displayed format count. |
+| Column | Type | Upstream table | Derivation | Sample values | Description | NULL meaning |
+|---|---|---|---|---|---|---|
+| `format_count` | `bigint` | pricing_wide | `pricing_wide.format_count` distribution key in `2d_data_quality.sql`. | 42 | Distinct option-condition-format combinations offered for the material. | Never NULL for an emitted diagnostic row. |
+| `pricing_wide_rows` | `bigint` | pricing_wide | COUNT(*) of wide-pricing rows in the bucket in `2d_data_quality.sql`. | 42 | Wide-pricing rows having the displayed format count. | Never NULL for an emitted diagnostic row. |

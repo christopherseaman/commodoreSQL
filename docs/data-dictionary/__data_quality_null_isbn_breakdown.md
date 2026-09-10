@@ -13,11 +13,11 @@ notion-sync: push
 - Pipeline stage: Data quality / 2d_data_quality.sql
 - Direct upstream relations: `comprehensive_data`
 
-| Column | Type | Example / structure | Direct upstream source / derivation | Description |
-|---|---|---|---|---|
-| `school` | `varchar` | Institution name; source spelling/casing retained | Group key from `comprehensive_data.school` in `2d_data_quality.sql`. | Institution or school name attached to the course. |
-| `no_book_details` | `bigint` | Title = "*No Book Details*" — non-classroom (research, dissertation, independent study) | `COUNT(*) FILTER (WHERE comprehensive_data.Title='*No Book Details*')` in `2d_data_quality.sql`. | NULL-ISBN rows carrying the No Book Details marker. |
-| `no_books_required` | `bigint` | Title = "*No Books Required*" — explicit "no textbook required" marker | `COUNT(*) FILTER (WHERE comprehensive_data.Title='*No Books Required*')` in `2d_data_quality.sql`. | NULL-ISBN rows carrying the No Books Required marker. |
-| `bad_course` | `bigint` | Title = "*Bad Course*" — explicit DQ flag from source | `COUNT(*) FILTER (WHERE comprehensive_data.Title='*Bad Course*')` in `2d_data_quality.sql`. | NULL-ISBN rows carrying the Bad Course marker. |
-| `other` | `bigint` | Should be 0; nonzero would indicate a new placeholder string in source | `COUNT(*)` where `comprehensive_data.Title` is NULL or outside known markers in `2d_data_quality.sql`. | NULL-ISBN rows outside the recognized placeholder categories. |
-| `total_null_isbn` | `bigint` | Non-negative whole-number count | `COUNT(*)` of filtered `comprehensive_data` NULL-ISBN rows in `2d_data_quality.sql`. | NULL-ISBN rows across all placeholder categories. |
+| Column | Type | Upstream table | Derivation | Sample values | Description | NULL meaning |
+|---|---|---|---|---|---|---|
+| `school` | `varchar` | comprehensive_data | Group key from `comprehensive_data.school` in `2d_data_quality.sql`. | Example University | Institution or school name attached to the course. | Group key can be NULL when the source dimension is missing; computed measures are non-NULL. |
+| `no_book_details` | `bigint` | comprehensive_data | `COUNT(*) FILTER (WHERE comprehensive_data.Title='*No Book Details*')` in `2d_data_quality.sql`. | 42 | NULL-ISBN rows carrying the No Book Details marker. | Never NULL for an emitted diagnostic row. |
+| `no_books_required` | `bigint` | comprehensive_data | `COUNT(*) FILTER (WHERE comprehensive_data.Title='*No Books Required*')` in `2d_data_quality.sql`. | 42 | NULL-ISBN rows carrying the No Books Required marker. | Never NULL for an emitted diagnostic row. |
+| `bad_course` | `bigint` | comprehensive_data | `COUNT(*) FILTER (WHERE comprehensive_data.Title='*Bad Course*')` in `2d_data_quality.sql`. | 42 | NULL-ISBN rows carrying the Bad Course marker. | Never NULL for an emitted diagnostic row. |
+| `other` | `bigint` | comprehensive_data | `COUNT(*)` where `comprehensive_data.Title` is NULL or outside known markers in `2d_data_quality.sql`. | 42 | NULL-ISBN rows outside the recognized placeholder categories. | Never NULL for an emitted diagnostic row. |
+| `total_null_isbn` | `bigint` | comprehensive_data | `COUNT(*)` of filtered `comprehensive_data` NULL-ISBN rows in `2d_data_quality.sql`. | 42 | NULL-ISBN rows across all placeholder categories. | Never NULL for an emitted diagnostic row. |

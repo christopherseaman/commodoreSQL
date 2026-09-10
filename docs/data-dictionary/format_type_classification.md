@@ -13,10 +13,10 @@ notion-sync: push
 - Pipeline stage: IMPORT / 2_oer_classification.sql
 - Direct upstream relations: `format_type_lookup.tsv`
 
-| Column | Type | Example / structure | Direct upstream source / derivation | Description |
-|---|---|---|---|---|
-| `FormatType` | `varchar` | Catalog FormatType label; original spelling retained | Lookup TSV field `format_type`; direct tab-delimited import. | Catalog classification label for the material format. |
-| `is_oer` | `boolean` | TRUE or FALSE | Lookup TSV field `is_oer`; direct tab-delimited import cast to BOOLEAN. | Whether the material is an open educational resource. |
-| `oer_category` | `varchar` | Category such as `book_oer`, `pure_oer`, or `non_oer` | Lookup TSV field `oer_category`; direct tab-delimited import. | Open-resource category assigned to the material format. |
-| `is_ia` | `boolean` | TRUE or FALSE | Lookup TSV field `is_ia`; direct tab-delimited import cast to BOOLEAN. | Whether the material uses inclusive access. |
-| `ia_category` | `varchar` | Category such as `book_ia`, `ebook_ia`, or `non_ia` | Lookup TSV field `ia_category`; direct tab-delimited import. | Inclusive-access category assigned to the material format. |
+| Column | Type | Upstream table | Derivation | Sample values | Description | NULL meaning |
+|---|---|---|---|---|---|---|
+| `FormatType` | `varchar` | format_type_lookup.tsv | Lookup TSV field `format_type`; direct tab-delimited import. | Book | Catalog classification label for the material format. | Lookup cell missing. |
+| `is_oer` | `boolean` | format_type_lookup.tsv | Lookup TSV field `is_oer`; direct tab-delimited import cast to BOOLEAN. | TRUE | Whether the material is an open educational resource. | Lookup cell missing. |
+| `oer_category` | `varchar` | format_type_lookup.tsv | Lookup TSV field `oer_category`; direct tab-delimited import. | unknown | Open-resource category assigned to the material format. | Lookup cell missing. |
+| `is_ia` | `boolean` | format_type_lookup.tsv | Lookup TSV field `is_ia`; direct tab-delimited import cast to BOOLEAN. | TRUE | Whether the material uses inclusive access. | Lookup cell missing. |
+| `ia_category` | `varchar` | format_type_lookup.tsv | Lookup TSV field `ia_category`; direct tab-delimited import. | unknown | Inclusive-access category assigned to the material format. | Lookup cell missing. |

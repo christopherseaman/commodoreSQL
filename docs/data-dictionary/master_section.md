@@ -13,72 +13,72 @@ notion-sync: push
 - Pipeline stage: 4_merged_records.sql
 - Direct upstream relations: `master_material`
 
-| Column | Type | Example / structure | Direct upstream source / derivation | Description |
-|---|---|---|---|---|
-| `section_id` | `varchar` | `course_id::section-code::period_sortable` composite | Group key from `master_material.section_id`; includes term | Period-specific identifier for the distinct section offering. |
-| `course_id` | `varchar` | `unit_id::department-code::course-number` composite | Section-canonical value inherited through `master_material`; source composite omits section/term | Stable identifier for the institution-level course offering. |
-| `period` | `varchar` | Academic term label such as `Fall 2024` | `ANY_VALUE(master_material.period)` | Human-readable academic term label from the source. |
-| `period_sortable` | `varchar` | `YYYY-N`; 1=Winter, 2=Spring, 3=Summer, 4=Fall | `master_material` group key (`YYYY-N`) | Sortable academic term code used for chronological ordering. |
-| `period_date` | `date` | Canonical date: YYYY-01-01, YYYY-04-01, YYYY-07-01, or YYYY-10-01 | `ANY_VALUE(period_date)` | Canonical starting date assigned to the academic term. |
-| `unit_id` | `bigint` | IPEDS institution identifier | `ANY_VALUE(master_material.unit_id)` | IPEDS institution identifier used throughout the pipeline. |
-| `state` | `varchar` | Normalized state or province code, such as `CA` or `CAN` | `ANY_VALUE(state)` | State or province code for the institution. |
-| `control` | `varchar` | IPEDS label such as `Public` or `Private not-for-profit` | Section-canonical value inherited through `master_material` | Institution ownership and governance classification used for reporting. |
-| `level` | `varchar` | IPEDS label such as `Four or more years` | Section-canonical value inherited through `master_material` | IPEDS award-level classification for the institution. |
-| `size` | `varchar` | IPEDS size-band label, such as `20,000 and above` | `ANY_VALUE(size)` | IPEDS institutional enrollment-size classification used for reporting. |
-| `sector` | `varchar` | IPEDS sector descriptor, such as `Public, 4-year or above` | Section-canonical value inherited through `master_material` | IPEDS sector classification for the institution. |
-| `institution_name` | `varchar` | Official IPEDS institution-name text | `ANY_VALUE(institution_name)` | Canonical institution name supplied by IPEDS. |
-| `institution_type` | `varchar` | Derived institution-type category label | `ANY_VALUE(institution_type)` | Derived institution type used for reporting groups. |
-| `enrollment_2024` | `integer` | Non-negative 2024 student count; NULL when unavailable | `ANY_VALUE(enrollment_2024)` | Total institutional enrollment reported to IPEDS for 2024. |
-| `distance_enrollment_2024` | `integer` | Non-negative 2024 student count; NULL when unavailable | `ANY_VALUE(distance_enrollment_2024)` | IPEDS 2024 students enrolled in distance education. |
-| `school` | `varchar` | Institution name; source spelling/casing retained | `mode()` of non-NULL `master_material` value | Institution or school name attached to the course. |
-| `department` | `varchar` | Academic department, such as `Biology` | `mode()` of non-NULL `master_material` value | Academic department responsible for the course. |
-| `course_number` | `varchar` | Source course number; zeros/suffixes retained | `mode()` of non-NULL `master_material` value | Catalog number identifying the course within its department. |
-| `section` | `varchar` | Source section code; zeros/punctuation retained | `mode()` of non-NULL `master_material` value | Source code distinguishing sections of the same course. |
-| `course_title` | `varchar` | Course title; source punctuation/casing retained | `mode()` of non-NULL `master_material` value | Official title assigned to the course. |
-| `course_level` | `varchar` | Category such as `Introductory or general undergraduate` | Section-canonical value inherited through `master_material` | Instructional level assigned to the course. |
-| `course_subject` | `varchar` | Source subject, such as `Biology` | `mode()` of non-NULL `master_material` value | Subject area assigned to the course. |
-| `material_count` | `bigint` | COUNT of canonical master_material section×ISBN items; always >0 | `COUNT(*)` over deduplicated `master_material` | Canonical course-material items within the section. |
-| `required_count` | `bigint` | COUNT of master_material items WHERE is_required_inferred; A/B split key | Count where `is_required_inferred` | Required materials within the canonical section. |
-| `optional_count` | `bigint` | COUNT of master_material items WHERE NOT is_required_inferred | Count where not `is_required_inferred` | Optional or recommended materials within the section. |
-| `has_course_material_use` | `boolean` | Always true: membership requires at least one canonical Use item | Constant true for retained sections | Whether the section contains retained canonical materials. |
-| `course_material_use_count` | `bigint` | Canonical material items; equals material_count | Canonical item count (= `material_count`) | Canonical included materials within the retained section. |
-| `course_material_no_use_count` | `bigint` | ANY_VALUE of repeated canonical per-section NoUse item count | `ANY_VALUE(master_material.section_course_material_no_use_count)` | Excluded canonical items audited within retained sections. |
-| `no_details_count` | `bigint` | ANY_VALUE of repeated canonical per-section no-details item count | `ANY_VALUE(master_material.section_no_details_count)` | No-details canonical items audited within retained sections. |
-| `no_materials_count` | `bigint` | ANY_VALUE of repeated canonical per-section no-materials item count | `ANY_VALUE(master_material.section_no_materials_count)` | No-materials canonical items audited within retained sections. |
-| `is_canada` | `boolean` | ANY_VALUE of repeated canonical per-section Canada indicator | `ANY_VALUE(master_material.is_section_canada)` | Whether retained sections contain Canadian canonical items. |
-| `is_supply` | `boolean` | ANY_VALUE of repeated canonical per-section supply indicator | `ANY_VALUE(master_material.is_section_supply)` | Whether retained sections contain classified supply canonical items. |
-| `supply_count` | `bigint` | ANY_VALUE of repeated canonical per-section supply item count | `ANY_VALUE(master_material.section_supply_count)` | Supply canonical items audited within retained sections. |
-| `is_oer` | `boolean` | COALESCE(BOOL_OR(is_oer), FALSE) over canonical master_material items | `BOOL_OR(is_oer)` over `master_material`, coalesced false | Whether the material is an open educational resource. |
-| `is_ia` | `boolean` | TRUE or FALSE | `BOOL_OR(is_ia)` over `master_material`, coalesced false | Whether the material uses inclusive access. |
-| `oer_count` | `bigint` | Non-negative whole-number count | Count of Items with `is_oer=true` | Open-resource materials within the aggregation group. |
-| `ia_count` | `bigint` | Non-negative whole-number count | Count of Items with `is_ia=true` | Inclusive-access materials within the aggregation group. |
-| `publishers` | `varchar[]` | LIST(DISTINCT publisher) | `LIST(DISTINCT publisher)` for non-NULL publishers | Distinct publishers represented by the section materials. |
-| `required_publishers` | `varchar[]` | LIST(DISTINCT publisher) WHERE required | Distinct publisher list where required | Distinct publishers of required materials within the section. |
-| `required_publisher_count` | `bigint` | Non-negative whole-number count | Distinct publisher count where required | Distinct publishers of required materials within the section. |
-| `optional_publisher_count` | `bigint` | Non-negative whole-number count | Distinct publisher count where optional | Distinct publishers of optional materials within the section. |
-| `enrollments` | `integer` | Reported student count; source noise can include negative values | Section-canonical value inherited through `master_material` | Enrollment reported directly for the course section. |
-| `seats_taken` | `integer` | Reported occupied seats; `9999` is the source sentinel | Section-canonical value inherited through `master_material`; raw 9999 retained | Occupied seats reported for the course section. |
-| `has_isbn` | `boolean` | BOOL_OR(has_isbn) over canonical items; true under the current Use contract | `BOOL_OR(has_isbn)` over Items | Whether the material has a non-NULL ISBN. |
-| `has_formattype` | `boolean` | BOOL_OR(FormatType present) over canonical items; OER/IA classifiability flag | `BOOL_OR(has_formattype)` over Items | Whether the material has a nonblank FormatType classification. |
-| `isbn_count` | `bigint` | canonical ISBN items; currently equals material_count | Count of Items with ISBN (= `material_count` currently) | ISBN-bearing materials within the aggregation group. |
-| `classified_count` | `bigint` | canonical items carrying a FormatType | Count of Items with nonblank FormatType | Materials having a nonblank FormatType classification. |
-| `has_enrollment` | `boolean` | section carries its own enrollment | Section-canonical flag inherited through `master_material` | Whether usable enrollment information is available. |
-| `has_enrollment_sibling` | `boolean` | another section of the same course+period has enrollment | Full-population section flag inherited through `master_material` | Whether a sibling section reports enrollment. |
-| `has_enrollment_own_seats` | `boolean` | this section has usable seats_taken (<9999) | Section-canonical flag inherited through `master_material` | Whether the section reports usable occupied seats. |
-| `has_enrollment_sibling_seats` | `boolean` | a sibling section has usable seats_taken | Full-population section flag inherited through `master_material` | Whether a sibling section reports usable occupied seats. |
-| `enrollment_assigned` | `integer` | Rounded student count from the ladder; raw negatives can propagate | First available own enrollment, own seats, sibling medians, control×level median, level median | Best available section enrollment from the assignment ladder. |
-| `enrollment_source` | `varchar` | Fill rung for enrollment_assigned: `own`, `own_seats`, `sibling_enroll`, `sibling_seats`, `class_median`, `level_median`, or `none` | Section-canonical label inherited through `master_material` | Assignment-ladder rung that supplied the section enrollment. |
-| `is_required_direct` | `boolean` | section-grain supply-aware direct requiredness inherited from master_material context | `BOOL_OR(is_section_required_direct)` over retained items | Whether direct required evidence is present at the relation grain. |
-| `required_price_min` | `decimal(38,2)` | USD amount such as `123.45`; stored as `DECIMAL(38,2)` | `SUM(master_material.price_min) FILTER (WHERE is_required_inferred)` | Lower all-offer price bound for required materials. |
-| `required_price_avg` | `double` | USD MIDRANGE `(required_price_min + required_price_max) / 2.0`, not mean | `(required_price_min + required_price_max) / 2.0` | Legacy-named midrange of required price bounds. |
-| `required_price_max` | `decimal(38,2)` | USD amount such as `123.45`; stored as `DECIMAL(38,2)` | `SUM(master_material.price_max) FILTER (WHERE is_required_inferred)` | Upper all-offer price bound for required materials. |
-| `required_price_buy_min` | `decimal(38,2)` | USD amount such as `123.45`; stored as `DECIMAL(38,2)` | `SUM(master_material.price_buy_min) FILTER (WHERE is_required_inferred)` | Lower buy-only price bound for required materials. |
-| `required_price_buy_max` | `decimal(38,2)` | USD amount such as `123.45`; stored as `DECIMAL(38,2)` | `SUM(master_material.price_buy_max) FILTER (WHERE is_required_inferred)` | Upper buy-only price bound for required materials. |
-| `all_price_min` | `decimal(38,2)` | USD amount such as `123.45`; stored as `DECIMAL(38,2)` | `SUM(master_material.price_min)` | Lower all-offer price bound for all-item materials. |
-| `all_price_avg` | `double` | USD MIDRANGE `(all_price_min + all_price_max) / 2.0`, not mean | `(all_price_min + all_price_max) / 2.0` | Legacy-named midrange of all-item price bounds. |
-| `all_price_max` | `decimal(38,2)` | USD amount such as `123.45`; stored as `DECIMAL(38,2)` | `SUM(master_material.price_max)` | Upper all-offer price bound for all-item materials. |
-| `all_price_buy_min` | `decimal(38,2)` | USD amount such as `123.45`; stored as `DECIMAL(38,2)` | `SUM(master_material.price_buy_min)` | Lower buy-only price bound for all-item materials. |
-| `all_price_buy_max` | `decimal(38,2)` | USD amount such as `123.45`; stored as `DECIMAL(38,2)` | `SUM(master_material.price_buy_max)` | Upper buy-only price bound for all-item materials. |
-| `required_priced_count` | `bigint` | distinct required materials with ANY price (total coverage; NOT owned-only — can be >0 while owned cost is NULL when priced materials are rental-only) | Required Items with non-NULL `price_min` | Required materials having at least one valid price. |
-| `optional_priced_count` | `bigint` | Non-negative whole-number count | Optional Items with non-NULL `price_min` | Optional materials having at least one valid price. |
-| `bookstore_url` | `varchar` | Absolute `http://` or `https://` bookstore URL | Deterministic modal nonblank `master_material.bookstore_url`: count DESC, URL ASC | Bookstore URL selected across canonical section items. |
+| Column | Type | Upstream table | Derivation | Sample values | Description | NULL meaning |
+|---|---|---|---|---|---|---|
+| `section_id` | `varchar` | master_material | Group key from `master_material.section_id`; includes term | 1001::BIO::101::001::2025-4 | Period-specific identifier for the distinct section offering. | Never NULL |
+| `course_id` | `varchar` | master_material | `ANY_VALUE(master_material.course_id)` | 1001::BIO::101 | Stable identifier for the institution-level course offering. | Missing segments are `UNKNOWN` |
+| `period` | `varchar` | master_material | `ANY_VALUE(master_material.period)` | Fall 2025 | Human-readable academic term label from the source. | Valid sortable period required |
+| `period_sortable` | `varchar` | master_material | `master_material` group key (`YYYY-N`) | 2025-4 | Sortable academic term code used for chronological ordering. | Never NULL |
+| `period_date` | `date` | master_material | `ANY_VALUE(period_date)` | 2025-10-01 | Canonical starting date assigned to the academic term. | Not NULL in retained scope |
+| `unit_id` | `bigint` | master_material | `ANY_VALUE(master_material.unit_id)` | 1001 | IPEDS institution identifier used throughout the pipeline. | Missing institution ID |
+| `state` | `varchar` | master_material | `ANY_VALUE(master_material.state)` | CA | State or province code for the institution. | Missing geography |
+| `control` | `varchar` | master_material | `ANY_VALUE(master_material.control)` | unknown | Institution ownership and governance classification used for reporting. | No matching IPEDS institution |
+| `level` | `varchar` | master_material | `ANY_VALUE(master_material.level)` | unknown | IPEDS award-level classification for the institution. | No matching IPEDS institution |
+| `size` | `varchar` | master_material | `ANY_VALUE(master_material.size)` | unknown | IPEDS institutional enrollment-size classification used for reporting. | No matching IPEDS institution |
+| `sector` | `varchar` | master_material | `ANY_VALUE(master_material.sector)` | unknown | IPEDS sector classification for the institution. | No matching IPEDS institution |
+| `institution_name` | `varchar` | master_material | `ANY_VALUE(master_material.institution_name)` | Example University | Canonical institution name supplied by IPEDS. | No matching IPEDS institution |
+| `institution_type` | `varchar` | master_material | `ANY_VALUE(master_material.institution_type)` | unknown | Derived institution type used for reporting groups. | No matching institution/type |
+| `enrollment_2024` | `integer` | master_material | `ANY_VALUE(master_material.enrollment_2024)` | 42 | Total institutional enrollment reported to IPEDS for 2024. | No matching IPEDS value |
+| `distance_enrollment_2024` | `integer` | master_material | `ANY_VALUE(master_material.distance_enrollment_2024)` | 42 | IPEDS 2024 students enrolled in distance education. | No matching IPEDS value |
+| `school` | `varchar` | master_material | `mode()` of non-NULL `master_material` value | Example University | Institution or school name attached to the course. | No source value |
+| `department` | `varchar` | master_material | `mode()` of non-NULL `master_material` value | Biology | Academic department responsible for the course. | No source value |
+| `course_number` | `varchar` | master_material | `mode()` of non-NULL `master_material` value | 101 | Catalog number identifying the course within its department. | No source value |
+| `section` | `varchar` | master_material | `mode()` of non-NULL `master_material` value | 001 | Source code distinguishing sections of the same course. | No source value |
+| `course_title` | `varchar` | master_material | `mode()` of non-NULL `master_material` value | Introduction to Biology | Official title assigned to the course. | No source value |
+| `course_level` | `varchar` | master_material | Section-canonical value inherited through `master_material` | Introductory or general undergraduate | Instructional level assigned to the course. | No source value |
+| `course_subject` | `varchar` | master_material | `mode()` of non-NULL `master_material` value | BIO | Subject area assigned to the course. | No source value |
+| `material_count` | `bigint` | master_material | `COUNT(*)` over deduplicated `master_material` | 42 | Canonical course-material items within the section. | Never NULL/zero |
+| `required_count` | `bigint` | master_material | Count where `is_required_inferred` | 42 | Required materials within the canonical section. | Zero means none |
+| `optional_count` | `bigint` | master_material | Count where not `is_required_inferred` | 42 | Optional or recommended materials within the section. | Zero means none |
+| `has_course_material_use` | `boolean` | master_material | Constant true for retained sections | TRUE | Whether the section contains retained canonical materials. | Never false |
+| `course_material_use_count` | `bigint` | master_material | Canonical item count (= `material_count`) | 42 | Canonical included materials within the retained section. | Never zero |
+| `course_material_no_use_count` | `bigint` | master_material | `ANY_VALUE(master_material.section_course_material_no_use_count)` | 42 | Excluded canonical items audited within retained sections. | Zero means none |
+| `no_details_count` | `bigint` | master_material | `ANY_VALUE(master_material.section_no_details_count)` | 42 | No-details canonical items audited within retained sections. | Zero means marker absent |
+| `no_materials_count` | `bigint` | master_material | `ANY_VALUE(master_material.section_no_materials_count)` | 42 | No-materials canonical items audited within retained sections. | Zero means marker absent |
+| `is_canada` | `boolean` | master_material | `ANY_VALUE(master_material.is_section_canada)` | TRUE | Whether retained sections contain Canadian canonical items. | False means no Canadian item |
+| `is_supply` | `boolean` | master_material | `ANY_VALUE(master_material.is_section_supply)` | TRUE | Whether retained sections contain classified supply canonical items. | False means no supply item |
+| `supply_count` | `bigint` | master_material | `ANY_VALUE(master_material.section_supply_count)` | 42 | Supply canonical items audited within retained sections. | Zero means none |
+| `is_oer` | `boolean` | master_material | `BOOL_OR(is_oer)` over `master_material`, coalesced false | TRUE | Whether the material is an open educational resource. | False means no classified OER |
+| `is_ia` | `boolean` | master_material | `BOOL_OR(is_ia)` over `master_material`, coalesced false | TRUE | Whether the material uses inclusive access. | False means no classified IA |
+| `oer_count` | `bigint` | master_material | Count of Items with `is_oer=true` | 42 | Open-resource materials within the aggregation group. | Zero means none |
+| `ia_count` | `bigint` | master_material | Count of Items with `is_ia=true` | 42 | Inclusive-access materials within the aggregation group. | Zero means none |
+| `publishers` | `varchar[]` | master_material | `LIST(DISTINCT publisher)` for non-NULL publishers | ['alpha', 'beta'] | Distinct publishers represented by the section materials. | No item publisher |
+| `required_publishers` | `varchar[]` | master_material | Distinct publisher list where required | ['alpha', 'beta'] | Distinct publishers of required materials within the section. | No required publisher |
+| `required_publisher_count` | `bigint` | master_material | Distinct publisher count where required | 42 | Distinct publishers of required materials within the section. | Zero means none |
+| `optional_publisher_count` | `bigint` | master_material | Distinct publisher count where optional | 42 | Distinct publishers of optional materials within the section. | Zero means none |
+| `enrollments` | `integer` | master_material | Section-canonical value inherited through `master_material` | 42 | Enrollment reported directly for the course section. | Unavailable |
+| `seats_taken` | `integer` | master_material | Section-canonical value inherited through `master_material`; raw 9999 retained | 42 | Occupied seats reported for the course section. | Unavailable |
+| `has_isbn` | `boolean` | master_material | `BOOL_OR(has_isbn)` over Items | TRUE | Whether the material has a non-NULL ISBN. | True under current Use contract |
+| `has_formattype` | `boolean` | master_material | `BOOL_OR(has_formattype)` over Items | TRUE | Whether the material has a nonblank FormatType classification. | False means no nonblank FormatType |
+| `isbn_count` | `bigint` | master_material | Count of Items with ISBN (= `material_count` currently) | 42 | ISBN-bearing materials within the aggregation group. | Never zero |
+| `classified_count` | `bigint` | master_material | Count of Items with nonblank FormatType | 42 | Materials having a nonblank FormatType classification. | Zero means none |
+| `has_enrollment` | `boolean` | master_material | Section-canonical flag inherited through `master_material` | TRUE | Whether usable enrollment information is available. | Never NULL |
+| `has_enrollment_sibling` | `boolean` | master_material | Full-population section flag inherited through `master_material` | TRUE | Whether a sibling section reports enrollment. | Never NULL |
+| `has_enrollment_own_seats` | `boolean` | master_material | Section-canonical flag inherited through `master_material` | TRUE | Whether the section reports usable occupied seats. | Never NULL |
+| `has_enrollment_sibling_seats` | `boolean` | master_material | Full-population section flag inherited through `master_material` | TRUE | Whether a sibling section reports usable occupied seats. | Never NULL |
+| `enrollment_assigned` | `integer` | master_material | First available own enrollment, own seats, sibling medians, control×level median, level median | 42 | Best available section enrollment from the assignment ladder. | No rung; source is `none` |
+| `enrollment_source` | `varchar` | master_material | Section-canonical label inherited through `master_material` | own | Assignment-ladder rung that supplied the section enrollment. | Never NULL; values `own`, `own_seats`, `sibling_enroll`, `sibling_seats`, `class_median`, `level_median`, `none` |
+| `is_required_direct` | `boolean` | master_material | `BOOL_OR(is_section_required_direct)` over retained items | TRUE | Whether direct required evidence is present at the relation grain. | False means no nonsupply literal-required item in the section |
+| `required_price_min` | `decimal(38,2)` | master_material | `SUM(master_material.price_min) FILTER (WHERE is_required_inferred)` | 12.34 | Lower all-offer price bound for required materials. | No required item, or every required item price is NULL |
+| `required_price_avg` | `double` | master_material | `(required_price_min + required_price_max) / 2.0` | 12.34 | Legacy-named midrange of required price bounds. | Either bound is NULL |
+| `required_price_max` | `decimal(38,2)` | master_material | `SUM(master_material.price_max) FILTER (WHERE is_required_inferred)` | 12.34 | Upper all-offer price bound for required materials. | No required item, or every required item price is NULL |
+| `required_price_buy_min` | `decimal(38,2)` | master_material | `SUM(master_material.price_buy_min) FILTER (WHERE is_required_inferred)` | 12.34 | Lower buy-only price bound for required materials. | No required item, or every required buy price is NULL |
+| `required_price_buy_max` | `decimal(38,2)` | master_material | `SUM(master_material.price_buy_max) FILTER (WHERE is_required_inferred)` | 12.34 | Upper buy-only price bound for required materials. | No required item, or every required buy price is NULL |
+| `all_price_min` | `decimal(38,2)` | master_material | `SUM(master_material.price_min)` | 12.34 | Lower all-offer price bound for all-item materials. | Every item price is NULL |
+| `all_price_avg` | `double` | master_material | `(all_price_min + all_price_max) / 2.0` | 12.34 | Legacy-named midrange of all-item price bounds. | Either bound is NULL |
+| `all_price_max` | `decimal(38,2)` | master_material | `SUM(master_material.price_max)` | 12.34 | Upper all-offer price bound for all-item materials. | Every item price is NULL |
+| `all_price_buy_min` | `decimal(38,2)` | master_material | `SUM(master_material.price_buy_min)` | 12.34 | Lower buy-only price bound for all-item materials. | Every item buy price is NULL |
+| `all_price_buy_max` | `decimal(38,2)` | master_material | `SUM(master_material.price_buy_max)` | 12.34 | Upper buy-only price bound for all-item materials. | Every item buy price is NULL |
+| `required_priced_count` | `bigint` | master_material | Required Items with non-NULL `price_min` | 42 | Required materials having at least one valid price. | Zero means none |
+| `optional_priced_count` | `bigint` | master_material | Optional Items with non-NULL `price_min` | 42 | Optional materials having at least one valid price. | Zero means none |
+| `bookstore_url` | `varchar` | master_material | Deterministic modal nonblank `master_material.bookstore_url`: count DESC, URL ASC | https://bookstore.example.edu/item/123 | Bookstore URL selected across canonical section items. | No nonblank item URL |

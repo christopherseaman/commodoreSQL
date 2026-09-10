@@ -13,9 +13,9 @@ notion-sync: push
 - Pipeline stage: Data quality / 2d_data_quality.sql
 - Direct upstream relations: `pricing_historical`, `comprehensive_data`
 
-| Column | Type | Example / structure | Direct upstream source / derivation | Description |
-|---|---|---|---|---|
-| `period_sortable` | `varchar` | `YYYY-N`; 1=Winter, 2=Spring, 3=Summer, 4=Fall | Group key from `pricing_historical.period_sortable` in `2d_data_quality.sql`. | Sortable academic term code used for chronological ordering. |
-| `pricing_rows` | `bigint` | Non-negative whole-number count | `COUNT(*)` of `pricing_historical` rows in `2d_data_quality.sql`. | Pricing observations included in the period diagnostic. |
-| `rows_matched` | `hugeint` | Non-negative whole-number count | `SUM(CASE)` for exact `_dq_catalog_pairs(section_id,isbn13)` matches; lookup is grouped from `comprehensive_data` in `2d_data_quality.sql`. | Pricing observations matching an exact catalog section and ISBN. |
-| `match_pct` | `double` | Percentage from 0 through 100 | `ROUND(100.0 * rows_matched / pricing_rows, 2)` in `2d_data_quality.sql`. | Percentage of pricing observations matching catalog rows. |
+| Column | Type | Upstream table | Derivation | Sample values | Description | NULL meaning |
+|---|---|---|---|---|---|---|
+| `period_sortable` | `varchar` | pricing_historical | Group key from `pricing_historical.period_sortable` in `2d_data_quality.sql`. | 2025-4 | Sortable academic term code used for chronological ordering. | Group key can be NULL when the source dimension is missing; computed measures are non-NULL. |
+| `pricing_rows` | `bigint` | pricing_historical | `COUNT(*)` of `pricing_historical` rows in `2d_data_quality.sql`. | 42 | Pricing observations included in the period diagnostic. | Never NULL for an emitted diagnostic row. |
+| `rows_matched` | `hugeint` | comprehensive_data | `SUM(CASE)` for exact `_dq_catalog_pairs(section_id,isbn13)` matches; lookup is grouped from `comprehensive_data` in `2d_data_quality.sql`. | 42 | Pricing observations matching an exact catalog section and ISBN. | Never NULL for an emitted diagnostic row. |
+| `match_pct` | `double` | pricing_historical, comprehensive_data | `ROUND(100.0 * rows_matched / pricing_rows, 2)` in `2d_data_quality.sql`. | 12.34 | Percentage of pricing observations matching catalog rows. | Never NULL for an emitted diagnostic row. |

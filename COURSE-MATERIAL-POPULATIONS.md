@@ -10,8 +10,7 @@ Flags/enrollment assignment: `2_oer_classification.sql`. Canonical grouping: `2b
 
 ## Source and canonical grains
 
-`comprehensive_data`: enriched source rows. Raw IPEDS/opt-out joins require unique lookup keys;
-each refresh must prove row conservation.
+`comprehensive_data`: enriched source rows. Lookup joins require unique keys; each refresh must prove row conservation. Staged #96 removes contact-history/opt-out enrichment from materials; those joins remain in the live database until rebuild.
 
 `course_material`: group by `(period_sortable, section_id, ISBN13)` with NULL-safe ISBN equality.
 Require non-NULL period/section; `UNKNOWN` components remain eligible. Rejected rows stay upstream.

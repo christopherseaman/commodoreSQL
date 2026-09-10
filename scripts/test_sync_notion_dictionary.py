@@ -22,8 +22,8 @@ DATA_SOURCE = "c987ec06-e8d3-4025-8f6e-49b0db2de150"
 
 def values(column="id", relation="example", description="identifier"):
     return {
-        "Column": column, "Table": relation, "Type": "bigint", "Direct upstream": "source.id",
-        "Example / format": "123", "Description": description, "NULL meaning": "never NULL",
+        "Column": column, "Table": relation, "Type": "bigint", "Upstream table": "source.id",
+        "Derivation": "", "Sample values": "123", "Description": description, "NULL meaning": "never NULL",
         "Order": 1, "Kind": "table", "Key": f"{relation}::{column}",
     }
 
@@ -48,16 +48,28 @@ class DictionarySyncTests(unittest.TestCase):
         self.state = self.tmp / "state.json"
         self.store = self.tmp / "remote.json"
         self.log = self.tmp / "calls.jsonl"
+        self.schema = self.tmp / "schema.json"
         self.fake = self.tmp / "ntn"
         self.fake.write_text("""#!/usr/bin/env python3
 import json, os, sys
-store, log = os.environ['FAKE_STORE'], os.environ['FAKE_LOG']
+store, log, schema_path = os.environ['FAKE_STORE'], os.environ['FAKE_LOG'], os.environ['FAKE_SCHEMA']
 body = json.loads(sys.stdin.buffer.read() or b'{}')
 with open(log, 'a') as f: f.write(json.dumps({'argv':sys.argv[1:], 'body':body, 'keyring':os.environ.get('NOTION_KEYRING')})+'\\n')
-props = {name:{'type':kind} for name,kind in {'Column':'title','Table':'rich_text','Type':'rich_text','Direct upstream':'rich_text','Example / format':'rich_text','Description':'rich_text','NULL meaning':'rich_text','Order':'number','Kind':'select','Key':'rich_text'}.items()}
+props = json.load(open(schema_path))
 path, method = sys.argv[2], sys.argv[sys.argv.index('--method')+1]
 rows = json.load(open(store)) if os.path.exists(store) else []
 if path.startswith('/v1/data_sources/') and not path.endswith('/query'):
+ if method == 'PATCH':
+  for name, change in body['properties'].items():
+   if 'name' in change:
+    old = next(prop_name for prop_name, prop in props.items() if prop.get('id') == name)
+    props[change['name']] = props.pop(old)
+    for row in rows: row['properties'][change['name']] = row['properties'].pop(old)
+   else:
+    props[name] = {'type':next(iter(change))}
+    for row in rows: row['properties'][name] = {'type':next(iter(change)), next(iter(change)):[]}
+  json.dump(props,open(schema_path,'w'))
+  json.dump(rows,open(store,'w'))
  print(json.dumps({'properties':props}))
 elif path.endswith('/query'):
  print(json.dumps({'results':rows, 'has_more':False, 'next_cursor':None}))
@@ -70,13 +82,14 @@ else: raise SystemExit(9)
 """)
         self.fake.chmod(0o755)
         self.env = os.environ.copy()
-        self.env.update(FAKE_STORE=str(self.store), FAKE_LOG=str(self.log))
+        self.env.update(FAKE_STORE=str(self.store), FAKE_LOG=str(self.log), FAKE_SCHEMA=str(self.schema))
+        self.write_schema()
 
     def tearDown(self):
         shutil.rmtree(self.tmp)
 
     def write_tsv(self, rows=None):
-        rows = rows or [["example", "table", "1", "id", "bigint", "123", "source.id", "identifier", "never NULL"]]
+        rows = rows or [["example", "table", "1", "id", "bigint", "source.id", "", "123", "identifier", "never NULL"]]
         with self.tsv.open("w", encoding="utf-8", newline="") as stream:
             writer = csv.writer(stream, delimiter="\t", lineterminator="\n")
             writer.writerow(SYNC.HEADERS)
@@ -101,13 +114,23 @@ else: raise SystemExit(9)
 
     @staticmethod
     def tsv_row():
-        return ["example", "table", "1", "id", "bigint", "123", "source.id", "identifier", "never NULL"]
+        return ["example", "table", "1", "id", "bigint", "source.id", "", "123", "identifier", "never NULL"]
+
+    def write_schema(self, legacy=False, derivation=True):
+        names = dict(SYNC.PROPERTY_TYPES)
+        if legacy:
+            names["Direct upstream"] = names.pop("Upstream table")
+            names["Example / format"] = names.pop("Sample values")
+        if not derivation:
+            names.pop("Derivation")
+        self.schema.write_text(json.dumps({name: {"type": kind, "id": f"id-{index}"}
+                                           for index, (name, kind) in enumerate(names.items())}))
 
     def test_wrong_headers_and_invalid_kind_are_rejected(self):
         self.tsv.write_text("relation\tkind\nexample\ttable\n")
         with self.assertRaisesRegex(SYNC.SyncError, "headers"):
             SYNC.load_tsv(self.tsv)
-        self.write_tsv([["example", "materialized", "1", "id", "bigint", "", "", "", ""]])
+        self.write_tsv([["example", "materialized", "1", "id", "bigint", "", "", "", "", ""]])
         with self.assertRaisesRegex(SYNC.SyncError, "table or view"):
             SYNC.load_tsv(self.tsv)
 
@@ -184,6 +207,62 @@ else: raise SystemExit(9)
         config = self.tmp / "config.json"
         config.write_text(json.dumps({"data_source_id": DATA_SOURCE}))
         self.assertEqual(SYNC.configured_data_source(config), DATA_SOURCE)
+
+    def seed_legacy(self, *, description="identifier", partial=False):
+        current = values(description=description)
+        legacy = {name: value for name, value in current.items()
+                  if name not in ("Upstream table", "Derivation", "Sample values")}
+        legacy["Direct upstream"] = current["Upstream table"]
+        legacy["Example / format"] = current["Sample values"]
+        props = api_properties(current)
+        props["Direct upstream"] = props.pop("Upstream table")
+        if partial:
+            props["Sample values"] = props.pop("Sample values")
+        else:
+            props["Example / format"] = props.pop("Sample values")
+        props.pop("Derivation")
+        self.store.write_text(json.dumps([{"id": "page-1", "properties": props}]))
+        self.state.write_text(json.dumps({"version": 1, "data_source_id": DATA_SOURCE,
+                                          "records": {"example::id": {"page_id": "page-1", "values": legacy}}}))
+
+    def test_field_schema_migration_preview_and_apply_preserve_ids(self):
+        self.write_schema(legacy=True, derivation=False)
+        old_schema = json.loads(self.schema.read_text())
+        self.seed_legacy()
+        preview = self.invoke("--migrate-field-schema")
+        self.assertEqual(preview.returncode, 0, preview.stderr)
+        self.assertIn("schema_changes=3 state_changes=1 issues=0", preview.stdout)
+        self.assertIn("Direct upstream", self.schema.read_text())
+        applied = self.invoke("--migrate-field-schema", "--apply")
+        self.assertEqual(applied.returncode, 0, applied.stderr)
+        saved = json.loads(self.state.read_text())["records"]["example::id"]
+        self.assertEqual(saved["page_id"], "page-1")
+        self.assertEqual(saved["values"], values())
+        schema = json.loads(self.schema.read_text())
+        self.assertEqual(schema["Upstream table"]["id"], old_schema["Direct upstream"]["id"])
+        self.assertEqual(schema["Sample values"]["id"], old_schema["Example / format"]["id"])
+
+    def test_field_schema_migration_blocks_remote_edit(self):
+        self.write_schema(legacy=True, derivation=False)
+        self.seed_legacy(description="human edit")
+        state = json.loads(self.state.read_text())
+        state["records"]["example::id"]["values"]["Description"] = "identifier"
+        self.state.write_text(json.dumps(state))
+        result = self.invoke("--migrate-field-schema", "--apply")
+        self.assertEqual(result.returncode, 2)
+        self.assertIn("changed since last sync", result.stderr)
+        self.assertIn("Direct upstream", self.schema.read_text())
+
+    def test_field_schema_migration_recovers_interrupted_rename(self):
+        self.write_schema(legacy=True, derivation=False)
+        schema = json.loads(self.schema.read_text())
+        schema["Sample values"] = schema.pop("Example / format")
+        self.schema.write_text(json.dumps(schema))
+        self.seed_legacy(partial=True)
+        result = self.invoke("--migrate-field-schema", "--apply")
+        self.assertEqual(result.returncode, 0, result.stderr)
+        self.assertIn("schema_changes=2", result.stdout)
+        self.assertEqual(json.loads(self.state.read_text())["records"]["example::id"]["values"], values())
 
 
 if __name__ == "__main__":

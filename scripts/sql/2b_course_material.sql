@@ -133,12 +133,7 @@ FROM (
                 c.period_date NULLS LAST,
                 c.oer_category NULLS LAST,
                 c.ia_category NULLS LAST,
-                c.supply_category NULLS LAST,
-                c.panel_response_year NULLS LAST,
-                c.panel_source_row_count NULLS LAST,
-                c.panel_response_year_variant_count NULLS LAST,
-                c.is_opted_out NULLS LAST,
-                c.opt_out_source NULLS LAST
+                c.supply_category NULLS LAST
         ) AS representative_rank
     FROM comprehensive_data c
     JOIN _cm_key_agg k
@@ -255,11 +250,6 @@ SELECT
     r.enrollment_2024,
     r.distance_enrollment_2024,
     r.institution_type,
-    r.panel_response_year,
-    r.panel_source_row_count,
-    r.panel_response_year_variant_count,
-    r.is_opted_out,
-    r.opt_out_source,
     a.is_required_inferred,
     a.is_recent,
     (a.isbn13 IS NOT NULL) AS has_isbn,

@@ -14,8 +14,6 @@ SELECT
     -- The renamed direct-status fields occupy the two former literal-status slots;
     -- new section context and existing audits follow the legacy prefix.
     cm.* EXCLUDE (
-        panel_source_row_count,
-        panel_response_year_variant_count,
         is_section_required_direct,
         use_source_row_count,
         no_use_source_row_count,
@@ -70,8 +68,6 @@ SELECT
     pw.price_buy_max,
     (pw.section_id IS NOT NULL) AS has_pricing_match,
     cm.is_section_required_direct,
-    cm.panel_source_row_count,
-    cm.panel_response_year_variant_count,
     cm.use_source_row_count,
     cm.no_use_source_row_count,
     cm.has_use_source_row,

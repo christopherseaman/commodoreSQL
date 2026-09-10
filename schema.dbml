@@ -272,11 +272,6 @@ Table comprehensive_data {
   distance_enrollment_2024 integer
   institution_type varchar
   // -- Panel / opt-out --
-  panel_response_year varchar
-  panel_source_row_count bigint [note: 'number of retained raw panel rows for this email']
-  panel_response_year_variant_count bigint [note: 'number of distinct response years for this email']
-  is_opted_out boolean
-  opt_out_source varchar
   // -- Section-owned directness and row flags --
   is_required_direct boolean [note: 'this row is literal required and nonsupply; outside-window rows may be true']
   is_section_required_direct boolean [note: 'recent-period section context from section_enrollment; NULL outside the window']
@@ -359,11 +354,6 @@ Table course_material [note: 'table'] {
   enrollment_2024 integer
   distance_enrollment_2024 integer
   institution_type varchar
-  panel_response_year varchar
-  panel_source_row_count bigint
-  panel_response_year_variant_count bigint
-  is_opted_out boolean
-  opt_out_source varchar
   is_required_inferred boolean
   is_recent boolean
   has_isbn boolean
@@ -471,11 +461,6 @@ Table course_material_recent [note: 'view'] {
   enrollment_2024 integer
   distance_enrollment_2024 integer
   institution_type varchar
-  panel_response_year varchar
-  panel_source_row_count bigint
-  panel_response_year_variant_count bigint
-  is_opted_out boolean
-  opt_out_source varchar
   is_required_inferred boolean
   is_recent boolean
   has_isbn boolean
@@ -581,11 +566,6 @@ Table course_material_use [note: 'view'] {
   enrollment_2024 integer
   distance_enrollment_2024 integer
   institution_type varchar
-  panel_response_year varchar
-  panel_source_row_count bigint
-  panel_response_year_variant_count bigint
-  is_opted_out boolean
-  opt_out_source varchar
   is_required_inferred boolean
   is_recent boolean
   has_isbn boolean
@@ -691,11 +671,6 @@ Table course_material_no_use [note: 'view'] {
   enrollment_2024 integer
   distance_enrollment_2024 integer
   institution_type varchar
-  panel_response_year varchar
-  panel_source_row_count bigint
-  panel_response_year_variant_count bigint
-  is_opted_out boolean
-  opt_out_source varchar
   is_required_inferred boolean
   is_recent boolean
   has_isbn boolean
@@ -871,9 +846,6 @@ Table master_material {
   enrollment_2024 integer
   distance_enrollment_2024 integer
   institution_type varchar
-  panel_response_year varchar
-  is_opted_out boolean
-  opt_out_source varchar
   is_required_inferred boolean [note: 'catalog-owned canonical required inference']
   is_recent boolean
   has_isbn boolean
@@ -934,8 +906,6 @@ Table master_material {
   price_buy_max decimal(10,2)
   has_pricing_match boolean [note: 'TRUE when the LEFT pricing_wide join found a section/ISBN row; independent of whether that row has a valid price_min']
   is_section_required_direct boolean [note: 'section-grain direct-required context inherited from comprehensive_data']
-  panel_source_row_count bigint [note: 'appended canonical panel multiplicity audit from panel_email']
-  panel_response_year_variant_count bigint [note: 'appended canonical panel response-year variant audit']
   use_source_row_count bigint [note: 'appended canonical Use source-row count']
   no_use_source_row_count bigint [note: 'appended canonical NoUse source-row count']
   has_use_source_row boolean [note: 'appended source Use evidence flag']
@@ -1229,6 +1199,14 @@ Table master_isbn {
   author_variant_count bigint
   publisher_variant_count bigint
   metadata_conflict boolean [note: 'True when any metadata variant count exceeds one']
+  required_price_min decimal(38,2) [note: 'SUM(master_material.price_min) over is_required_inferred section-item occurrences for the term × ISBN; NULL prices ignored, all missing yields NULL']
+  required_price_max decimal(38,2) [note: 'SUM(master_material.price_max) over is_required_inferred section-item occurrences for the term × ISBN; NULL prices ignored, all missing yields NULL']
+  required_price_buy_min decimal(38,2) [note: 'SUM(master_material.price_buy_min) over is_required_inferred section-item occurrences for the term × ISBN; rentals excluded']
+  required_price_buy_max decimal(38,2) [note: 'SUM(master_material.price_buy_max) over is_required_inferred section-item occurrences for the term × ISBN; rentals excluded']
+  all_price_min decimal(38,2) [note: 'SUM(master_material.price_min) over all retained Use section-item occurrences for the term × ISBN; NULL prices ignored, all missing yields NULL']
+  all_price_max decimal(38,2) [note: 'SUM(master_material.price_max) over all retained Use section-item occurrences for the term × ISBN; NULL prices ignored, all missing yields NULL']
+  all_price_buy_min decimal(38,2) [note: 'SUM(master_material.price_buy_min) over all retained Use section-item occurrences for the term × ISBN; rentals excluded']
+  all_price_buy_max decimal(38,2) [note: 'SUM(master_material.price_buy_max) over all retained Use section-item occurrences for the term × ISBN; rentals excluded']
   price_buy_new_physical_count bigint
   price_buy_new_digital_count bigint
   price_buy_new_na_count bigint
@@ -1256,7 +1234,7 @@ Table master_isbn {
   institution_type_under_2_year_public_count bigint
   institution_type_unknown_count bigint
 
-  Note: 'Issue #55/#58. One row per term × ISBN consumed from master_material; Canada, blank ISBN, supply, no-details, and no-material rows are excluded. Pseudo-SKU access codes remain eligible unless classified supply. Price counts are distinct sections with non-NULL master_material cells.'
+  Note: 'Issue #55/#58/#95. One row per term × ISBN consumed from master_material; Canada, blank ISBN, supply, no-details, and no-material rows are excluded. Pseudo-SKU access codes remain eligible unless classified supply. Price bounds sum section-item adoption occurrences and do not assert institution-independent ISBN prices. Price counts are distinct sections with non-NULL master_material cells.'
 }
 
 Table sample_material_10pct {
@@ -1310,9 +1288,6 @@ Table sample_material_10pct {
   enrollment_2024 integer
   distance_enrollment_2024 integer
   institution_type varchar
-  panel_response_year varchar
-  is_opted_out boolean
-  opt_out_source varchar
   is_required_inferred boolean [note: 'catalog-owned canonical required inference']
   is_recent boolean
   has_isbn boolean
@@ -1373,8 +1348,6 @@ Table sample_material_10pct {
   price_buy_max decimal(10,2)
   has_pricing_match boolean [note: 'TRUE when the LEFT pricing_wide join found a section/ISBN row; independent of whether that row has a valid price_min']
   is_section_required_direct boolean [note: 'section-grain direct-required context inherited from comprehensive_data']
-  panel_source_row_count bigint [note: 'appended canonical panel multiplicity audit from panel_email']
-  panel_response_year_variant_count bigint [note: 'appended canonical panel response-year variant audit']
   use_source_row_count bigint [note: 'appended canonical Use source-row count']
   no_use_source_row_count bigint [note: 'appended canonical NoUse source-row count']
   has_use_source_row boolean [note: 'appended source Use evidence flag']

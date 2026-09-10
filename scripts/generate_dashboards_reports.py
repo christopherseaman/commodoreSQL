@@ -11,17 +11,18 @@ from pathlib import Path
 
 
 ROOT = Path(__file__).resolve().parents[1]
+METABASE_URL = "https://meta.badmath.org"
 EXPECTED = {
     "dashboards": 14,
-    "questions": 70,
+    "questions": 72,
     "models": 4,
     "placements": 79,
     "dashboard_used": 61,
-    "standalone": 9,
+    "standalone": 11,
 }
 
 MAX_RENDERED_LINES = 450
-MAX_RENDERED_WORDS = 2_500
+MAX_RENDERED_WORDS = 2_700
 
 GROUPS = [
     (
@@ -65,6 +66,8 @@ STANDALONE_GROUPS = [
             "58_top100_nonsupply_missing_formattype",
             "63_no_price_choice_by_class",
             "64_fall2025_unitid_bookstore_url_mapping",
+            "73_fall2025_pricing_catalog_populations",
+            "74_fall2025_pricing_catalog_examples",
         ],
     ),
     (
@@ -172,10 +175,11 @@ def scope_label(description: str) -> str:
 
 def card_row(stem: str, ids: dict, questions: dict[str, tuple[str, str]]) -> str:
     title, description = questions[stem]
+    card_id = ids[stem]
     return " | ".join(
         (
-            f"| {table_cell(title)}",
-            f"[`{ids[stem]}`](metabase/questions/{stem}.sql)",
+            f"| [{table_cell(title)}]({METABASE_URL}/question/{card_id})",
+            f"[`{card_id}`](metabase/questions/{stem}.sql)",
             f"{table_cell(scope_label(description))} |",
         )
     )
@@ -190,9 +194,12 @@ def validate_rendered(rendered: str) -> None:
         "dashboard card table count mismatch": rendered.count("| Card | ID | Scope |")
         == EXPECTED["dashboards"] + len(STANDALONE_GROUPS),
         "model table count mismatch": rendered.count("| Model | ID | Scope |") == 1,
-        "question row count mismatch": rendered.count("](metabase/questions/") == expected_question_rows,
+        "question repository-link count mismatch": rendered.count("](metabase/questions/") == expected_question_rows,
+        "question destination-link count mismatch": rendered.count(f"]({METABASE_URL}/question/") == expected_question_rows,
         "dashboard source count mismatch": rendered.count("](metabase/dashboards/") == EXPECTED["dashboards"],
+        "dashboard destination-link count mismatch": rendered.count(f"]({METABASE_URL}/dashboard/") == EXPECTED["dashboards"],
         "model row count mismatch": rendered.count("](metabase/models/") == EXPECTED["models"],
+        "model destination-link count mismatch": rendered.count(f"]({METABASE_URL}/model/") == EXPECTED["models"],
         f"rendered line budget exceeds {MAX_RENDERED_LINES}": len(lines) <= MAX_RENDERED_LINES,
         f"rendered word budget exceeds {MAX_RENDERED_WORDS}": len(words) <= MAX_RENDERED_WORDS,
     }
@@ -223,9 +230,9 @@ def render() -> str:
             meta = dashboard["meta"]
             key = "dashboard_" + path.stem
             lines += [
-                f"### {meta['name']}",
+                f"### [{meta['name']}]({METABASE_URL}/dashboard/{ids[key]})",
                 "",
-                f"ID `{ids[key]}` · [`{path.stem}`](metabase/dashboards/{path.name}) · {scope_label(meta.get('description', ''))}",
+                f"ID `{ids[key]}` · [repository definition](metabase/dashboards/{path.name}) · {scope_label(meta.get('description', ''))}",
                 "",
                 "| Card | ID | Scope |",
                 "|---|---:|---|",
@@ -253,11 +260,12 @@ def render() -> str:
     for key in ("model_master_institution", "model_master_isbn", "model_master_section", "model_sample_section_us_intro_fall2025"):
         title, description = models[key]
         stem = key.removeprefix("model_")
+        model_id = ids[key]
         lines.append(
             " | ".join(
                 (
-                    f"| {table_cell(title)}",
-                    f"[`{ids[key]}`](metabase/models/{stem}.sql)",
+                    f"| [{table_cell(title)}]({METABASE_URL}/model/{model_id})",
+                    f"[`{model_id}`](metabase/models/{stem}.sql)",
                     f"{table_cell(scope_label(description))} |",
                 )
             )

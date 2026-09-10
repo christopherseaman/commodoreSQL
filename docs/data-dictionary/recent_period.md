@@ -13,6 +13,6 @@ notion-sync: push
 - Pipeline stage: IMPORT derived / 0c_recent_period.sql
 - Direct upstream relations: `course_catalog_20251215`
 
-| Column | Type | Example / structure | Direct upstream source / derivation | Description |
-|---|---|---|---|---|
-| `period_sortable` | `varchar` | YYYY-N | Latest 12 distinct nonmissing `course_catalog_20251215.period_sortable` values. | Sortable academic term code used for chronological ordering. |
+| Column | Type | Upstream table | Derivation | Sample values | Description | NULL meaning |
+|---|---|---|---|---|---|---|
+| `period_sortable` | `varchar` | course_catalog_20251215 | Latest 12 distinct nonmissing `course_catalog_20251215.period_sortable` values. | 2025-4 | Sortable academic term code used for chronological ordering. | Not produced. |

@@ -423,6 +423,53 @@ def field_values(column: Column) -> str:
     return f"{label.capitalize()} text; spelling/casing follows the stated source or derivation"
 
 
+def field_sample_values(column: Column) -> str:
+    """Return literal synthetic examples; formats and rules belong elsewhere."""
+    name = column.name.lower()
+    data_type = column.data_type.lower()
+    named = {
+        "email": "instructor@example.edu", "isbn13": "9780000000002",
+        "period": "Fall 2025", "period_sortable": "2025-4",
+        "period_date": "2025-10-01", "book_option": "buy",
+        "book_condition": "new", "book_format": "physical", "format": "digital",
+        "book_status": "required", "enrollment_source": "own",
+        "section_enrollment_source": "class_median", "oer_category": "unknown",
+        "ia_category": "unknown", "category": "science_lab", "supply_category": "science_lab",
+        "state": "CA", "sample_bucket": "0",
+        "formattype": "Book", "format_type": "Book", "imprint": "Example Academic",
+        "bookstore_url": "https://bookstore.example.edu/item/123", "course_level": "Introductory or general undergraduate",
+        "crn": "12345", "division": "Pacific", "edition": "3rd",
+        "iclevel": "Four or more years", "inst_type": "College", "instsize": "1",
+        "matched_pattern": "lab kit", "opt_out_source": "survey",
+        "panel_response_year": "OER_2025", "region": "West", "section_control": "Public",
+        "section_course_id": "1001::BIO::101", "section_course_level": "Introductory or general undergraduate",
+        "section_level": "Four or more years", "section_sector": "Public, 4-year or above",
+        "source": "survey",
+    }
+    if name in named:
+        return named[name]
+    if name in {"section_id", "course_id"}: return "1001::BIO::101::001::2025-4" if name == "section_id" else "1001::BIO::101"
+    if name in {"unit_id", "unitid"}: return "1001"
+    if data_type == "boolean": return "TRUE"
+    if data_type == "date": return "2025-10-01"
+    if data_type.startswith("timestamp"): return "2025-10-01 12:00:00"
+    if data_type.endswith("[][]"): return "[['alpha', 'beta'], ['gamma']]"
+    if data_type.endswith("[]"): return "['alpha', 'beta']"
+    if data_type in {"integer", "bigint", "hugeint", "ubigint", "utinyint"}: return "42"
+    if data_type in {"decimal", "double", "float", "real"} or data_type.startswith("decimal("): return "12.34"
+    if "title" in name: return "Introduction to Biology"
+    if "author" in name: return "A. Example"
+    if "publisher" in name: return "Example Press"
+    if name in {"school", "institution_name", "instnm", "institute"}: return "Example University"
+    if name in {"department", "dept_name", "dept_description"}: return "Biology"
+    if name in {"dept_code", "course_subject"}: return "BIO"
+    if name in {"course_number", "course_code"}: return "101"
+    if name in {"section", "section_code"}: return "001"
+    if "category" in name or name in {"control", "level", "sector", "size", "institution_type"}: return "unknown"
+    if name in {"first_name", "last_name", "instructor", "instructor_name"}: return "A. Example"
+    return "example"
+
+
 CATALOG_EXTERNAL_FIELDS: dict[str, str] = {
     "ISBN13": "ISBN13", "Title": "Title", "Author": "Author", "Publisher": "Publisher",
     "Imprint": "Imprint", "Format": "Format", "FormatType": "FormatType",
@@ -520,6 +567,13 @@ def _qualify_master_section_source(column_name: str, source: str) -> str:
         rf"\1 `section_enrollment.{column_name}`",
         source,
     )
+    any_value_columns = {
+        "course_id", "unit_id", "state", "control", "level", "size", "sector",
+        "institution_name", "institution_type", "enrollment_2024",
+        "distance_enrollment_2024",
+    }
+    if column_name in any_value_columns:
+        source = f"`ANY_VALUE(master_material.{column_name})`"
     return source
 
 
@@ -812,19 +866,19 @@ def _pricing_wide_metadata(column: Column) -> FieldMetadata | None:
         option, condition, fmt = match.groups()
         condition_sql = "book_condition IS NULL" if condition == "na" else f"book_condition = '{condition}'"
         format_sql = "book_format IS NULL" if fmt == "na" else f"book_format = '{fmt}'"
-        return _metadata(column, f"`MAX(price)` where `book_option = '{option}'`, `{condition_sql}`, and `{format_sql}` after prices >=9999 are normalized to NULL.", pop,
+        return _metadata(column, f"`MAX(CASE WHEN pricing_historical.book_option = '{option}' AND pricing_historical.{condition_sql} AND pricing_historical.{format_sql} THEN CASE WHEN pricing_historical.price < 9999 THEN pricing_historical.price END END)`.", pop,
                          "That option/condition/format has no price below the 9999 sentinel ceiling.", "aggregate")
     rules = {
         "format_count": ("`COUNT(DISTINCT (pricing_historical.book_option, pricing_historical.book_condition, pricing_historical.book_format))` FILTERed to buy/rental listings; tuple NULLs remain distinct values.", "Never NULL; zero means no buy/rental tuple."),
-        "has_buy": ("`BOOL_OR(book_option='buy')`.", "NULL when every retained row has book_option = NULL; otherwise TRUE if any row is buy and FALSE when all non-NULL values are not buy."),
-        "has_rent": ("`BOOL_OR(book_option='rental')`.", "NULL when every retained row has book_option = NULL; otherwise TRUE if any row is rental and FALSE when all non-NULL values are not rental."),
-        "price_min": ("`MIN(price)` after prices >=9999 are normalized to NULL; zero is retained.", "No price below the 9999 sentinel ceiling in the group."),
-        "price_max": ("`MAX(price)` after prices >=9999 are normalized to NULL; zero is retained.", "No price below the 9999 sentinel ceiling in the group."),
-        "price_avg": ("Legacy midpoint `(price_min + price_max) / 2.0`; not AVG().", "Either price bound is missing."),
+        "has_buy": ("`BOOL_OR(pricing_historical.book_option='buy')`.", "NULL when every retained row has book_option = NULL; otherwise TRUE if any row is buy and FALSE when all non-NULL values are not buy."),
+        "has_rent": ("`BOOL_OR(pricing_historical.book_option='rental')`.", "NULL when every retained row has book_option = NULL; otherwise TRUE if any row is rental and FALSE when all non-NULL values are not rental."),
+        "price_min": ("`MIN(CASE WHEN pricing_historical.price < 9999 THEN pricing_historical.price END)`; zero is retained.", "No price below the 9999 sentinel ceiling in the group."),
+        "price_max": ("`MAX(CASE WHEN pricing_historical.price < 9999 THEN pricing_historical.price END)`; zero is retained.", "No price below the 9999 sentinel ceiling in the group."),
+        "price_avg": ("`(price_min + price_max) / 2.0`; never `AVG()`.", "Either price bound is missing."),
         "rental_days_min": ("`MIN(pricing_historical.rental_days) FILTER (WHERE pricing_historical.book_option='rental')`.", "No rental listing has an explicit rental term."),
         "rental_days_max": ("`MAX(pricing_historical.rental_days) FILTER (WHERE pricing_historical.book_option='rental')`.", "No rental listing has an explicit rental term."),
-        "price_buy_min": ("`MIN(price)` FILTERed to buy after prices >=9999 become NULL; rentals excluded.", "No buy price below the 9999 sentinel ceiling."),
-        "price_buy_max": ("`MAX(price)` FILTERed to buy after prices >=9999 become NULL; rentals excluded.", "No buy price below the 9999 sentinel ceiling."),
+        "price_buy_min": ("`MIN(CASE WHEN pricing_historical.price < 9999 THEN pricing_historical.price END) FILTER (WHERE pricing_historical.book_option='buy')`.", "No buy price below the 9999 sentinel ceiling."),
+        "price_buy_max": ("`MAX(CASE WHEN pricing_historical.price < 9999 THEN pricing_historical.price END) FILTER (WHERE pricing_historical.book_option='buy')`.", "No buy price below the 9999 sentinel ceiling."),
     }
     if n in rules:
         return _metadata(column, rules[n][0], pop, rules[n][1], "aggregate")
@@ -847,11 +901,6 @@ def _comprehensive_metadata(column: Column) -> FieldMetadata | None:
         "enrollment_2024": "`ipeds_data.enroll_24` joined on institution ID.",
         "distance_enrollment_2024": "`ipeds_data.dist_enroll_24` joined on institution ID.",
         "institution_type": "`ipeds_data.inst_type` joined on institution ID.",
-        "panel_response_year": "`panel_email.panel_response_year` joined on cleaned email; one-row lookup prevents panel-history multiplication.",
-        "panel_source_row_count": "`panel_email.panel_source_row_count` joined on cleaned email; preserves panel multiplicity audit.",
-        "panel_response_year_variant_count": "`panel_email.panel_response_year_variant_count` joined on cleaned email; preserves response-year conflict audit.",
-        "is_opted_out": "True when cleaned email matches `opt_out.email`; otherwise false.",
-        "opt_out_source": "`opt_out.source` joined on cleaned email.",
         "is_required_direct": "`course_catalog_20251215.book_status = 'required'` with no supply-classification match.",
         "is_section_required_direct": "Local `BOOL_OR` of nonsupply literal-required rows in recent_period by period_sortable and section_id; NULL outside the window.",
         "section_course_id": "`section_enrollment.course_id` joined on period_sortable and section_id.",
@@ -865,26 +914,29 @@ def _comprehensive_metadata(column: Column) -> FieldMetadata | None:
         "section_has_enrollment_own_seats": "`section_enrollment.has_enrollment_own_seats` joined on period_sortable and section_id.",
         "section_has_enrollment_sibling": "`section_enrollment.has_enrollment_sibling` joined on period_sortable and section_id for recent-period sections.",
         "section_has_enrollment_sibling_seats": "`section_enrollment.has_enrollment_sibling_seats` joined on period_sortable and section_id for recent-period sections.",
-        "section_enrollment_assigned": "Local assignment context: rounded own/seats/sibling/IPEDS cohort median ladder from section_enrollment signals.",
-        "section_enrollment_source": "Recent-section assignment ladder label; `none` means no rung succeeded.",
-        "is_required_inferred": "True for recent-period rows satisfying supply-aware section required-status fallback.",
-        "is_recent": "`period_sortable IN (SELECT period_sortable FROM recent_period)`.",
-        "has_isbn": "`ISBN13 IS NOT NULL`.", "has_formattype": "`FormatType` is non-NULL and nonblank.",
+        "section_enrollment_assigned": "`ROUND(COALESCE(section_context.enrollments, CASE WHEN section_context.seats_taken < 9999 THEN section_context.seats_taken END, course_enrollment_median, course_seats_median, class_enrollment_median, level_enrollment_median))::INT` in `section_assignment`.",
+        "section_enrollment_source": "`CASE` label for the first non-NULL enrollment rung: `own`, `own_seats`, `sibling_enroll`, `sibling_seats`, `class_median`, `level_median`, else `none`.",
+        "is_required_inferred": "`CASE WHEN period_sortable IN (SELECT period_sortable FROM recent_period) AND ((is_section_required_direct=TRUE AND book_status='required') OR (is_section_required_direct=FALSE AND book_status IS NULL)) THEN TRUE ELSE FALSE END`.",
+        "is_recent": "`COALESCE(period_sortable IN (SELECT period_sortable FROM recent_period), FALSE)`.",
+        "has_isbn": "`ISBN13 IS NOT NULL`.",
         "has_enrollment": "`enrollments IS NOT NULL`.",
         "has_enrollment_own_seats": "`seats_taken IS NOT NULL AND seats_taken < 9999`.",
-        "no_details": "Title equals exact marker `*No Book Details*`.",
-        "no_materials": "Title equals `*No Books Required*` or supply category is `placeholder_no_material`.",
-        "is_canada": "`state = 'CAN'`, coalesced false.",
+        "has_formattype": "`FormatType IS NOT NULL AND TRIM(FormatType) <> ''`.",
+        "no_details": "`COALESCE(Title = '*No Book Details*', FALSE)`.",
+        "no_materials": "`COALESCE(Title = '*No Books Required*', FALSE) OR COALESCE(supply_category = 'placeholder_no_material', FALSE)`.",
+        "is_canada": "`COALESCE(state = 'CAN', FALSE)`.",
         "is_course_material_use": "Recent-period AND not Canada AND has ISBN AND not supply/no-details/no-materials.",
         "is_course_material_no_use": "Recent-period complement of `is_course_material_use`; false outside the window.",
     }
     if n not in joins:
         return None
-    nullable_join = n in {"is_oer", "is_ia", "supply_category", "institution_name", "sector", "level", "control", "size", "enrollment_2024", "distance_enrollment_2024", "institution_type", "panel_response_year", "panel_source_row_count", "panel_response_year_variant_count", "opt_out_source", "is_section_required_direct", "section_course_id", "section_control", "section_level", "section_sector", "section_course_level", "section_enrollments", "section_seats_taken", "section_has_enrollment", "section_has_enrollment_own_seats", "section_has_enrollment_sibling", "section_has_enrollment_sibling_seats", "section_enrollment_assigned", "section_enrollment_source"}
+    nullable_join = n in {"is_oer", "is_ia", "supply_category", "institution_name", "sector", "level", "control", "size", "enrollment_2024", "distance_enrollment_2024", "institution_type", "is_section_required_direct", "section_course_id", "section_control", "section_level", "section_sector", "section_course_level", "section_enrollments", "section_seats_taken", "section_has_enrollment", "section_has_enrollment_own_seats", "section_has_enrollment_sibling", "section_has_enrollment_sibling_seats", "section_enrollment_assigned", "section_enrollment_source"}
     if n in {"is_section_required_direct", "section_has_enrollment", "section_has_enrollment_own_seats", "section_has_enrollment_sibling", "section_has_enrollment_sibling_seats"}:
         null = "NULL outside the recent-period window; within it, false means no qualifying section evidence."
     elif n == "section_enrollment_source":
         null = "NULL outside the recent-period window; within it, `none` means no assignment rung succeeded."
+    elif n in {"oer_category", "ia_category"}:
+        null = "Never NULL; unmatched or missing lookup categories become `unknown`."
     else:
         null = "No matching lookup row or the matched lookup value is missing." if nullable_join else "Never NULL; false represents absence or exclusion."
     return _metadata(column, joins[n], pop, null, "joined" if nullable_join else "derived")
@@ -1038,13 +1090,13 @@ def _section_enrollment_metadata(column: Column) -> FieldMetadata | None:
         return _metadata(column, f"`MAX(course_catalog_20251215.{n})` for the section; raw 9999 seats sentinel retained.", pop,
                          f"No reported {n.replace('_', ' ')}.", "aggregate")
     flag_expr = {
-        "has_enrollment": "section MAX(enrollments) is non-NULL",
-        "has_enrollment_own_seats": "section MAX(seats_taken) is non-NULL and below 9999",
-        "has_enrollment_sibling": "another same-course/same-term section has enrollment",
-        "has_enrollment_sibling_seats": "another same-course/same-term section has valid seats",
+        "has_enrollment": "`enrollments IS NOT NULL`",
+        "has_enrollment_own_seats": "`seats_taken IS NOT NULL AND seats_taken < 9999`",
+        "has_enrollment_sibling": "`(course_enroll_sections - CASE WHEN has_enrollment THEN 1 ELSE 0 END) > 0`, where `course_enroll_sections = SUM(CASE WHEN has_enrollment THEN 1 ELSE 0 END)` per `(course_id, period_sortable)`",
+        "has_enrollment_sibling_seats": "`(course_seats_sections - CASE WHEN has_enrollment_own_seats THEN 1 ELSE 0 END) > 0`, where `course_seats_sections = SUM(CASE WHEN has_enrollment_own_seats THEN 1 ELSE 0 END)` per `(course_id, period_sortable)`",
     }
     if n in flag_expr:
-        return _metadata(column, flag_expr[n].capitalize() + ".", pop, "Never NULL; false means the signal is absent.", "derived")
+        return _metadata(column, flag_expr[n] + ".", pop, "Never NULL; false means the signal is absent.", "derived")
     return None
 
 
@@ -1212,6 +1264,19 @@ def _master_isbn_metadata(column: Column) -> FieldMetadata | None:
     if n == "metadata_conflict":
         return _metadata(column, "True when any title/author/publisher variant count exceeds one.", pop,
                          "Never NULL; false means no detected canonical metadata conflict.", "dq")
+    price_bound = re.fullmatch(r"(required|all)_price(_buy)?_(min|max)", n)
+    if price_bound:
+        scope, buy, bound = price_bound.groups()
+        source = f"price{'_buy' if buy else ''}_{bound}"
+        predicate = " FILTER (WHERE is_required_inferred)" if scope == "required" else ""
+        population = (
+            "Inferred-required section-item occurrences for one term×ISBN."
+            if scope == "required"
+            else "All retained Use section-item occurrences for one term×ISBN."
+        )
+        return _metadata(column, f"`SUM(master_material.{source}){predicate}`.", population,
+                         "All qualifying occurrence values are missing; individual NULLs are ignored and genuine zero is retained.",
+                         "aggregate")
     price = re.fullmatch(r"(price_(?:buy|rental)_(?:new|used|na)_(?:physical|digital|na))_count", n)
     if price:
         return _metadata(column, f"`COUNT(DISTINCT section_id) FILTER (WHERE {price.group(1)} IS NOT NULL)`.",
@@ -1296,6 +1361,45 @@ def _cell(value: str) -> str:
 
 def _upstream(metadata: RelationMetadata) -> str:
     return ", ".join(f"`{source}`" for source in metadata.upstream)
+
+
+def field_upstream(relation: Relation, column: Column, contract: FieldMetadata) -> str:
+    """Name immediate input relations/files separately from the field expression."""
+    candidates = RELATION_METADATA[relation.name].upstream
+    overrides = {
+        ("comprehensive_data", "section_enrollment_assigned"): ("section_enrollment", "ipeds_data"),
+        ("comprehensive_data", "section_enrollment_source"): ("section_enrollment", "ipeds_data"),
+        ("comprehensive_data", "is_required_inferred"): ("course_catalog_20251215", "recent_period", "supply_isbn_classification"),
+        ("comprehensive_data", "is_recent"): ("course_catalog_20251215", "recent_period"),
+        ("comprehensive_data", "is_supply"): ("course_catalog_20251215", "supply_isbn_classification"),
+        ("comprehensive_data", "supply_category"): ("course_catalog_20251215", "supply_isbn_classification"),
+        ("comprehensive_data", "has_isbn"): ("course_catalog_20251215",),
+        ("comprehensive_data", "has_formattype"): ("course_catalog_20251215",),
+        ("comprehensive_data", "has_enrollment"): ("course_catalog_20251215",),
+        ("comprehensive_data", "has_enrollment_own_seats"): ("course_catalog_20251215",),
+        ("comprehensive_data", "no_details"): ("course_catalog_20251215",),
+        ("comprehensive_data", "no_materials"): ("course_catalog_20251215", "supply_isbn_classification"),
+        ("comprehensive_data", "is_canada"): ("course_catalog_20251215",),
+        ("comprehensive_data", "is_course_material_use"): ("course_catalog_20251215", "recent_period", "supply_isbn_classification"),
+        ("comprehensive_data", "is_course_material_no_use"): ("course_catalog_20251215", "recent_period", "supply_isbn_classification"),
+    }
+    if (relation.name, column.name) in overrides:
+        return ", ".join(overrides[(relation.name, column.name)])
+    mentioned = [name for name in candidates if re.search(rf"(?<![A-Za-z0-9_]){re.escape(name)}(?![A-Za-z0-9_])", contract.source)]
+    return ", ".join(mentioned or candidates)
+
+
+def field_derivation(contract: FieldMetadata) -> str:
+    """Expose the maintained field-level SQL/rule without lineage overloading."""
+    return contract.source
+
+
+def field_sample(column: Column, contract: FieldMetadata) -> str:
+    if contract.values.startswith("Always TRUE") or contract.source.startswith("Constant TRUE"):
+        return "TRUE"
+    if contract.values.startswith("Always FALSE") or contract.source.startswith("Constant FALSE"):
+        return "FALSE"
+    return field_sample_values(column)
 
 
 _DESCRIPTION_WORD_RE = re.compile(r"[A-Za-z0-9]+(?:[-/'][A-Za-z0-9]+)*")
@@ -1851,7 +1955,7 @@ def render_index(relations: list[Relation]) -> str:
         "",
         "# CommodoreSQL data dictionary",
         "",
-        "Canonical field definitions for the declared pipeline schema, generated from `schema.dbml`.",
+        "Canonical field definitions combine `schema.dbml` with maintained lineage and derivation metadata. Samples are illustrative, not observed data.",
         "",
         f"Declared scope: {len(selected)} relations and "
         f"{sum(len(relation.columns) for relation in selected):,} fields.",
@@ -1887,8 +1991,8 @@ def render_relation_document(
     lines.extend(
         [
             "",
-            "| Column | Type | Example / structure | Direct upstream source / derivation | Description |",
-            "|---|---|---|---|---|",
+            "| Column | Type | Upstream table | Derivation | Sample values | Description | NULL meaning |",
+            "|---|---|---|---|---|---|---|",
         ]
     )
     for column in relation.columns:
@@ -1899,9 +2003,11 @@ def render_relation_document(
                 (
                     f"`{_cell(column.name)}`",
                     f"`{_cell(column.data_type)}`",
-                    _cell(contract.values),
-                    _cell(contract.source),
+                    _cell(field_upstream(relation, column, contract)),
+                    _cell(field_derivation(contract)),
+                    _cell(field_sample(column, contract)),
                     _cell(contract.description),
+                    _cell(contract.null_meaning),
                 )
             )
             + " |"
@@ -1924,8 +2030,9 @@ def render_tsv(
             "ordinal",
             "column",
             "type",
-            "example / structure",
-            "direct upstream source / derivation",
+            "upstream table",
+            "derivation",
+            "sample values",
             "description",
             "null meaning",
         )
@@ -1940,8 +2047,9 @@ def render_tsv(
                     ordinal,
                     column.name,
                     column.data_type,
-                    contract.values,
-                    contract.source,
+                    field_upstream(relation, column, contract),
+                    field_derivation(contract),
+                    field_sample(column, contract),
                     contract.description,
                     contract.null_meaning,
                 )

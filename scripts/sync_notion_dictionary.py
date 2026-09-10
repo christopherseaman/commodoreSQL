@@ -20,14 +20,17 @@ from typing import Any
 
 
 HEADERS = [
-    "relation", "kind", "ordinal", "column", "type", "example / structure",
-    "direct upstream source / derivation", "description", "null meaning",
+    "relation", "kind", "ordinal", "column", "type", "upstream table",
+    "derivation", "sample values", "description", "null meaning",
 ]
 PROPERTY_TYPES = {
     "Column": "title", "Table": "rich_text", "Type": "rich_text",
-    "Direct upstream": "rich_text", "Example / format": "rich_text",
+    "Upstream table": "rich_text", "Derivation": "rich_text", "Sample values": "rich_text",
     "Description": "rich_text", "NULL meaning": "rich_text", "Order": "number",
     "Kind": "select", "Key": "rich_text",
+}
+LEGACY_PROPERTY_NAMES = {
+    "Direct upstream": "Upstream table", "Example / format": "Sample values",
 }
 STATE_VERSION = 1
 DEFAULT_TSV = Path("docs/data-dictionary.tsv")
@@ -153,14 +156,14 @@ def read_text(prop: Any, field_type: str) -> str:
     return "".join(output)
 
 
-def remote_values(properties: Any) -> dict[str, Any]:
+def remote_values(properties: Any, property_types: dict[str, str] = PROPERTY_TYPES) -> dict[str, Any]:
     if not isinstance(properties, dict):
         raise SyncError("remote page has no properties object")
-    missing = sorted(set(PROPERTY_TYPES) - set(properties))
+    missing = sorted(set(property_types) - set(properties))
     if missing:
         raise SyncError(f"remote page is missing managed properties: {', '.join(missing)}")
     result: dict[str, Any] = {}
-    for name, field_type in PROPERTY_TYPES.items():
+    for name, field_type in property_types.items():
         prop = properties[name]
         if field_type in ("title", "rich_text"):
             result[name] = read_text(prop, field_type)
@@ -214,8 +217,8 @@ def load_tsv(path: Path) -> list[LocalRow]:
         seen.add(key)
         values = {
             "Column": column, "Table": relation, "Type": row["type"],
-            "Direct upstream": row["direct upstream source / derivation"],
-            "Example / format": row["example / structure"],
+            "Upstream table": row["upstream table"], "Derivation": row["derivation"],
+            "Sample values": row["sample values"],
             "Description": row["description"], "NULL meaning": row["null meaning"],
             "Order": ordinal, "Kind": kind, "Key": key,
         }
@@ -223,11 +226,16 @@ def load_tsv(path: Path) -> list[LocalRow]:
     return rows
 
 
-def validate_schema(client: NotionClient, data_source_id: str) -> None:
+def fetch_schema(client: NotionClient, data_source_id: str) -> dict[str, Any]:
     payload = client.request(f"/v1/data_sources/{data_source_id}")
     properties = payload.get("properties")
     if not isinstance(properties, dict):
         raise SyncError("data source response has no properties object")
+    return properties
+
+
+def validate_schema(client: NotionClient, data_source_id: str) -> None:
+    properties = fetch_schema(client, data_source_id)
     problems = []
     for name, expected in PROPERTY_TYPES.items():
         actual = properties.get(name, {}).get("type") if isinstance(properties.get(name), dict) else None
@@ -237,7 +245,8 @@ def validate_schema(client: NotionClient, data_source_id: str) -> None:
         raise SyncError("data source schema mismatch: " + "; ".join(problems))
 
 
-def query_all(client: NotionClient, data_source_id: str) -> list[RemoteRow]:
+def query_all(client: NotionClient, data_source_id: str,
+              property_types: dict[str, str] = PROPERTY_TYPES) -> list[RemoteRow]:
     output: list[RemoteRow] = []
     cursor = None
     while True:
@@ -252,7 +261,7 @@ def query_all(client: NotionClient, data_source_id: str) -> list[RemoteRow]:
             page_id = item.get("id") if isinstance(item, dict) else None
             if not isinstance(page_id, str) or not page_id:
                 raise SyncError("data source query returned a page without an ID")
-            output.append(RemoteRow(page_id, remote_values(item.get("properties"))))
+            output.append(RemoteRow(page_id, remote_values(item.get("properties"), property_types)))
         has_more = payload.get("has_more")
         cursor = payload.get("next_cursor")
         if has_more is False:
@@ -362,6 +371,99 @@ def apply_one(client: NotionClient, data_source_id: str,
         raise SyncError(f"{operation} {row.key} returned no page ID")
 
 
+def migrated_values(values: dict[str, Any]) -> dict[str, Any]:
+    result = dict(values)
+    for old, new in LEGACY_PROPERTY_NAMES.items():
+        if old in result and new in result:
+            raise SyncError(f"migration values contain both {old} and {new}")
+        if old in result:
+            result[new] = result.pop(old)
+    result.setdefault("Derivation", "")
+    if set(result) != set(PROPERTY_TYPES):
+        raise SyncError("migration record has an unsupported values shape")
+    return result
+
+
+def migration_property_types(properties: dict[str, Any]) -> tuple[dict[str, str], dict[str, Any], dict[str, str]]:
+    readable: dict[str, str] = {}
+    changes: dict[str, Any] = {}
+    retained_ids: dict[str, str] = {}
+    for current, expected_type in PROPERTY_TYPES.items():
+        old = next((name for name, new in LEGACY_PROPERTY_NAMES.items() if new == current), None)
+        present = [name for name in (current, old) if name and name in properties]
+        if len(present) > 1:
+            raise SyncError(f"data source has both legacy and current properties for {current}")
+        if present:
+            name = present[0]
+            actual = properties[name].get("type") if isinstance(properties[name], dict) else None
+            if actual != expected_type:
+                raise SyncError(f"data source property {name} has type {actual or 'missing'}, expected {expected_type}")
+            readable[name] = expected_type
+            property_id = properties[name].get("id")
+            if not isinstance(property_id, str) or not property_id:
+                raise SyncError(f"data source property {name} has no ID")
+            retained_ids[current] = property_id
+            if old and name == old:
+                changes[property_id] = {"name": current}
+        elif current == "Derivation":
+            changes[current] = {"rich_text": {}}
+        else:
+            raise SyncError(f"data source is missing managed property {current}")
+    return readable, changes, retained_ids
+
+
+def migrate_field_schema(client: NotionClient, data_source_id: str, state_path: Path,
+                         apply: bool) -> None:
+    state = load_state(state_path, data_source_id)
+    if not state:
+        raise SyncError("field schema migration requires existing saved state")
+    properties = fetch_schema(client, data_source_id)
+    readable_types, schema_changes, retained_ids = migration_property_types(properties)
+    remote = query_all(client, data_source_id, readable_types)
+    normalized_remote = [RemoteRow(row.page_id, migrated_values(row.values)) for row in remote]
+    normalized_state = {key: {**record, "values": migrated_values(record.get("values", {}))}
+                        if isinstance(record, dict) else record for key, record in state.items()}
+    remote_by_key = {row.values.get("Key"): row for row in normalized_remote}
+    problems = []
+    if len(remote_by_key) != len(remote) or None in remote_by_key or "" in remote_by_key:
+        problems.append("remote rows contain missing or duplicate Keys")
+    if set(remote_by_key) != set(normalized_state):
+        problems.append("remote and saved state Keys differ")
+    for key in sorted(set(remote_by_key) & set(normalized_state)):
+        saved = normalized_state[key]
+        if not isinstance(saved, dict) or saved.get("page_id") != remote_by_key[key].page_id:
+            problems.append(f"remote page ID differs from saved state for {key}")
+        elif saved.get("values") != remote_by_key[key].values:
+            problems.append(f"remote managed fields changed since last sync for {key}")
+    print(f"MIGRATION rows={len(remote)} schema_changes={len(schema_changes)} "
+          f"state_changes={sum(record.get('values') != normalized_state[key].get('values') for key, record in state.items() if isinstance(record, dict))} "
+          f"issues={len(problems)}")
+    for problem in problems:
+        print(f"ISSUE {problem}", file=sys.stderr)
+    if problems:
+        raise SyncError("migration preflight found conflicts; no writes performed")
+    if not apply:
+        return
+    if schema_changes:
+        latest = [RemoteRow(row.page_id, migrated_values(row.values))
+                  for row in query_all(client, data_source_id, readable_types)]
+        if {row.page_id: row.values for row in latest} != {row.page_id: row.values for row in normalized_remote}:
+            raise SyncError("remote managed fields changed after migration preflight; no writes performed")
+        client.request(f"/v1/data_sources/{data_source_id}", "PATCH",
+                       {"properties": schema_changes}, retry_transient=False)
+    validate_schema(client, data_source_id)
+    migrated_schema = fetch_schema(client, data_source_id)
+    changed_ids = [name for name, property_id in retained_ids.items()
+                   if migrated_schema[name].get("id") != property_id]
+    if changed_ids:
+        raise SyncError("migration did not retain property IDs: " + ", ".join(changed_ids))
+    verified = query_all(client, data_source_id)
+    if {row.page_id: row.values for row in verified} != {row.page_id: row.values for row in normalized_remote}:
+        raise SyncError("migration readback differs from preflight; state was not changed")
+    save_state(state_path, data_source_id, verified)
+    print(f"MIGRATION verified={len(verified)} schema_writes={int(bool(schema_changes))} state={state_path}")
+
+
 def main(argv: list[str] | None = None) -> int:
     parser = argparse.ArgumentParser(description="Preview or apply TSV field rows to an existing Notion data source.")
     parser.add_argument("--config", type=Path, default=DEFAULT_CONFIG,
@@ -371,6 +473,8 @@ def main(argv: list[str] | None = None) -> int:
     parser.add_argument("--state", type=Path, default=DEFAULT_STATE)
     parser.add_argument("--ntn", default="ntn", help="ntn executable path")
     parser.add_argument("--apply", action="store_true", help="write only after all preflight checks pass")
+    parser.add_argument("--migrate-field-schema", action="store_true",
+                        help="safely rename legacy field properties and migrate saved baselines")
     args = parser.parse_args(argv)
     executable = args.ntn if os.path.dirname(args.ntn) else which(args.ntn)
     if not executable or not os.access(executable, os.X_OK):
@@ -378,9 +482,12 @@ def main(argv: list[str] | None = None) -> int:
         return 2
     try:
         data_source_id = args.data_source or configured_data_source(args.config)
+        client = NotionClient(executable)
+        if args.migrate_field_schema:
+            migrate_field_schema(client, data_source_id, args.state, args.apply)
+            return 0
         local = load_tsv(args.tsv)
         state = load_state(args.state, data_source_id)
-        client = NotionClient(executable)
         validate_schema(client, data_source_id)
         remote = query_all(client, data_source_id)
         creates, updates, unchanged, problems = plan(local, remote, state)

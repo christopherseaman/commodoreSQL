@@ -35,8 +35,7 @@ SPEC.loader.exec_module(generator)
 
 
 TABLE_HEADER = (
-    "| Column | Type | Example / structure | "
-    "Direct upstream source / derivation | Description |"
+    "| Column | Type | Upstream table | Derivation | Sample values | Description | NULL meaning |"
 )
 
 
@@ -60,7 +59,7 @@ def _table_rows(text: str) -> list[list[str]]:
             cell.strip().replace("\\|", "|")
             for cell in re.split(r"(?<!\\)\|", line.strip().strip("|"))
         ]
-        if len(cells) != 5:
+        if len(cells) != 7:
             raise AssertionError(f"unexpected generated row: {line!r}")
         rows.append(cells)
     return rows
@@ -86,12 +85,12 @@ class DataDictionaryTest(unittest.TestCase):
             cls.relations, cls.appendix_body
         )
 
-    def test_canonical_scope_is_32_relations_and_1228_fields(self) -> None:
+    def test_canonical_scope_is_32_relations_and_1201_fields(self) -> None:
         self.assertEqual(len(self.relations), 32)
         self.assertEqual(sum(r.kind == "table" for r in self.relations), 25)
         self.assertEqual(sum(r.kind == "view" for r in self.relations), 7)
         field_count = sum(len(relation.columns) for relation in self.relations)
-        self.assertEqual(field_count, 1_228)
+        self.assertEqual(field_count, 1_201)
 
     def test_one_deterministically_named_document_per_relation(self) -> None:
         expected_names = {relation.name for relation in self.relations}
@@ -106,7 +105,7 @@ class DataDictionaryTest(unittest.TestCase):
         body = _body(self.index)
         self.assertIn("<details>\n<summary>Downloads</summary>", body)
         self.assertEqual(body.count("[All fields](docs/data-dictionary.tsv)"), 1)
-        self.assertIn("Declared scope: 25 relations and 1,198 fields.", body)
+        self.assertIn("Declared scope: 25 relations and 1,171 fields.", body)
         self.assertNotIn("| Relation | Kind | Grain / key | Stage |", body)
         self.assertNotIn(generator.NOTION_CHILD_CONTAINER, body)
         for name in generator.DICTIONARY_RELATIONS:
@@ -129,7 +128,7 @@ class DataDictionaryTest(unittest.TestCase):
                 self.assertIn(f"- Pipeline stage: {metadata.stage}\n", body)
                 self.assertIn("- Direct upstream relations:", body)
                 self.assertEqual(body.count(TABLE_HEADER), 1)
-                self.assertEqual(body.count("|---|---|---|---|---|"), 1)
+                self.assertEqual(body.count("|---|---|---|---|---|---|---|"), 1)
 
     def test_field_rows_preserve_exact_schema_order_and_types(self) -> None:
         total_rows = 0
@@ -145,7 +144,7 @@ class DataDictionaryTest(unittest.TestCase):
                 self.assertEqual(len(rows), len(relation.columns))
                 self.assertEqual(len({row[0] for row in rows}), len(rows))
             total_rows += len(rows)
-        self.assertEqual(total_rows, 1_228)
+        self.assertEqual(total_rows, 1_201)
 
     def test_sample_materials_preserve_material_costs_schema(self) -> None:
         material = self.by_name["master_material"]
@@ -172,15 +171,12 @@ class DataDictionaryTest(unittest.TestCase):
             for column, row in zip(
                 relation.columns, _table_rows(self.docs[relation.name]), strict=True
             ):
-                example, source, description = row[2:]
+                upstream, derivation, sample, description, null_meaning = row[2:]
                 with self.subTest(relation=relation.name, column=column.name):
-                    self.assertTrue(example)
-                    self.assertTrue(source)
-                    self.assertNotEqual(
-                        source,
-                        generator._upstream(generator.RELATION_METADATA[relation.name]),
-                    )
-                    self.assertNotIn("Relation upstream (not field-specific)", source)
+                    self.assertTrue(upstream)
+                    self.assertTrue(derivation)
+                    self.assertTrue(sample)
+                    self.assertTrue(null_meaning)
                     self.assertTrue(description)
                     self.assertEqual(
                         description,
@@ -194,7 +190,7 @@ class DataDictionaryTest(unittest.TestCase):
                         self.assertNotIn(fragment, lowered)
         self.assertEqual(
             len({column.name for relation in self.relations for column in relation.columns}),
-            302,
+            300,
         )
 
     def test_representative_descriptions_are_conceptual_and_relation_aware(self) -> None:
@@ -220,6 +216,25 @@ class DataDictionaryTest(unittest.TestCase):
         self.assertIn("campaign label", panel_latest.description)
         self.assertIn("MAX", panel_latest.source)
         self.assertNotIn("Four-digit response year", panel_latest.values)
+
+        removed_material_fields = {
+            "panel_response_year", "panel_source_row_count",
+            "panel_response_year_variant_count", "is_opted_out", "opt_out_source",
+        }
+        for relation in (
+            "comprehensive_data", "course_material", "course_material_recent",
+            "course_material_use", "course_material_no_use", "master_material",
+            "sample_material_10pct",
+        ):
+            self.assertTrue(removed_material_fields.isdisjoint(
+                column.name for column in self.by_name[relation].columns
+            ))
+        self.assertIn("panel_response_year", {
+            column.name for column in self.by_name["panel_email"].columns
+        })
+        self.assertIn("panel_response_year", {
+            column.name for column in self.by_name["current_mailing"].columns
+        })
 
         expected_noise_structures = {
             ("comprehensive_data", "section_enrollment_assigned"): "raw negatives can propagate",
@@ -255,36 +270,19 @@ class DataDictionaryTest(unittest.TestCase):
                     rf"`[A-Za-z_][A-Za-z0-9_]*\.{re.escape(column_name)}`",
                 )
 
-    def test_examples_retain_important_value_conventions(self) -> None:
+    def test_samples_are_literal_and_retain_filtered_constants(self) -> None:
         examples = {
-            (relation.name, row[0].strip("`")): row[2]
+            (relation.name, row[0].strip("`")): row[4]
             for relation in self.relations
             for row in _table_rows(self.docs[relation.name])
         }
-        self.assertIn("YYYY-N", examples[("course_material", "period_sortable")])
-        self.assertIn("TRUE or FALSE", examples[("course_material", "is_oer")])
-        self.assertIn(
-            "Non-negative whole-number count",
-            examples[("course_material", "source_row_count")],
-        )
-        self.assertIn("USD amount", examples[("pricing_historical", "price")])
-        self.assertIn("DECIMAL(10,2)", examples[("pricing_historical", "price")])
-        self.assertIn("ISBN", examples[("pricing_historical", "isbn13")])
-        self.assertIn("Lowercase, trimmed", examples[("current_mailing", "email")])
-        self.assertNotIn("VARCHAR or NULL", "\n".join(examples.values()))
-        rendered_examples = "\n".join(examples.values())
-        for generic in (
-            "spelling/casing follows the stated source or derivation",
-            "Whole number in the declared integer range",
-            "Decimal measure in the units named by the field",
-        ):
-            self.assertNotIn(generic, rendered_examples)
-        self.assertIn(
-            "Signed BIGINT keyed by",
-            examples[("__data_quality_metrics", "metric_value")],
-        )
-        self.assertIn("midpoint", examples[("pricing_wide", "price_avg")])
-        self.assertIn("MIDRANGE", examples[("master_course", "required_price_avg")])
+        self.assertEqual(examples[("course_material", "period_sortable")], "2025-4")
+        self.assertEqual(examples[("course_material", "is_oer")], "TRUE")
+        self.assertEqual(examples[("pricing_historical", "price")], "12.34")
+        self.assertEqual(examples[("pricing_historical", "isbn13")], "9780000000002")
+        self.assertEqual(examples[("current_mailing", "email")], "instructor@example.edu")
+        self.assertEqual(examples[("course_material_use", "is_recent")], "TRUE")
+        self.assertEqual(examples[("course_material_no_use", "has_use_source_row")], "FALSE")
 
     def test_old_four_part_prose_columns_are_absent(self) -> None:
         generated = self.index + "\n" + "\n".join(self.docs.values())
@@ -292,7 +290,6 @@ class DataDictionaryTest(unittest.TestCase):
             "Source / derivation",
             "Values / format",
             "Population / denominator",
-            "NULL meaning",
         ):
             self.assertNotIn(f"| {old_header} |", generated)
 
@@ -311,8 +308,7 @@ class DataDictionaryTest(unittest.TestCase):
             rows[0],
             [
                 "relation", "kind", "ordinal", "column", "type",
-                "example / structure", "direct upstream source / derivation",
-                "description", "null meaning",
+                "upstream table", "derivation", "sample values", "description", "null meaning",
             ],
         )
         expected = []
@@ -324,12 +320,65 @@ class DataDictionaryTest(unittest.TestCase):
                 expected.append(
                     [
                         relation.name, relation.kind, str(ordinal), column.name,
-                        column.data_type, contract.values, contract.source,
+                        column.data_type, generator.field_upstream(relation, column, contract),
+                        generator.field_derivation(contract), generator.field_sample(column, contract),
                         contract.description, contract.null_meaning,
                     ]
                 )
         self.assertEqual(rows[1:], expected)
-        self.assertEqual(len(rows) - 1, 1_198)
+        self.assertEqual(len(rows) - 1, 1_171)
+
+    def test_representative_upstreams_are_immediate_and_field_specific(self) -> None:
+        expected = {
+            ("comprehensive_data", "has_isbn"): "course_catalog_20251215",
+            ("comprehensive_data", "is_recent"): "course_catalog_20251215, recent_period",
+            ("comprehensive_data", "is_supply"): "course_catalog_20251215, supply_isbn_classification",
+            ("pricing_wide", "price_avg"): "pricing_historical",
+            ("master_section", "course_id"): "master_material",
+            ("comprehensive_data", "section_enrollment_assigned"): "section_enrollment, ipeds_data",
+            ("comprehensive_data", "section_enrollment_source"): "section_enrollment, ipeds_data",
+        }
+        for (relation_name, column_name), upstream in expected.items():
+            relation = self.by_name[relation_name]
+            column = next(c for c in relation.columns if c.name == column_name)
+            contract = self.field_metadata[(relation_name, column_name)]
+            self.assertEqual(generator.field_upstream(relation, column, contract), upstream)
+
+    def test_flag_derivations_match_executable_null_and_sibling_rules(self) -> None:
+        expected_fragments = {
+            ("section_enrollment", "has_enrollment"): "`enrollments IS NOT NULL`",
+            ("section_enrollment", "has_enrollment_own_seats"): "seats_taken < 9999",
+            ("section_enrollment", "has_enrollment_sibling"): "course_enroll_sections - CASE",
+            ("section_enrollment", "has_enrollment_sibling_seats"): "course_seats_sections - CASE",
+            ("comprehensive_data", "is_recent"): "`COALESCE(period_sortable IN (SELECT period_sortable FROM recent_period), FALSE)`",
+            ("comprehensive_data", "is_required_inferred"): "THEN TRUE ELSE FALSE END",
+            ("comprehensive_data", "section_enrollment_assigned"): "CASE WHEN section_context.seats_taken < 9999 THEN section_context.seats_taken END",
+            ("comprehensive_data", "has_formattype"): "TRIM(FormatType) <> ''",
+            ("comprehensive_data", "no_details"): "COALESCE(Title = '*No Book Details*', FALSE)",
+            ("comprehensive_data", "no_materials"): "COALESCE(supply_category = 'placeholder_no_material', FALSE)",
+            ("comprehensive_data", "is_canada"): "`COALESCE(state = 'CAN', FALSE)`",
+        }
+        for key, fragment in expected_fragments.items():
+            with self.subTest(field=".".join(key)):
+                self.assertIn(fragment, self.field_metadata[key].source)
+
+    def test_samples_respect_filtered_and_lookup_domains(self) -> None:
+        samples = {
+            (relation.name, column.name): generator.field_sample(
+                column, self.field_metadata[(relation.name, column.name)]
+            )
+            for relation in self.relations for column in relation.columns
+        }
+        self.assertIn(
+            samples[("sample_section_us_intro_fall2025", "course_level")],
+            {"Introductory or general undergraduate", "Intermediate undergraduate"},
+        )
+        self.assertEqual(
+            samples[("supply_isbn_classification", "category")], "science_lab"
+        )
+        self.assertEqual(samples[("format_type_classification", "FormatType")], "Book")
+        self.assertEqual(samples[("comprehensive_data", "section_level")], "Four or more years")
+        self.assertEqual(samples[("comprehensive_data", "section_sector")], "Public, 4-year or above")
 
     def test_per_relation_tsvs_are_exact_global_slices(self) -> None:
         self.assertEqual(set(self.relation_tsvs), set(generator.DICTIONARY_RELATIONS))
@@ -532,6 +581,11 @@ class DataDictionaryTest(unittest.TestCase):
                         f"master_section.{name}",
                         self.field_metadata[("master_course", name)].source,
                     )
+                    isbn_field = self.field_metadata[("master_isbn", name)]
+                    source_name = f"price{scope}_{bound}"
+                    self.assertIn(f"SUM(master_material.{source_name})", isbn_field.source)
+                    self.assertNotIn("AVG(", isbn_field.source)
+                    self.assertIn("occurrences", isbn_field.population)
         required_avg = self.field_metadata[("master_course", "required_price_avg")]
         self.assertIn("MIN(master_section.required_price_min)", required_avg.source)
         self.assertIn("MAX(master_section.required_price_max)", required_avg.source)

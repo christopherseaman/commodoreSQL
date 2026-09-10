@@ -183,13 +183,6 @@ SELECT
     i.enroll_24 AS enrollment_2024,
     i.dist_enroll_24 AS distance_enrollment_2024,
     i.inst_type AS institution_type,
-    -- Panel data
-    p.panel_response_year,
-    p.panel_source_row_count,
-    p.panel_response_year_variant_count,
-    -- Opt-out data
-    CASE WHEN oo.email IS NOT NULL THEN true ELSE false END AS is_opted_out,
-    oo.source AS opt_out_source,
     -- Direct requiredness is row-grain; section context comes from the local
     -- requiredness grouping above. Inference uses the shared recent-term window.
     COALESCE(c.book_status = 'required' AND si.isbn13 IS NULL, FALSE) AS is_required_direct,
@@ -221,8 +214,6 @@ FROM ${SURVEY_TABLE} c
 LEFT JOIN format_type_classification f ON c.FormatType = f.FormatType
 LEFT JOIN supply_isbn_classification si ON c."ISBN13" = si.isbn13
 LEFT JOIN ipeds_data i ON c.unit_id = i.unitid
-LEFT JOIN panel_email p ON c.email = p.email
-LEFT JOIN opt_out oo ON c.email = oo.email
 LEFT JOIN section_assignment se
   ON c.period_sortable = se.period_sortable
  AND c.section_id = se.section_id
@@ -408,19 +399,13 @@ GROUP BY period_sortable, is_canada, has_isbn, is_supply, no_details, no_materia
 ORDER BY period_sortable, record_count DESC;
 
 -- The enriched raw table must remain exactly one row per normalized catalog
--- source row even when the preserved mailing-history source has repeat emails.
+-- source row.
 SELECT
     'Raw catalog enrichment one-to-one' AS validation_status,
     (SELECT COUNT(*) FROM ${SURVEY_TABLE}) AS catalog_source_rows,
     (SELECT COUNT(*) FROM comprehensive_data) AS enriched_source_rows,
     (SELECT COUNT(*) FROM comprehensive_data)
-      - (SELECT COUNT(*) FROM ${SURVEY_TABLE}) AS row_difference,
-    COALESCE((SELECT SUM(panel_source_row_count) FROM panel_email), 0) AS panel_source_rows,
-    (SELECT COUNT(*) FROM panel_email) AS panel_distinct_emails,
-    (SELECT COUNT(*) FROM panel_email WHERE panel_source_row_count > 1)
-        AS panel_emails_with_multiple_rows,
-    (SELECT COUNT(*) FROM panel_email WHERE panel_response_year_variant_count > 1)
-        AS panel_emails_with_multiple_years;
+      - (SELECT COUNT(*) FROM ${SURVEY_TABLE}) AS row_difference;
 
 -- DQ (#41): required rows carrying a pseudo-SKU ISBN (non-978/979 EAN — internal
 -- bookstore codes). A MIX of legitimate non-book materials (access codes, digital

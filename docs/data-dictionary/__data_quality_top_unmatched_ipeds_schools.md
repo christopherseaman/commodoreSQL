@@ -13,8 +13,8 @@ notion-sync: push
 - Pipeline stage: Data quality / 2d_data_quality.sql
 - Direct upstream relations: `comprehensive_data`
 
-| Column | Type | Example / structure | Direct upstream source / derivation | Description |
-|---|---|---|---|---|
-| `school` | `varchar` | Institution name; source spelling/casing retained | Group key from `comprehensive_data.school` in `2d_data_quality.sql`. | Institution or school name attached to the course. |
-| `unit_id` | `bigint` | IPEDS institution identifier | Group key from `comprehensive_data.unit_id` in `2d_data_quality.sql`. | IPEDS institution identifier used throughout the pipeline. |
-| `catalog_rows` | `bigint` | Non-negative whole-number count | `COUNT(*)` of filtered `comprehensive_data` rows in `2d_data_quality.sql`. | Catalog rows included in the unmatched-school diagnostic. |
+| Column | Type | Upstream table | Derivation | Sample values | Description | NULL meaning |
+|---|---|---|---|---|---|---|
+| `school` | `varchar` | comprehensive_data | Group key from `comprehensive_data.school` in `2d_data_quality.sql`. | Example University | Institution or school name attached to the course. | Group key can be NULL when the source dimension is missing; computed measures are non-NULL. |
+| `unit_id` | `bigint` | comprehensive_data | Group key from `comprehensive_data.unit_id` in `2d_data_quality.sql`. | 1001 | IPEDS institution identifier used throughout the pipeline. | Group key can be NULL when the source dimension is missing; computed measures are non-NULL. |
+| `catalog_rows` | `bigint` | comprehensive_data | `COUNT(*)` of filtered `comprehensive_data` rows in `2d_data_quality.sql`. | 42 | Catalog rows included in the unmatched-school diagnostic. | Never NULL for an emitted diagnostic row. |

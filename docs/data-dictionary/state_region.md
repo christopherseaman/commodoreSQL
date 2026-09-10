@@ -13,8 +13,8 @@ notion-sync: push
 - Pipeline stage: IMPORT derived / 0b_state_region.sql
 - Direct upstream relations: `0b_state_region.sql static values`
 
-| Column | Type | Example / structure | Direct upstream source / derivation | Description |
-|---|---|---|---|---|
-| `state` | `varchar` | Normalized state or province code, such as `CA` or `CAN` | Maintained static `state` value in `0b_state_region.sql`. | State or province code for the institution. |
-| `region` | `varchar` | US Census region: Northeast, Midwest, South, West (+ Outlying Areas, Other) | Maintained static `region` value in `0b_state_region.sql`. | Census region containing the state or province. |
-| `division` | `varchar` | US Census division (9) + Outlying Areas / Other | Maintained static `division` value in `0b_state_region.sql`. | Census division containing the state or province. |
+| Column | Type | Upstream table | Derivation | Sample values | Description | NULL meaning |
+|---|---|---|---|---|---|---|
+| `state` | `varchar` | 0b_state_region.sql static values | Maintained static `state` value in `0b_state_region.sql`. | CA | State or province code for the institution. | Not produced by the static lookup. |
+| `region` | `varchar` | 0b_state_region.sql static values | Maintained static `region` value in `0b_state_region.sql`. | West | Census region containing the state or province. | Not produced by the static lookup. |
+| `division` | `varchar` | 0b_state_region.sql static values | Maintained static `division` value in `0b_state_region.sql`. | Pacific | Census division containing the state or province. | Not produced by the static lookup. |

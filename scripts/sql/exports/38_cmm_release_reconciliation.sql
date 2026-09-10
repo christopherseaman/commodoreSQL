@@ -90,7 +90,15 @@ isbns AS (
     SELECT
         period_sortable,
         SUM(section_id_count) AS section_isbn_rows,
-        SUM(enroll_tot) AS enrollment_assigned_total
+        SUM(enroll_tot) AS enrollment_assigned_total,
+        SUM(required_price_min) AS required_price_min,
+        SUM(required_price_max) AS required_price_max,
+        SUM(required_price_buy_min) AS required_price_buy_min,
+        SUM(required_price_buy_max) AS required_price_buy_max,
+        SUM(all_price_min) AS all_price_min,
+        SUM(all_price_max) AS all_price_max,
+        SUM(all_price_buy_min) AS all_price_buy_min,
+        SUM(all_price_buy_max) AS all_price_buy_max
     FROM master_isbn
     GROUP BY period_sortable
 ),
@@ -135,7 +143,15 @@ reconciled AS (
         COALESCE(i.section_rows, 0) AS master_institution_section_rows,
         COALESCE(i.enrollment_assigned_total, 0) AS master_institution_enrollment_total,
         COALESCE(mi.section_isbn_rows, 0) AS master_isbn_section_isbn_rows,
-        COALESCE(mi.enrollment_assigned_total, 0) AS master_isbn_enrollment_total
+        COALESCE(mi.enrollment_assigned_total, 0) AS master_isbn_enrollment_total,
+        COALESCE(mi.required_price_min, 0) AS master_isbn_required_price_min,
+        COALESCE(mi.required_price_max, 0) AS master_isbn_required_price_max,
+        COALESCE(mi.required_price_buy_min, 0) AS master_isbn_required_price_buy_min,
+        COALESCE(mi.required_price_buy_max, 0) AS master_isbn_required_price_buy_max,
+        COALESCE(mi.all_price_min, 0) AS master_isbn_all_price_min,
+        COALESCE(mi.all_price_max, 0) AS master_isbn_all_price_max,
+        COALESCE(mi.all_price_buy_min, 0) AS master_isbn_all_price_buy_min,
+        COALESCE(mi.all_price_buy_max, 0) AS master_isbn_all_price_buy_max
     FROM terms t
     LEFT JOIN materials m USING (period_sortable)
     LEFT JOIN costs cost USING (period_sortable)
@@ -198,6 +214,22 @@ metrics AS (
            source_material_item_rows, master_isbn_section_isbn_rows FROM reconciled
     UNION ALL SELECT period_sortable, 'master_material_to_master_isbn', 'enrollment_assigned_total',
            source_isbn_enrollment_total, master_isbn_enrollment_total FROM reconciled
+    UNION ALL SELECT period_sortable, 'master_material_to_master_isbn_price', 'required_price_min',
+           cost_required_price_min, master_isbn_required_price_min FROM reconciled
+    UNION ALL SELECT period_sortable, 'master_material_to_master_isbn_price', 'required_price_max',
+           cost_required_price_max, master_isbn_required_price_max FROM reconciled
+    UNION ALL SELECT period_sortable, 'master_material_to_master_isbn_price', 'required_price_buy_min',
+           cost_required_price_buy_min, master_isbn_required_price_buy_min FROM reconciled
+    UNION ALL SELECT period_sortable, 'master_material_to_master_isbn_price', 'required_price_buy_max',
+           cost_required_price_buy_max, master_isbn_required_price_buy_max FROM reconciled
+    UNION ALL SELECT period_sortable, 'master_material_to_master_isbn_price', 'all_price_min',
+           cost_all_price_min, master_isbn_all_price_min FROM reconciled
+    UNION ALL SELECT period_sortable, 'master_material_to_master_isbn_price', 'all_price_max',
+           cost_all_price_max, master_isbn_all_price_max FROM reconciled
+    UNION ALL SELECT period_sortable, 'master_material_to_master_isbn_price', 'all_price_buy_min',
+           cost_all_price_buy_min, master_isbn_all_price_buy_min FROM reconciled
+    UNION ALL SELECT period_sortable, 'master_material_to_master_isbn_price', 'all_price_buy_max',
+           cost_all_price_buy_max, master_isbn_all_price_buy_max FROM reconciled
 )
 SELECT
     period_sortable,

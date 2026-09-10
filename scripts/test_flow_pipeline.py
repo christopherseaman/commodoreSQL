@@ -183,6 +183,7 @@ class RenamedFlowPipelineTest(unittest.TestCase):
                 SELECT seed.* REPLACE (
                     'course-a' AS course_id,
                     'section-' || v.section_no || '::2025-4' AS section_id,
+                    v.unit_id AS unit_id,
                     v.isbn AS isbn13,
                     v.required_direct AS is_section_required_direct,
                     v.required_inferred AS is_required_inferred,
@@ -193,11 +194,11 @@ class RenamedFlowPipelineTest(unittest.TestCase):
                     v.buy_max AS price_buy_max
                 )
                 FROM seed, (VALUES
-                    ('1', '9780000000101', false, true,  10.0,  20.0, 12.0, 18.0),
-                    ('1', '9780000000102', false, false,  5.0,   9.0,  6.0,  8.0),
-                    ('2', '9780000000201', true,  true,  30.0,  40.0, 31.0, 39.0),
-                    ('3', '9780000000301', true,  true, 100.0, 200.0, NULL, NULL)
-                ) AS v(section_no, isbn, required_direct, required_inferred,
+                    ('1', 1, '9780000000101', false, true,  10.0,  20.0, 12.0, 18.0),
+                    ('1', 1, '9780000000102', false, false,  5.0,   9.0,  6.0,  8.0),
+                    ('2', 2, '9780000000101', true,  true,  30.0,  40.0, 31.0, 39.0),
+                    ('3', 3, '9780000000301', true,  true, 100.0, 200.0, NULL, NULL)
+                ) AS v(section_no, unit_id, isbn, required_direct, required_inferred,
                        price_min, price_max, buy_min, buy_max);
                 INSERT INTO master_material
                 SELECT seed.* REPLACE (
@@ -222,6 +223,7 @@ class RenamedFlowPipelineTest(unittest.TestCase):
                        price_min, price_max, buy_min, buy_max);
             """)
             cli(database, render(SQL / "4_merged_records.sql"))
+            cli(database, "CREATE TABLE master_isbn AS\n" + render(SQL / "models/master_isbn.sql"))
 
             expected = {
                 "required_price_min", "required_price_avg", "required_price_max",
@@ -276,6 +278,25 @@ class RenamedFlowPipelineTest(unittest.TestCase):
             """), [
                 "course-a,10.00,15.0,20.00,12.00,18.00,15.00,22.0,29.00,18.00,26.00",
                 *expected_rollups[1:],
+            ])
+            isbn_price_projection = """
+                required_price_min, required_price_max,
+                required_price_buy_min, required_price_buy_max,
+                all_price_min, all_price_max,
+                all_price_buy_min, all_price_buy_max
+            """
+            self.assertEqual(cli(database, f"""
+                SELECT isbn13, unit_id_count, section_id_count, {isbn_price_projection}
+                FROM master_isbn
+                WHERE isbn13 IN (9780000000101, 9780000000401, 9780000000501,
+                                 9780000000601, 9780000000701)
+                ORDER BY isbn13
+            """), [
+                "9780000000101,2,2,40.00,60.00,43.00,57.00,40.00,60.00,43.00,57.00",
+                "9780000000401,1,1,,,,,,,,",
+                "9780000000501,1,1,0.00,0.00,0.00,0.00,0.00,0.00,0.00,0.00",
+                "9780000000601,1,1,7.00,11.00,,,7.00,11.00,,",
+                "9780000000701,1,1,,,,,13.00,21.00,14.00,20.00",
             ])
 
     @staticmethod

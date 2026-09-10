@@ -86,5 +86,7 @@
   "70_coverage_canonical_pricing_by_term": 178,
   "71_coverage_canonical_by_institution": 179,
   "72_coverage_canonical_price_cells_by_term": 180,
-  "dashboard_bmg_coverage_scope": 19
+  "dashboard_bmg_coverage_scope": 19,
+  "73_fall2025_pricing_catalog_populations": 181,
+  "74_fall2025_pricing_catalog_examples": 182
 }

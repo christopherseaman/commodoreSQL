@@ -13,10 +13,10 @@ notion-sync: push
 - Pipeline stage: IMPORT derived / 1a_supply_classification.sql
 - Direct upstream relations: `course_catalog_20251215`, `recent_period`, `supply title rules (supply_keywords.tsv)`
 
-| Column | Type | Example / structure | Direct upstream source / derivation | Description |
-|---|---|---|---|---|
-| `isbn13` | `bigint` | 13-digit numeric ISBN or numeric source identifier; NULL when absent | Non-NULL catalog ISBN group key after qualifying title-pattern matches. | Book or material identifier used for cross-source matching. |
-| `title` | `varchar` | Material title; source punctuation/casing retained | Deterministic representative catalog title for the ISBN. | Title supplied for the adopted course material. |
-| `n_rows` | `hugeint` | rolling recent-period catalog rows covered by qualifying title variants | Count of recent-period catalog rows covered by qualifying title variants. | Catalog rows supporting the selected supply classification. |
-| `matched_pattern` | `varchar` | representative lowercase include-pattern match: specific rules before generic supply markers, then longest and lexical tie-breaks | Highest-priority included lowercase keyword; longest then lexical tie-break. | Supply keyword selected after priority and tie-breaking rules. |
-| `category` | `varchar` | category associated with matched_pattern | Category attached to the selected supply keyword. | Classification assigned to the matched supply pattern. |
+| Column | Type | Upstream table | Derivation | Sample values | Description | NULL meaning |
+|---|---|---|---|---|---|---|
+| `isbn13` | `bigint` | course_catalog_20251215, recent_period, supply title rules (supply_keywords.tsv) | Non-NULL catalog ISBN group key after qualifying title-pattern matches. | 9780000000002 | Book or material identifier used for cross-source matching. | Not produced. |
+| `title` | `varchar` | course_catalog_20251215, recent_period, supply title rules (supply_keywords.tsv) | Deterministic representative catalog title for the ISBN. | Introduction to Biology | Title supplied for the adopted course material. | No representative nonmissing title. |
+| `n_rows` | `hugeint` | course_catalog_20251215, recent_period, supply title rules (supply_keywords.tsv) | Count of recent-period catalog rows covered by qualifying title variants. | 42 | Catalog rows supporting the selected supply classification. | Not produced. |
+| `matched_pattern` | `varchar` | course_catalog_20251215, recent_period, supply title rules (supply_keywords.tsv) | Highest-priority included lowercase keyword; longest then lexical tie-break. | lab kit | Supply keyword selected after priority and tie-breaking rules. | Not produced. |
+| `category` | `varchar` | course_catalog_20251215, recent_period, supply title rules (supply_keywords.tsv) | Category attached to the selected supply keyword. | science_lab | Classification assigned to the matched supply pattern. | Not produced. |

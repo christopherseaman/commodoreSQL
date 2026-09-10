@@ -13,10 +13,10 @@ notion-sync: push
 - Pipeline stage: Data quality / 2d_data_quality.sql
 - Direct upstream relations: `pricing_historical`, `comprehensive_data`
 
-| Column | Type | Example / structure | Direct upstream source / derivation | Description |
-|---|---|---|---|---|
-| `unit_id` | `integer` | IPEDS institution identifier | Group key from pricing-derived `_dq_pricing_section_coverage.unit_id` in `2d_data_quality.sql`. | IPEDS institution identifier used throughout the pipeline. |
-| `period_sortable` | `varchar` | `YYYY-N`; 1=Winter, 2=Spring, 3=Summer, 4=Fall | Group key from pricing-derived `_dq_pricing_section_coverage.period_sortable` in `2d_data_quality.sql`. | Sortable academic term code used for chronological ordering. |
-| `pricing_sections` | `bigint` | Non-negative whole-number count | `COUNT(*)` of section-only `_dq_pricing_section_coverage` rows in `2d_data_quality.sql`. | Distinct pricing sections included in the diagnostic cohort. |
-| `unmatched` | `bigint` | Non-negative whole-number count | `COUNT(*) FILTER (WHERE NOT matched)` against comprehensive-data-derived catalog sections in `2d_data_quality.sql`. | Pricing sections lacking an exact catalog section match. |
-| `unmatched_pct` | `double` | Percentage from 0 through 100 | `ROUND(100.0 * unmatched / pricing_sections, 1)` in `2d_data_quality.sql`. | Percentage of pricing sections lacking catalog matches. |
+| Column | Type | Upstream table | Derivation | Sample values | Description | NULL meaning |
+|---|---|---|---|---|---|---|
+| `unit_id` | `integer` | pricing_historical, comprehensive_data | Group key from pricing-derived `_dq_pricing_section_coverage.unit_id` in `2d_data_quality.sql`. | 1001 | IPEDS institution identifier used throughout the pipeline. | Group key can be NULL when the source dimension is missing; computed measures are non-NULL. |
+| `period_sortable` | `varchar` | pricing_historical, comprehensive_data | Group key from pricing-derived `_dq_pricing_section_coverage.period_sortable` in `2d_data_quality.sql`. | 2025-4 | Sortable academic term code used for chronological ordering. | Group key can be NULL when the source dimension is missing; computed measures are non-NULL. |
+| `pricing_sections` | `bigint` | pricing_historical, comprehensive_data | `COUNT(*)` of section-only `_dq_pricing_section_coverage` rows in `2d_data_quality.sql`. | 42 | Distinct pricing sections included in the diagnostic cohort. | Never NULL for an emitted diagnostic row. |
+| `unmatched` | `bigint` | pricing_historical, comprehensive_data | `COUNT(*) FILTER (WHERE NOT matched)` against comprehensive-data-derived catalog sections in `2d_data_quality.sql`. | 42 | Pricing sections lacking an exact catalog section match. | Never NULL for an emitted diagnostic row. |
+| `unmatched_pct` | `double` | pricing_historical, comprehensive_data | `ROUND(100.0 * unmatched / pricing_sections, 1)` in `2d_data_quality.sql`. | 12.34 | Percentage of pricing sections lacking catalog matches. | Never NULL for an emitted diagnostic row. |

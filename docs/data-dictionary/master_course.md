@@ -13,55 +13,55 @@ notion-sync: push
 - Pipeline stage: 4_merged_records.sql
 - Direct upstream relations: `master_section`
 
-| Column | Type | Example / structure | Direct upstream source / derivation | Description |
-|---|---|---|---|---|
-| `course_id` | `varchar` | `unit_id::department-code::course-number` composite | `master_section.course_id` group key. | Stable identifier for the institution-level course offering. |
-| `period_sortable` | `varchar` | `YYYY-N`; 1=Winter, 2=Spring, 3=Summer, 4=Fall | `master_section.period_sortable` group key. | Sortable academic term code used for chronological ordering. |
-| `period` | `varchar` | Academic term label such as `Fall 2024` | `ANY_VALUE(master_section.period)` by course-term. | Human-readable academic term label from the source. |
-| `period_date` | `date` | Canonical date: YYYY-01-01, YYYY-04-01, YYYY-07-01, or YYYY-10-01 | `ANY_VALUE(master_section.period_date)` by course-term. | Canonical starting date assigned to the academic term. |
-| `unit_id` | `bigint` | IPEDS institution identifier | `ANY_VALUE(master_section.unit_id)` by course-term. | IPEDS institution identifier used throughout the pipeline. |
-| `state` | `varchar` | Normalized state or province code, such as `CA` or `CAN` | `ANY_VALUE(master_section.state)` by course-term. | State or province code for the institution. |
-| `control` | `varchar` | IPEDS label such as `Public` or `Private not-for-profit` | `ANY_VALUE(master_section.control)` by course-term. | Institution ownership and governance classification used for reporting. |
-| `level` | `varchar` | IPEDS label such as `Four or more years` | `ANY_VALUE(master_section.level)` by course-term. | IPEDS award-level classification for the institution. |
-| `size` | `varchar` | IPEDS size-band label, such as `20,000 and above` | `ANY_VALUE(master_section.size)` by course-term. | IPEDS institutional enrollment-size classification used for reporting. |
-| `sector` | `varchar` | IPEDS sector descriptor, such as `Public, 4-year or above` | `ANY_VALUE(master_section.sector)` by course-term. | IPEDS sector classification for the institution. |
-| `institution_name` | `varchar` | Official IPEDS institution-name text | `ANY_VALUE(master_section.institution_name)` by course-term. | Canonical institution name supplied by IPEDS. |
-| `institution_type` | `varchar` | Derived institution-type category label | `ANY_VALUE(master_section.institution_type)` by course-term. | Derived institution type used for reporting groups. |
-| `enrollment_2024` | `integer` | Non-negative 2024 student count; NULL when unavailable | `ANY_VALUE(master_section.enrollment_2024)` by course-term. | Total institutional enrollment reported to IPEDS for 2024. |
-| `distance_enrollment_2024` | `integer` | Non-negative 2024 student count; NULL when unavailable | `ANY_VALUE(master_section.distance_enrollment_2024)` by course-term. | IPEDS 2024 students enrolled in distance education. |
-| `school` | `varchar` | Institution name; source spelling/casing retained | `mode(master_section.school)` by course-term. | Institution or school name attached to the course. |
-| `department` | `varchar` | Academic department, such as `Biology` | `mode(master_section.department)` by course-term. | Academic department responsible for the course. |
-| `course_number` | `varchar` | Source course number; zeros/suffixes retained | `mode(master_section.course_number)` by course-term. | Catalog number identifying the course within its department. |
-| `course_title` | `varchar` | Course title; source punctuation/casing retained | `mode(master_section.course_title)` by course-term. | Official title assigned to the course. |
-| `course_level` | `varchar` | Category such as `Introductory or general undergraduate` | `mode(master_section.course_level)` by course-term. | Instructional level assigned to the course. |
-| `course_subject` | `varchar` | Source subject, such as `Biology` | `mode(master_section.course_subject)` by course-term. | Subject area assigned to the course. |
-| `section_count` | `bigint` | Non-negative whole-number count | `COUNT(DISTINCT section_id)` over `master_section`. | Distinct material-bearing sections within the aggregation group. |
-| `enrollment_total` | `hugeint` | Sum of reported section enrollment; source negatives may propagate | `SUM(master_section.enrollments)` over `master_section`. Uses raw `master_section.enrollments`, without imputation. | Reported enrollment summed across the course sections. |
-| `seats_taken_total` | `hugeint` | Sum of reported occupied seats; source noise and sentinels may propagate | `SUM(seats_taken)` over `master_section`. | Reported occupied seats summed across course sections. |
-| `total_materials` | `hugeint` | Non-negative count of canonical material items | `SUM(material_count)` over `master_section`. | Canonical materials summed across all course sections. |
-| `total_required` | `hugeint` | Non-negative count of required material items | `SUM(required_count)` over `master_section`. | Required materials summed across all course sections. |
-| `total_optional` | `hugeint` | Non-negative count of optional material items | `SUM(optional_count)` over `master_section`. | Optional materials summed across all course sections. |
-| `is_oer` | `boolean` | BOOL_OR across the course sections | `COALESCE(BOOL_OR(is_oer), FALSE)` over `master_section`. | Whether the material is an open educational resource. |
-| `is_ia` | `boolean` | TRUE or FALSE | `COALESCE(BOOL_OR(is_ia), FALSE)` over `master_section`. | Whether the material uses inclusive access. |
-| `oer_count` | `hugeint` | SUM of section oer_count | `SUM(oer_count)` over `master_section`. | Open-resource materials within the aggregation group. |
-| `ia_count` | `hugeint` | Non-negative whole-number count | `SUM(ia_count)` over `master_section`. | Inclusive-access materials within the aggregation group. |
-| `has_isbn` | `boolean` | BOOL_OR across course sections | `COALESCE(BOOL_OR(has_isbn), FALSE)` over `master_section`. | Whether the material has a non-NULL ISBN. |
-| `has_formattype` | `boolean` | TRUE or FALSE | `COALESCE(BOOL_OR(has_formattype), FALSE)` over `master_section`. | Whether the material has a nonblank FormatType classification. |
-| `isbn_count` | `hugeint` | SUM of section isbn_count | `SUM(isbn_count)` over `master_section`. | ISBN-bearing materials within the aggregation group. |
-| `classified_count` | `hugeint` | SUM of section classified_count | `SUM(classified_count)` over `master_section`. | Materials having a nonblank FormatType classification. |
-| `has_enrollment_sections` | `bigint` | count of the course's sections with own enrollment (of section_count) | `COUNT(*) FILTER (WHERE has_enrollment)` over `master_section`. | Course sections reporting their own enrollment value. |
-| `has_enrollment_sibling_sections` | `bigint` | sections with a sibling carrying enrollment | `COUNT(*) FILTER (WHERE has_enrollment_sibling)` over `master_section`. | Course sections with sibling enrollment evidence. |
-| `has_enrollment_own_seats_sections` | `bigint` | sections with usable own seats_taken | `COUNT(*) FILTER (WHERE has_enrollment_own_seats)` over `master_section`. | Course sections reporting usable occupied-seat values. |
-| `has_enrollment_sibling_seats_sections` | `bigint` | sections with a sibling carrying usable seats_taken | `COUNT(*) FILTER (WHERE has_enrollment_sibling_seats)` over `master_section`. | Course sections with sibling occupied-seat evidence. |
-| `all_publishers` | `varchar[][]` | nested LIST of publisher arrays | `LIST(publishers) FILTER (WHERE publishers IS NOT NULL)` over `master_section`. | Publisher lists collected across aggregated course sections. |
-| `unique_required_publishers` | `hugeint` | Sum of per-section distinct required-publisher counts | `SUM(required_publisher_count); sum of per-section distinct counts, not course-wide distinct publishers` over `master_section`. | Sum of section-level distinct required-publisher counts. |
-| `required_price_min` | `decimal(38,2)` | USD amount such as `123.45`; stored as `DECIMAL(38,2)` | `MIN(master_section.required_price_min)` across course sections. | Lowest section-level required all-offer price bound. |
-| `required_price_avg` | `double` | USD MIDRANGE `(required_price_min + required_price_max) / 2.0`, not mean | `(MIN(master_section.required_price_min) + MAX(master_section.required_price_max)) / 2.0`; never AVG of section midranges. | Midrange of course required-price bounds, not mean. |
-| `required_price_max` | `decimal(38,2)` | USD amount such as `123.45`; stored as `DECIMAL(38,2)` | `MAX(master_section.required_price_max)` across course sections. | Highest section-level required all-offer price bound. |
-| `required_price_buy_min` | `decimal(38,2)` | USD amount such as `123.45`; stored as `DECIMAL(38,2)` | `MIN(master_section.required_price_buy_min)` across course sections. | Lowest section-level required buy-only price bound. |
-| `required_price_buy_max` | `decimal(38,2)` | USD amount such as `123.45`; stored as `DECIMAL(38,2)` | `MAX(master_section.required_price_buy_max)` across course sections. | Highest section-level required buy-only price bound. |
-| `all_price_min` | `decimal(38,2)` | USD amount such as `123.45`; stored as `DECIMAL(38,2)` | `MIN(master_section.all_price_min)` across course sections. | Lowest section-level all-item all-offer price bound. |
-| `all_price_avg` | `double` | USD MIDRANGE `(all_price_min + all_price_max) / 2.0`, not mean | `(MIN(master_section.all_price_min) + MAX(master_section.all_price_max)) / 2.0`; never AVG of section midranges. | Midrange of course all-item price bounds, not mean. |
-| `all_price_max` | `decimal(38,2)` | USD amount such as `123.45`; stored as `DECIMAL(38,2)` | `MAX(master_section.all_price_max)` across course sections. | Highest section-level all-item all-offer price bound. |
-| `all_price_buy_min` | `decimal(38,2)` | USD amount such as `123.45`; stored as `DECIMAL(38,2)` | `MIN(master_section.all_price_buy_min)` across course sections. | Lowest section-level all-item buy-only price bound. |
-| `all_price_buy_max` | `decimal(38,2)` | USD amount such as `123.45`; stored as `DECIMAL(38,2)` | `MAX(master_section.all_price_buy_max)` across course sections. | Highest section-level all-item buy-only price bound. |
+| Column | Type | Upstream table | Derivation | Sample values | Description | NULL meaning |
+|---|---|---|---|---|---|---|
+| `course_id` | `varchar` | master_section | `master_section.course_id` group key. | 1001::BIO::101 | Stable identifier for the institution-level course offering. | Not produced. |
+| `period_sortable` | `varchar` | master_section | `master_section.period_sortable` group key. | 2025-4 | Sortable academic term code used for chronological ordering. | Not produced. |
+| `period` | `varchar` | master_section | `ANY_VALUE(master_section.period)` by course-term. | Fall 2025 | Human-readable academic term label from the source. | No section has a nonmissing value. |
+| `period_date` | `date` | master_section | `ANY_VALUE(master_section.period_date)` by course-term. | 2025-10-01 | Canonical starting date assigned to the academic term. | No section has a nonmissing value. |
+| `unit_id` | `bigint` | master_section | `ANY_VALUE(master_section.unit_id)` by course-term. | 1001 | IPEDS institution identifier used throughout the pipeline. | No section has a nonmissing value. |
+| `state` | `varchar` | master_section | `ANY_VALUE(master_section.state)` by course-term. | CA | State or province code for the institution. | No section has a nonmissing value. |
+| `control` | `varchar` | master_section | `ANY_VALUE(master_section.control)` by course-term. | unknown | Institution ownership and governance classification used for reporting. | No section has a nonmissing value. |
+| `level` | `varchar` | master_section | `ANY_VALUE(master_section.level)` by course-term. | unknown | IPEDS award-level classification for the institution. | No section has a nonmissing value. |
+| `size` | `varchar` | master_section | `ANY_VALUE(master_section.size)` by course-term. | unknown | IPEDS institutional enrollment-size classification used for reporting. | No section has a nonmissing value. |
+| `sector` | `varchar` | master_section | `ANY_VALUE(master_section.sector)` by course-term. | unknown | IPEDS sector classification for the institution. | No section has a nonmissing value. |
+| `institution_name` | `varchar` | master_section | `ANY_VALUE(master_section.institution_name)` by course-term. | Example University | Canonical institution name supplied by IPEDS. | No section has a nonmissing value. |
+| `institution_type` | `varchar` | master_section | `ANY_VALUE(master_section.institution_type)` by course-term. | unknown | Derived institution type used for reporting groups. | No section has a nonmissing value. |
+| `enrollment_2024` | `integer` | master_section | `ANY_VALUE(master_section.enrollment_2024)` by course-term. | 42 | Total institutional enrollment reported to IPEDS for 2024. | No section has a nonmissing value. |
+| `distance_enrollment_2024` | `integer` | master_section | `ANY_VALUE(master_section.distance_enrollment_2024)` by course-term. | 42 | IPEDS 2024 students enrolled in distance education. | No section has a nonmissing value. |
+| `school` | `varchar` | master_section | `mode(master_section.school)` by course-term. | Example University | Institution or school name attached to the course. | No section has a nonmissing value. |
+| `department` | `varchar` | master_section | `mode(master_section.department)` by course-term. | Biology | Academic department responsible for the course. | No section has a nonmissing value. |
+| `course_number` | `varchar` | master_section | `mode(master_section.course_number)` by course-term. | 101 | Catalog number identifying the course within its department. | No section has a nonmissing value. |
+| `course_title` | `varchar` | master_section | `mode(master_section.course_title)` by course-term. | Introduction to Biology | Official title assigned to the course. | No section has a nonmissing value. |
+| `course_level` | `varchar` | master_section | `mode(master_section.course_level)` by course-term. | Introductory or general undergraduate | Instructional level assigned to the course. | No section has a nonmissing value. |
+| `course_subject` | `varchar` | master_section | `mode(master_section.course_subject)` by course-term. | BIO | Subject area assigned to the course. | No section has a nonmissing value. |
+| `section_count` | `bigint` | master_section | `COUNT(DISTINCT section_id)` over `master_section`. | 42 | Distinct material-bearing sections within the aggregation group. | Never NULL for a retained group. |
+| `enrollment_total` | `hugeint` | master_section | `SUM(master_section.enrollments)` over `master_section`. Uses raw `master_section.enrollments`, without imputation. | 42 | Reported enrollment summed across the course sections. | No contributing nonmissing values. |
+| `seats_taken_total` | `hugeint` | master_section | `SUM(seats_taken)` over `master_section`. | 42 | Reported occupied seats summed across course sections. | No contributing nonmissing values. |
+| `total_materials` | `hugeint` | master_section | `SUM(material_count)` over `master_section`. | 42 | Canonical materials summed across all course sections. | Never NULL for a retained group. |
+| `total_required` | `hugeint` | master_section | `SUM(required_count)` over `master_section`. | 42 | Required materials summed across all course sections. | Never NULL for a retained group. |
+| `total_optional` | `hugeint` | master_section | `SUM(optional_count)` over `master_section`. | 42 | Optional materials summed across all course sections. | Never NULL for a retained group. |
+| `is_oer` | `boolean` | master_section | `COALESCE(BOOL_OR(is_oer), FALSE)` over `master_section`. | TRUE | Whether the material is an open educational resource. | Never NULL for a retained group. |
+| `is_ia` | `boolean` | master_section | `COALESCE(BOOL_OR(is_ia), FALSE)` over `master_section`. | TRUE | Whether the material uses inclusive access. | Never NULL for a retained group. |
+| `oer_count` | `hugeint` | master_section | `SUM(oer_count)` over `master_section`. | 42 | Open-resource materials within the aggregation group. | Never NULL for a retained group. |
+| `ia_count` | `hugeint` | master_section | `SUM(ia_count)` over `master_section`. | 42 | Inclusive-access materials within the aggregation group. | Never NULL for a retained group. |
+| `has_isbn` | `boolean` | master_section | `COALESCE(BOOL_OR(has_isbn), FALSE)` over `master_section`. | TRUE | Whether the material has a non-NULL ISBN. | Never NULL for a retained group. |
+| `has_formattype` | `boolean` | master_section | `COALESCE(BOOL_OR(has_formattype), FALSE)` over `master_section`. | TRUE | Whether the material has a nonblank FormatType classification. | Never NULL for a retained group. |
+| `isbn_count` | `hugeint` | master_section | `SUM(isbn_count)` over `master_section`. | 42 | ISBN-bearing materials within the aggregation group. | Never NULL for a retained group. |
+| `classified_count` | `hugeint` | master_section | `SUM(classified_count)` over `master_section`. | 42 | Materials having a nonblank FormatType classification. | Never NULL for a retained group. |
+| `has_enrollment_sections` | `bigint` | master_section | `COUNT(*) FILTER (WHERE has_enrollment)` over `master_section`. | 42 | Course sections reporting their own enrollment value. | Never NULL for a retained group. |
+| `has_enrollment_sibling_sections` | `bigint` | master_section | `COUNT(*) FILTER (WHERE has_enrollment_sibling)` over `master_section`. | 42 | Course sections with sibling enrollment evidence. | Never NULL for a retained group. |
+| `has_enrollment_own_seats_sections` | `bigint` | master_section | `COUNT(*) FILTER (WHERE has_enrollment_own_seats)` over `master_section`. | 42 | Course sections reporting usable occupied-seat values. | Never NULL for a retained group. |
+| `has_enrollment_sibling_seats_sections` | `bigint` | master_section | `COUNT(*) FILTER (WHERE has_enrollment_sibling_seats)` over `master_section`. | 42 | Course sections with sibling occupied-seat evidence. | Never NULL for a retained group. |
+| `all_publishers` | `varchar[][]` | master_section | `LIST(publishers) FILTER (WHERE publishers IS NOT NULL)` over `master_section`. | [['alpha', 'beta'], ['gamma']] | Publisher lists collected across aggregated course sections. | No contributing nonmissing values. |
+| `unique_required_publishers` | `hugeint` | master_section | `SUM(required_publisher_count); sum of per-section distinct counts, not course-wide distinct publishers` over `master_section`. | 42 | Sum of section-level distinct required-publisher counts. | Never NULL for a retained group. |
+| `required_price_min` | `decimal(38,2)` | master_section | `MIN(master_section.required_price_min)` across course sections. | 12.34 | Lowest section-level required all-offer price bound. | No contributing section has a non-NULL required all-offer min bound. |
+| `required_price_avg` | `double` | master_section | `(MIN(master_section.required_price_min) + MAX(master_section.required_price_max)) / 2.0`; never AVG of section midranges. | 12.34 | Midrange of course required-price bounds, not mean. | Either course-level bound is NULL. |
+| `required_price_max` | `decimal(38,2)` | master_section | `MAX(master_section.required_price_max)` across course sections. | 12.34 | Highest section-level required all-offer price bound. | No contributing section has a non-NULL required all-offer max bound. |
+| `required_price_buy_min` | `decimal(38,2)` | master_section | `MIN(master_section.required_price_buy_min)` across course sections. | 12.34 | Lowest section-level required buy-only price bound. | No contributing section has a non-NULL required buy-only min bound. |
+| `required_price_buy_max` | `decimal(38,2)` | master_section | `MAX(master_section.required_price_buy_max)` across course sections. | 12.34 | Highest section-level required buy-only price bound. | No contributing section has a non-NULL required buy-only max bound. |
+| `all_price_min` | `decimal(38,2)` | master_section | `MIN(master_section.all_price_min)` across course sections. | 12.34 | Lowest section-level all-item all-offer price bound. | No contributing section has a non-NULL all all-offer min bound. |
+| `all_price_avg` | `double` | master_section | `(MIN(master_section.all_price_min) + MAX(master_section.all_price_max)) / 2.0`; never AVG of section midranges. | 12.34 | Midrange of course all-item price bounds, not mean. | Either course-level bound is NULL. |
+| `all_price_max` | `decimal(38,2)` | master_section | `MAX(master_section.all_price_max)` across course sections. | 12.34 | Highest section-level all-item all-offer price bound. | No contributing section has a non-NULL all all-offer max bound. |
+| `all_price_buy_min` | `decimal(38,2)` | master_section | `MIN(master_section.all_price_buy_min)` across course sections. | 12.34 | Lowest section-level all-item buy-only price bound. | No contributing section has a non-NULL all buy-only min bound. |
+| `all_price_buy_max` | `decimal(38,2)` | master_section | `MAX(master_section.all_price_buy_max)` across course sections. | 12.34 | Highest section-level all-item buy-only price bound. | No contributing section has a non-NULL all buy-only max bound. |

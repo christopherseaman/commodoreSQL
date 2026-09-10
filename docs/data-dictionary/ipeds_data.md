@@ -13,14 +13,14 @@ notion-sync: push
 - Pipeline stage: IMPORT / 0_setup.sql
 - Direct upstream relations: `IPEDS IPEDS_2024.csv`
 
-| Column | Type | Example / structure | Direct upstream source / derivation | Description |
-|---|---|---|---|---|
-| `unitid` | `integer` | IPEDS institution identifier | IPEDS field `UNITID`; TRY_CAST to INTEGER; configured null tokens normalized. | IPEDS institution identifier from the institutional source. |
-| `instnm` | `varchar` | Official IPEDS institution-name text | IPEDS field `INSTNM`; configured null tokens normalized. | Official institution name reported by IPEDS. |
-| `sector` | `varchar` | IPEDS sector descriptor, such as `Public, 4-year or above` | IPEDS field `SECTOR`; configured null tokens normalized. | IPEDS sector classification for the institution. |
-| `iclevel` | `varchar` | string descriptor, e.g., "Four or more years" | IPEDS field `ICLEVEL`; configured null tokens normalized. | IPEDS award-level classification for the institution. |
-| `control` | `varchar` | IPEDS label such as `Public` or `Private not-for-profit` | IPEDS field `CONTROL`; configured null tokens normalized. | Institution ownership and governance classification used for reporting. |
-| `instsize` | `varchar` | string descriptor, e.g., "20,000 and above" | IPEDS field `INSTSIZE`; configured null tokens normalized. | IPEDS institutional enrollment-size classification used for reporting. |
-| `enroll_24` | `integer` | 2024 enrollment | IPEDS field `Enroll_24`; TRY_CAST to INTEGER; configured null tokens normalized. | Total institutional enrollment reported to IPEDS for 2024. |
-| `dist_enroll_24` | `integer` | 2024 distance enrollment | IPEDS field `DistEnroll_24`; TRY_CAST to INTEGER; configured null tokens normalized. | IPEDS 2024 students enrolled in distance education. |
-| `inst_type` | `varchar` | Derived institution-type category label | IPEDS field `InstType`; configured null tokens normalized. | Derived institution type classification used for reporting. |
+| Column | Type | Upstream table | Derivation | Sample values | Description | NULL meaning |
+|---|---|---|---|---|---|---|
+| `unitid` | `integer` | IPEDS IPEDS_2024.csv | IPEDS field `UNITID`; TRY_CAST to INTEGER; configured null tokens normalized. | 1001 | IPEDS institution identifier from the institutional source. | IPEDS field unavailable, configured as missing, or failed TRY_CAST. |
+| `instnm` | `varchar` | IPEDS IPEDS_2024.csv | IPEDS field `INSTNM`; configured null tokens normalized. | Example University | Official institution name reported by IPEDS. | IPEDS field unavailable, configured as missing, or failed TRY_CAST. |
+| `sector` | `varchar` | IPEDS IPEDS_2024.csv | IPEDS field `SECTOR`; configured null tokens normalized. | unknown | IPEDS sector classification for the institution. | IPEDS field unavailable, configured as missing, or failed TRY_CAST. |
+| `iclevel` | `varchar` | IPEDS IPEDS_2024.csv | IPEDS field `ICLEVEL`; configured null tokens normalized. | Four or more years | IPEDS award-level classification for the institution. | IPEDS field unavailable, configured as missing, or failed TRY_CAST. |
+| `control` | `varchar` | IPEDS IPEDS_2024.csv | IPEDS field `CONTROL`; configured null tokens normalized. | unknown | Institution ownership and governance classification used for reporting. | IPEDS field unavailable, configured as missing, or failed TRY_CAST. |
+| `instsize` | `varchar` | IPEDS IPEDS_2024.csv | IPEDS field `INSTSIZE`; configured null tokens normalized. | 1 | IPEDS institutional enrollment-size classification used for reporting. | IPEDS field unavailable, configured as missing, or failed TRY_CAST. |
+| `enroll_24` | `integer` | IPEDS IPEDS_2024.csv | IPEDS field `Enroll_24`; TRY_CAST to INTEGER; configured null tokens normalized. | 42 | Total institutional enrollment reported to IPEDS for 2024. | IPEDS field unavailable, configured as missing, or failed TRY_CAST. |
+| `dist_enroll_24` | `integer` | IPEDS IPEDS_2024.csv | IPEDS field `DistEnroll_24`; TRY_CAST to INTEGER; configured null tokens normalized. | 42 | IPEDS 2024 students enrolled in distance education. | IPEDS field unavailable, configured as missing, or failed TRY_CAST. |
+| `inst_type` | `varchar` | IPEDS IPEDS_2024.csv | IPEDS field `InstType`; configured null tokens normalized. | College | Derived institution type classification used for reporting. | IPEDS field unavailable, configured as missing, or failed TRY_CAST. |

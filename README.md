@@ -80,6 +80,7 @@ Config: `metabase/`. Preview: `python3 metabase/sync.py --dry-run`.
 
 Edit schema/field metadata at its source; regenerate before publishing.
 The dictionary covers the implemented flow, excluding DQ and off-flow relations.
+Each field separates upstream table, derivation, and illustrative sample values.
 
 ```bash
 python3 scripts/generate_data_dictionary.py
@@ -96,7 +97,14 @@ reconcile edits locally before retrying. New columns sync automatically; a chang
 set requires an explicit attachment migration and adding/removing its filtered Notion views.
 Record view IDs in the target configuration.
 
-Prose baselines live in `.notion/prose-state.json`. For a new page already matching local
+For the legacy combined lineage/example properties, preview once with
+`sync_notion_dictionary.py --migrate-field-schema`, then repeat with `--apply`.
+This preserves property/row IDs and saved baselines; expose `Derivation` in the existing
+views before publishing the new TSVs. Ordinary sync does not migrate property schemas.
+
+Prose baselines live in `.notion/prose-state.json`. Publication removes source-width prose
+wrapping and promotes section headings one level without changing local Markdown's title
+or hierarchy. For a new page already matching the publication
 content, initialize with `sync_notion_docs.py --initialize-state --manifest scripts/notion_sync_docs.txt`.
 If Notion reformatted the content, compare the complete page before establishing its baseline;
 do not treat an unrecognized difference as safe to overwrite.

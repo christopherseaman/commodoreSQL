@@ -11,6 +11,29 @@ DUCKDB = shutil.which("duckdb")
 
 
 class PanelImportTest(unittest.TestCase):
+    def test_panel_and_opt_out_dependencies_are_mailing_only(self) -> None:
+        sql_dir = ROOT / "scripts/sql"
+        for name in (
+            "2_oer_classification.sql",
+            "2b_course_material.sql",
+            "3b_master_material.sql",
+        ):
+            sql = (sql_dir / name).read_text()
+            self.assertNotIn("panel_email", sql)
+            self.assertNotIn("opt_out", sql)
+            for field in (
+                "panel_response_year",
+                "panel_source_row_count",
+                "panel_response_year_variant_count",
+                "is_opted_out",
+                "opt_out_source",
+            ):
+                self.assertNotIn(field, sql)
+
+        mailing = (sql_dir / "3_mailing_lists.sql").read_text()
+        self.assertIn("LEFT JOIN panel_email p ON m.email = p.email", mailing)
+        self.assertIn("FROM opt_out o", mailing)
+
     def test_raw_panel_is_connection_local_and_grouped_lookup_is_persistent(self):
         self.assertIsNotNone(DUCKDB, "duckdb CLI is required")
         setup = r"""

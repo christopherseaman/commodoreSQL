@@ -6,6 +6,9 @@
 - State shared rules once. Cut repeated introductions, aliases, and qualifications.
 - Preserve fields, filters, grains, and export/report inventories when shortening.
 - Edit generated wording at its source; regenerate and verify Notion tables.
+- Do not publish source-width line wrapping to Notion; join prose continuations while preserving Markdown structure.
+- Promote section headings one level on Notion upload; keep the local document title and group table logic by diagram area.
+- Table logic bullets name upstream columns, join keys/types, row filters, and output derivations; distinguish labeling rows from excluding them.
 
 ## Documentation hierarchy
 
@@ -22,8 +25,8 @@
 - `HANDOFF.md` — current work status, how to run things, gotchas (read first when picking up)
 - `README.md` — project overview, execution order, runner configuration, and export commands
 
-Notion prose sync uses `scripts/notion_sync_docs.txt`: flow, reports, three issue-detail
-pages beneath CMM Data Flow, and the Top-125 report page. It strips ordinary repository-relative links and preserves
+Notion prose sync uses `scripts/notion_sync_docs.txt`: flow, reports, two issue-detail
+pages beneath Data Flow, the Overview pricing-matching page, and the Top-125 report page. It strips ordinary repository-relative links and preserves
 native child pages. No recursive repository sweep.
 
 Data Dictionary uses dedicated field and download publishers, configured by
@@ -33,6 +36,10 @@ DQ and off-flow relations are excluded. Generated TSVs flow one-way into Notion;
 publishers detect remote edits and retain stable row/file-block IDs.
 Local sync state lives in ignored `.notion/`; preserve it between runs.
 
+Dictionary columns separate immediate upstream table(s), derivation, and sample values.
+Imports name their input file instead of an upstream table. Derivations use current or
+upstream column names; samples are illustrative literals, not formulas or format prose.
+
 Use `NOTION_KEYRING=0`; preview before `--apply` (commands in README.md).
 Repo-only guidance, historical notes, and `comms/` captures are not synced.
 
@@ -41,8 +48,8 @@ Repo-only guidance, historical notes, and `comms/` captures are not synced.
 - Derived relations use singular nouns: `course_material`, `master_material`,
   `master_section`, `recent_period`.
 - Samples use `sample_<grain>_<selection>`: `sample_material_10pct`,
-  `sample_section_us_intro_fall2025`, and pending `sample_material_25id` /
-  `sample_section_25id` from the imported `sample_unit_25id` list.
+  `sample_section_us_intro_fall2025`, and pending `sample_material_100id` /
+  `sample_section_100id` from the imported `sample_unit_100id` list.
 - Source-owned field names and plural count/list measures retain their meanings.
 
 ### Stakeholder source ownership
