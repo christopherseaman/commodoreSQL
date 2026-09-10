@@ -1,6 +1,6 @@
--- name: Lineage 7 — Master Course (rollup)
+-- name: Lineage 7 — Master Course (draft)
 -- display: table
--- description: Course-level rollup across sections — totals, OER/IA, coverage, cost (MIN/MAX/AVG). Shows ALL columns for this stage so every field is traceable. Set the School (unit_id) filter.
+-- description: Draft course/term rollups for selected school. Definition pending. Raw enrollment is summed; assigned enrollment remains on master_section.
 SELECT *
 FROM master_course
 WHERE 1=1

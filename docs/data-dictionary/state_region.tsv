@@ -1,0 +1,4 @@
+relation	kind	ordinal	column	type	upstream table	derivation	sample values	description	null meaning
+state_region	table	1	state	varchar	0b_state_region.sql static values	Maintained static `state` value in `0b_state_region.sql`.	CA	State or province code for the institution.	Not produced by the static lookup.
+state_region	table	2	region	varchar	0b_state_region.sql static values	Maintained static `region` value in `0b_state_region.sql`.	West	Census region containing the state or province.	Not produced by the static lookup.
+state_region	table	3	division	varchar	0b_state_region.sql static values	Maintained static `division` value in `0b_state_region.sql`.	Pacific	Census division containing the state or province.	Not produced by the static lookup.

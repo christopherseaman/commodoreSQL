@@ -1,7 +1,7 @@
 [
   { "__meta__": {
       "name": "OER/IA Adoption",
-      "description": "OER / Inclusive-Access adoption. IMPORTANT: absolute IA counts decline in recent periods only because FormatType classification coverage drops (73%→57%) — the rate AMONG CLASSIFIED materials is flat. Read the rate + coverage cards together."
+      "description": "Canonical materials and material-bearing sections; card-specific denominators below. OER / Inclusive-Access adoption. Cards 31/32 use canonical Course Materials Use rows: card 31's OER/IA rate denominator is classified Use materials (FormatType present), while card 32's coverage denominator is all Use material rows. Card 26 divides section adoption by material-bearing master_section rows; card 05 counts inferred-required Use rows. Read absolute IA counts alongside FormatType coverage."
   } },
   { "question": "31_oer_ia_rate_among_classified", "row": 0,  "col": 0, "size_x": 24, "size_y": 7 },
   { "question": "32_formattype_coverage_over_time", "row": 7,  "col": 0, "size_x": 24, "size_y": 7 },

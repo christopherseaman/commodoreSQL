@@ -1,0 +1,2 @@
+relation	kind	ordinal	column	type	upstream table	derivation	sample values	description	null meaning
+recent_period	view	1	period_sortable	varchar	course_catalog_20251215	Latest 12 distinct nonmissing `course_catalog_20251215.period_sortable` values.	2025-4	Sortable academic term code used for chronological ordering.	Not produced.

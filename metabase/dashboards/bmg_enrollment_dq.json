@@ -2,7 +2,7 @@
   {
     "__meta__": {
       "name": "BMG · Enrollment Data Quality",
-      "description": "Missing section enrollment and how it is imputed. Summary tile: fill-source mix (own -> own_seats -> sibling_enroll -> sibling_seats -> class_median -> level_median) with raw vs assigned enrollment sums and % imputed, per class x A/B set. Middle: fill-potential (how much missing enrollment each signal could cover) and the enrollment distribution (right-skewed; feeds the class-median fallback). Bottom: coverage-fill summary and the per-section assignment detail (enrollment_assigned + enrollment_source, now persisted on master_section, #32). ~28.6% of enrollment is imputed overall and ~22% of sections take the weakest rung (class median) — gate any enrollment-weighted result on enrollment_source. seats_taken=9999 is an invalid sentinel (guarded)."
+      "description": "Fall-2025 BMG enrollment diagnostics, plus all-term material-bearing coverage. Missing enrollment and its assignment provenance among material-bearing Master Section rows. Summary: fill-source mix (own -> own_seats -> sibling_enroll -> sibling_seats -> class_median -> level_median), raw versus assigned totals, and imputed share by class and A/B set. The assignment values and medians originate from the complete section_enrollment population, while these cards display the narrowed release population. Gate enrollment-weighted results on enrollment_source; seats_taken=9999 is an invalid sentinel."
     }
   },
   { "question": "45_fall2025_enrollment_assignment_summary",  "row": 0,  "col": 0,  "size_x": 24, "size_y": 7 },

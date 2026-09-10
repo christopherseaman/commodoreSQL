@@ -1,6 +1,6 @@
 -- name: DQ — Enrollment Sanity
 -- display: bar
--- description: Catalog rows with anomalous enrollment vs seats_taken. Negative=bad data; sentinel 9999=uncapped courses; small/medium/large overage = real over-enrollment.
+-- description: Inferred-required recent-term catalog rows with enrollment/seat anomalies. Catalog rows with anomalous enrollment vs seats_taken. Negative=bad data; sentinel 9999=uncapped courses; small/medium/large overage = real over-enrollment.
 
 SELECT metric_name, metric_value
 FROM __data_quality_metrics

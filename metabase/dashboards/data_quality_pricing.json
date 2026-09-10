@@ -2,7 +2,7 @@
   {
     "__meta__": {
       "name": "Data Quality — Pricing",
-      "description": "DQ checks on the pricing pipeline: dedupe stages, outliers, buy/rental discipline, format coverage, and pricing↔catalog matching."
+      "description": "Pricing import and latest-snapshot observations; deduplication, validity, and catalog matching. DQ checks cover import row totals, deduplicated observation outliers, buy/rental discipline, format coverage, and pricing↔catalog matching."
     }
   },
   { "question": "18_dq_critical_should_be_zero",          "row":  0, "col":  0, "size_x": 24, "size_y": 4 },

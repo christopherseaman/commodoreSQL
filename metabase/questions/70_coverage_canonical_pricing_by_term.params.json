@@ -1,0 +1,6 @@
+{
+  "period_sortable": {
+    "display-name": "Term",
+    "field": "master_material.period_sortable"
+  }
+}

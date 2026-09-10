@@ -1,6 +1,6 @@
 -- name: Lineage 4 — Pricing Wide (pivoted)
 -- display: table
--- description: Pricing pivoted to one row per (section, ISBN): 18 price cells + has_buy/has_rent + ranges. Shows ALL columns for this stage so every field is traceable. Set the School (unit_id) filter.
+-- description: Pricing-wide section/ISBN pairs for selected school. Pricing pivoted to one row per (section, ISBN): 18 price cells + has_buy/has_rent + ranges. Shows ALL columns for this stage so every field is traceable. Set the School (unit_id) filter.
 SELECT *
 FROM pricing_wide
 WHERE 1=1

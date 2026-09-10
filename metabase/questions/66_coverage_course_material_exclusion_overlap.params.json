@@ -1,0 +1,6 @@
+{
+  "period_sortable": {
+    "display-name": "Term",
+    "field": "course_material_recent.period_sortable"
+  }
+}

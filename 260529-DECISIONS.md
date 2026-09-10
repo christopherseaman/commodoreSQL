@@ -6,6 +6,9 @@ issues. Branch: `data-model-derived-columns`. Board: https://github.com/users/ch
 Each decision lists the **choice** and **why**. Where a default was assumed (rather than
 confirmed), it is marked **[assumed]** and is open to revision in the issue's Review.
 
+Current contracts supersede this snapshot: `master_section` now owns section-cost
+aggregation (#84), and `schema.dbml` is current. See `CMM-ETL.md`.
+
 ---
 
 ## 1. Data model — section & course derived columns (#1–#8, in Review)
@@ -22,8 +25,8 @@ confirmed), it is marked **[assumed]** and is open to revision in the issue's Re
 - Fixed a latent bug: blank-status rows previously counted as *neither* required nor optional
   (`NULL != 'required'` is `NULL`). Now `required_count + optional_count = material_count`.
 
-### #2/#3/#4 — section cost columns
-- **Decision:** New materialized `section_cost` table computes cost over **distinct
+### #2/#3/#4 — section cost columns (superseded by #84)
+- **Decision at the time:** A materialized `section_cost` table computes cost over **distinct
   `(section_id, ISBN13)` materials** (dedupe before summing, since a book can appear in
   multiple catalog rows).
 - `required_cost_total_min/max`, `optional_cost_total_min/max` = `SUM` of per-material
@@ -82,8 +85,9 @@ confirmed), it is marked **[assumed]** and is open to revision in the issue's Re
   required-only `pricing_wide` lacked. `pricing_wide_filtered` preserves prior semantics for
   existing consumers (`2d_data_quality.sql`); verified its row count matches the old
   `pricing_wide` (5,972,929).
-- Non-required pricing carries the documented `section_id`↔catalog match caveat (#21); affected
-  materials simply get NULL cost (coverage visible via `*_priced_count`).
+- This historical pricing-layer description has since been superseded. The current matching
+  contract and evidence live only in the
+  [CMM-ETL issue #21 limitation](CMM-ETL.md#current-limitation--pricing-to-catalog-section-matching-issue-21).
 
 ---
 
@@ -132,10 +136,10 @@ error-prone to hand-author). Assumed scope:
   `__data_quality_null_isbn_breakdown` identifies the only 3 placeholder strings for NULL-ISBN
   rows (`*No Book Details*` ~92%, `*No Books Required*` ~7.4%, `*Bad Course*` ~0.03%) — none are
   "real missing". **Rule:** NULL-ISBN = no book adopted; retain for section/enrollment counts,
-  exclude from ISBN-level joins (already done via `ISBN13 IS NOT NULL` in `section_cost`).
-- **#21 pricing↔catalog `section_id` normalization — deferred.** Conditional in the issue ("if
-  pre-2024 pricing becomes a use case"). 2024+ filtered analysis is unaffected (filter_include=
-  TRUE pricing is 100% matched). No action until pre-2024 pricing is needed.
+  exclude from ISBN-level joins (current item and section layers already do this).
+- **#21 pricing↔catalog `section_id` normalization — superseded here.** See the current contract,
+  evidence, and pending alternatives only in the
+  [CMM-ETL issue #21 limitation](CMM-ETL.md#current-limitation--pricing-to-catalog-section-matching-issue-21).
 - **#23 contemporaneous Amazon prices — deferred (someday).** Needs an external data source;
   out of scope for the current dataset.
 - **#24 merged-records consistency follow-ups:**
@@ -146,12 +150,14 @@ error-prone to hand-author). Assumed scope:
   - **publisher-split alignment — deferred.** `required_publishers` etc. still use
     `LOWER(book_status)='required'`; align to `filter_include` after the grain fix (distinct
     counts aren't additive across the split).
-  - **`schema.dbml` drift — open.** Not updated for the new cost/OER columns or `section_cost`
-    table (`schema.dbml` has separate uncommitted WIP; left untouched). See §6 for the additions.
+  - **2026-09-04 disposition:** retain `master_course` and export 32 for the requested course×term
+    rollup. `enrollment_total` sums raw `master_section.enrollments`; assigned enrollment is not
+    substituted. Retire tentative `master_course_material` and export 33; no consumer was found.
+  - **`schema.dbml` drift — resolved.** Current definitions are generated from the implemented flow.
 
 ---
 
-## 6. Schema additions (spec for updating `schema.dbml`)
+## 6. Historical schema proposal (superseded)
 
 New table **`section_cost`** (1 row per `section_id`): `course_id`, `period_sortable`,
 `required_cost_total_min/max`, `optional_cost_total_min/max`, `required_cost_owned_min/max`,

@@ -1,6 +1,6 @@
 -- name: Fall 2025 — Enrollment Assignment Summary (source mix + raw vs assigned)
 -- display: table
--- description: Companion to question 44, aggregating the PERSISTED enrollment fill (#32) on master_section. Per control x level x A/B set: section counts by fill source (own, own_seats, sibling_enroll, sibling_seats, class_median, level_median), the raw enrollment sum (present only) vs the assigned sum (filled), and pct_imputed = share of the assigned total that comes from imputation. Hierarchy: own -> own_seats -> sibling_enroll -> sibling_seats -> class_median -> level_median; medians per period over the reference population (4 BMG course levels x 6 teaching sectors). A/B set membership reflects the post-#36 supply exclusion (required_count counts course materials only).
+-- description: Fall-2025 BMG-scope material-bearing sections; raw/assigned enrollment by control/level/set. Companion to question 44, aggregating persisted enrollment fill (#32) over material-bearing Master Section rows. Per control x level x A/B set it reports fill-source counts, raw versus assigned enrollment, and the imputed share. The assignment ladder and medians still originate from the complete section_enrollment reference population; this card's denominator is the retained material-bearing scope. A/B membership uses required_count over canonical master_material items.
 SELECT
   control,
   CASE level WHEN 'Four or more years' THEN '4yr' WHEN 'At least 2 but less than 4 years' THEN '2yr' END AS lvl,

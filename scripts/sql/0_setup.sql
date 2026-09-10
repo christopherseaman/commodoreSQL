@@ -5,7 +5,6 @@ ${CONFIG}
 BEGIN TRANSACTION;
 
 -- Clear existing data structures
-DROP TABLE IF EXISTS comprehensive_data;
 DROP TABLE IF EXISTS survey_data;
 DROP TABLE IF EXISTS ipeds_view;
 DROP TABLE IF EXISTS optout_view;
@@ -14,6 +13,7 @@ DROP TABLE IF EXISTS ${SURVEY_TABLE};
 DROP TABLE IF EXISTS ${IPEDS_TABLE};
 DROP TABLE IF EXISTS ${OPTOUT_TABLE};
 DROP TABLE IF EXISTS ${PANEL_TABLE};
+DROP TABLE IF EXISTS panel_email;
 -- Import and normalize course catalog data
 CREATE TABLE ${SURVEY_TABLE} AS
 SELECT
@@ -142,8 +142,10 @@ FROM read_csv('${OPTOUT_CSV}',
     delim=',',
     nullstr=['N/A', '', 'Not applicable']);
 
--- Import panel response data
-CREATE TABLE ${PANEL_TABLE} AS
+-- Import panel response data into a connection-local staging table. The raw
+-- response history is only needed to build the one-row-per-email lookup;
+-- persisting it duplicates the source and invites accidental many-to-one joins.
+CREATE TEMP TABLE ${PANEL_TABLE} AS
 SELECT
     LOWER(TRIM("Unique")) AS email,
     "Year" AS response_year
@@ -152,6 +154,19 @@ FROM read_csv('${PANEL_CSV}',
     header=true,
     delim=',',
     nullstr=['N/A', '', 'Not applicable']);
+
+-- Preserve response multiplicity in this connection-local source while
+-- exposing a one-row-per-email lookup for catalog enrichment. Joining the raw
+-- history directly can multiply catalog rows when an email has responses in
+-- multiple years.
+CREATE TABLE panel_email AS
+SELECT
+    email,
+    MAX(response_year) AS panel_response_year,
+    COUNT(*) AS panel_source_row_count,
+    COUNT(DISTINCT response_year) AS panel_response_year_variant_count
+FROM ${PANEL_TABLE}
+GROUP BY email;
 
 -- Export email cleaning audit to TSV (import artifact, not a persistent table)
 COPY (
@@ -196,26 +211,6 @@ COPY (
     FROM raw_emails
 ) TO '${OUTPUT_DIR}/email_issues.tsv' (DELIMITER '\t', HEADER);
 
--- Create comprehensive merged dataset
-CREATE TABLE comprehensive_data AS
-SELECT
-    c.*,
-    i.instnm,
-    i.sector,
-    i.iclevel,
-    i.control,
-    i.instsize,
-    i.enroll_24,
-    i.dist_enroll_24,
-    i.inst_type,
-    CASE WHEN o.email IS NOT NULL THEN 1 ELSE 0 END AS is_opted_out,
-    o.source AS opt_out_source,
-    p.response_year AS panel_response_year
-FROM ${SURVEY_TABLE} c
-LEFT JOIN ${IPEDS_TABLE} i ON c.unit_id = i.unitid
-LEFT JOIN ${OPTOUT_TABLE} o ON c.email = o.email
-LEFT JOIN ${PANEL_TABLE} p ON c.email = p.email;
-
 COMMIT;
 
 -- Update query optimization statistics
@@ -223,11 +218,24 @@ ANALYZE ${SURVEY_TABLE};
 ANALYZE ${IPEDS_TABLE};
 ANALYZE ${OPTOUT_TABLE};
 ANALYZE ${PANEL_TABLE};
-ANALYZE comprehensive_data;
+ANALYZE panel_email;
 
 -- =====================================================================
 -- Data Quality checks (console-only — see TODO.md for persistent logging)
 -- =====================================================================
+
+-- DQ: lookup multiplicity must remain visible in the raw history while the
+-- catalog enrichment stays exactly one row per normalized catalog source row.
+SELECT
+    'Panel lookup multiplicity' AS metric,
+    (SELECT COUNT(*) FROM ${PANEL_TABLE}) AS panel_source_rows,
+    (SELECT COUNT(*) FROM panel_email) AS panel_distinct_emails,
+    (SELECT COUNT(*) FROM ${PANEL_TABLE})
+      - (SELECT COUNT(*) FROM panel_email) AS panel_duplicate_email_rows,
+    (SELECT COUNT(*) FROM panel_email WHERE panel_source_row_count > 1)
+        AS panel_emails_with_multiple_rows,
+    (SELECT COUNT(*) FROM panel_email WHERE panel_response_year_variant_count > 1)
+        AS panel_emails_with_multiple_years;
 
 -- DQ: 'UNKNOWN' segments in composite IDs (silent missing-source-data signal)
 SELECT
@@ -235,7 +243,7 @@ SELECT
     COUNT(*) FILTER (WHERE section_id LIKE '%UNKNOWN%') AS section_id_unknown_rows,
     COUNT(*) FILTER (WHERE course_id  LIKE '%UNKNOWN%') AS course_id_unknown_rows,
     COUNT(*) FILTER (WHERE period_sortable IS NULL)     AS null_period_sortable_rows
-FROM comprehensive_data;
+FROM ${SURVEY_TABLE};
 
 -- DQ: IPEDS match — split unmatched into Canadian (no unit_id) vs closed/consolidated US schools
 -- Background: IPEDS_2024.csv covers US institutions only. ~70% of unmatched is by design (CA schools);

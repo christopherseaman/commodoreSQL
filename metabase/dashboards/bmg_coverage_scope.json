@@ -1,0 +1,25 @@
+[
+  {
+    "__meta__": {
+      "name": "BMG Coverage & Scope",
+      "description": "Current snapshot: raw source, canonical-item, full-section, and retained-release denominators. Current snapshot coverage map from BMG source observations through canonical Course Materials, enrollment, pricing, and release populations. The Term filter defaults to the current snapshot term (2025-4) and applies to all 14 cards; card descriptions identify each source or canonical grain and denominator.",
+      "parameters": [
+        { "name": "Term", "slug": "period_sortable", "default": "2025-4" }
+      ]
+    }
+  },
+  { "question": "65_coverage_course_material_population_by_term",       "row": 0,  "col": 0,  "size_x": 24, "size_y": 7 },
+  { "question": "66_coverage_course_material_exclusion_overlap",       "row": 7,  "col": 0,  "size_x": 24, "size_y": 8 },
+  { "question": "67_coverage_course_material_classification_by_term",  "row": 15, "col": 0,  "size_x": 24, "size_y": 8 },
+  { "question": "68_coverage_section_enrollment_by_term",              "row": 23, "col": 0,  "size_x": 24, "size_y": 7 },
+  { "question": "69_coverage_pricing_source_options_by_term",          "row": 30, "col": 0,  "size_x": 24, "size_y": 8 },
+  { "question": "70_coverage_canonical_pricing_by_term",               "row": 38, "col": 0,  "size_x": 24, "size_y": 8 },
+  { "question": "71_coverage_canonical_by_institution",                "row": 46, "col": 0,  "size_x": 24, "size_y": 9 },
+  { "question": "72_coverage_canonical_price_cells_by_term",           "row": 55, "col": 0,  "size_x": 24, "size_y": 8 },
+  { "question": "32_formattype_coverage_over_time",                    "row": 63, "col": 0,  "size_x": 12, "size_y": 6 },
+  { "question": "31_oer_ia_rate_among_classified",                    "row": 63, "col": 12, "size_x": 12, "size_y": 6 },
+  { "question": "57_formattype_coverage_by_supply",                    "row": 69, "col": 0,  "size_x": 12, "size_y": 7 },
+  { "question": "33_coverage_enrollment_fill",                         "row": 69, "col": 12, "size_x": 12, "size_y": 7 },
+  { "question": "10_dq_pricing_match_by_period",                       "row": 76, "col": 0,  "size_x": 12, "size_y": 6 },
+  { "question": "27_dq_pricing_format_count_distribution_filtered",   "row": 76, "col": 12, "size_x": 12, "size_y": 6 }
+]

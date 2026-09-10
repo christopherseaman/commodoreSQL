@@ -2,7 +2,7 @@
   {
     "__meta__": {
       "name": "Data Quality — Catalog",
-      "description": "DQ checks on the course catalog (is_required_inferred = TRUE only — analytical subset, period >= 2024). IPEDS coverage, NULL ISBN distribution, email validity, enrollment sanity."
+      "description": "Inferred-required catalog rows in recent terms; not canonical Use. DQ checks on the course catalog (is_required_inferred = TRUE and is_recent only). IPEDS coverage, NULL ISBN distribution, email validity, enrollment sanity."
     }
   },
   { "question": "13_dq_catalog_ipeds_match",          "row":  0, "col":  0, "size_x": 12, "size_y": 7 },

@@ -17,39 +17,38 @@ CREATE TABLE __data_quality_metrics (
     metric_value BIGINT
 );
 
--- All catalog checks are scoped to is_required_inferred = TRUE (analytical subset:
--- period >= 2024-01-01 with the has_required / book_status logic from 1b_section_filter.sql).
--- Source-quality of pre-2024 / non-required rows is acknowledged but not surfaced here.
+-- All catalog checks are scoped to recent is_required_inferred = TRUE rows.
+-- Historical / non-required source-quality is acknowledged but not surfaced here.
 
 -- Catalog: composite-key UNKNOWN segments + null period
 INSERT INTO __data_quality_metrics
-SELECT 'catalog', 'composite_key_unknowns', 'section_id_unknown_rows', COUNT(*) FILTER (WHERE section_id LIKE '%UNKNOWN%') FROM comprehensive_data WHERE is_required_inferred = TRUE
-UNION ALL SELECT 'catalog', 'composite_key_unknowns', 'course_id_unknown_rows', COUNT(*) FILTER (WHERE course_id LIKE '%UNKNOWN%') FROM comprehensive_data WHERE is_required_inferred = TRUE
-UNION ALL SELECT 'catalog', 'composite_key_unknowns', 'period_sortable_null',  COUNT(*) FILTER (WHERE period_sortable IS NULL) FROM comprehensive_data WHERE is_required_inferred = TRUE;
+SELECT 'catalog', 'composite_key_unknowns', 'section_id_unknown_rows', COUNT(*) FILTER (WHERE section_id LIKE '%UNKNOWN%') FROM comprehensive_data WHERE is_required_inferred = TRUE AND is_recent
+UNION ALL SELECT 'catalog', 'composite_key_unknowns', 'course_id_unknown_rows', COUNT(*) FILTER (WHERE course_id LIKE '%UNKNOWN%') FROM comprehensive_data WHERE is_required_inferred = TRUE AND is_recent
+UNION ALL SELECT 'catalog', 'composite_key_unknowns', 'period_sortable_null',  COUNT(*) FILTER (WHERE period_sortable IS NULL) FROM comprehensive_data WHERE is_required_inferred = TRUE AND is_recent;
 
 -- Catalog → IPEDS match (is_required_inferred = TRUE)
 INSERT INTO __data_quality_metrics
-SELECT 'catalog', 'ipeds_match', 'total_rows',                  COUNT(*) FROM comprehensive_data WHERE is_required_inferred = TRUE
-UNION ALL SELECT 'catalog', 'ipeds_match', 'no_unit_id_likely_canadian', COUNT(*) FROM comprehensive_data WHERE is_required_inferred = TRUE AND unit_id IS NULL
-UNION ALL SELECT 'catalog', 'ipeds_match', 'unit_id_not_in_ipeds',       COUNT(*) FROM comprehensive_data WHERE is_required_inferred = TRUE AND unit_id IS NOT NULL AND institution_name IS NULL;
+SELECT 'catalog', 'ipeds_match', 'total_rows',                  COUNT(*) FROM comprehensive_data WHERE is_required_inferred = TRUE AND is_recent
+UNION ALL SELECT 'catalog', 'ipeds_match', 'no_unit_id_likely_canadian', COUNT(*) FROM comprehensive_data WHERE is_required_inferred = TRUE AND is_recent AND unit_id IS NULL
+UNION ALL SELECT 'catalog', 'ipeds_match', 'unit_id_not_in_ipeds',       COUNT(*) FROM comprehensive_data WHERE is_required_inferred = TRUE AND is_recent AND unit_id IS NOT NULL AND institution_name IS NULL;
 
 -- Catalog: email validity (loose)
 INSERT INTO __data_quality_metrics
-SELECT 'catalog', 'email_validity', 'email_null',      COUNT(*) FILTER (WHERE email IS NULL) FROM comprehensive_data WHERE is_required_inferred = TRUE
-UNION ALL SELECT 'catalog', 'email_validity', 'email_no_at',     COUNT(*) FILTER (WHERE email IS NOT NULL AND email NOT LIKE '%@%') FROM comprehensive_data WHERE is_required_inferred = TRUE
-UNION ALL SELECT 'catalog', 'email_validity', 'email_no_dot',    COUNT(*) FILTER (WHERE email IS NOT NULL AND email LIKE '%@%' AND email NOT LIKE '%.%') FROM comprehensive_data WHERE is_required_inferred = TRUE
-UNION ALL SELECT 'catalog', 'email_validity', 'email_too_short', COUNT(*) FILTER (WHERE email IS NOT NULL AND LENGTH(email) < 5) FROM comprehensive_data WHERE is_required_inferred = TRUE;
+SELECT 'catalog', 'email_validity', 'email_null',      COUNT(*) FILTER (WHERE email IS NULL) FROM comprehensive_data WHERE is_required_inferred = TRUE AND is_recent
+UNION ALL SELECT 'catalog', 'email_validity', 'email_no_at',     COUNT(*) FILTER (WHERE email IS NOT NULL AND email NOT LIKE '%@%') FROM comprehensive_data WHERE is_required_inferred = TRUE AND is_recent
+UNION ALL SELECT 'catalog', 'email_validity', 'email_no_dot',    COUNT(*) FILTER (WHERE email IS NOT NULL AND email LIKE '%@%' AND email NOT LIKE '%.%') FROM comprehensive_data WHERE is_required_inferred = TRUE AND is_recent
+UNION ALL SELECT 'catalog', 'email_validity', 'email_too_short', COUNT(*) FILTER (WHERE email IS NOT NULL AND LENGTH(email) < 5) FROM comprehensive_data WHERE is_required_inferred = TRUE AND is_recent;
 
 -- Catalog: enrollment sanity
 INSERT INTO __data_quality_metrics
-SELECT 'catalog', 'enrollment_sanity', 'enrollments_negative',         COUNT(*) FILTER (WHERE enrollments < 0) FROM comprehensive_data WHERE is_required_inferred = TRUE
-UNION ALL SELECT 'catalog', 'enrollment_sanity', 'seats_taken_sentinel_9999', COUNT(*) FILTER (WHERE seats_taken = 9999) FROM comprehensive_data WHERE is_required_inferred = TRUE
+SELECT 'catalog', 'enrollment_sanity', 'enrollments_negative',         COUNT(*) FILTER (WHERE enrollments < 0) FROM comprehensive_data WHERE is_required_inferred = TRUE AND is_recent
+UNION ALL SELECT 'catalog', 'enrollment_sanity', 'seats_taken_sentinel_9999', COUNT(*) FILTER (WHERE seats_taken = 9999) FROM comprehensive_data WHERE is_required_inferred = TRUE AND is_recent
 UNION ALL SELECT 'catalog', 'enrollment_sanity', 'overage_small_1_to_5',
-    COUNT(*) FILTER (WHERE seats_taken > enrollments AND seats_taken < 9999 AND seats_taken - enrollments BETWEEN 1 AND 5) FROM comprehensive_data WHERE is_required_inferred = TRUE
+    COUNT(*) FILTER (WHERE seats_taken > enrollments AND seats_taken < 9999 AND seats_taken - enrollments BETWEEN 1 AND 5) FROM comprehensive_data WHERE is_required_inferred = TRUE AND is_recent
 UNION ALL SELECT 'catalog', 'enrollment_sanity', 'overage_medium_6_to_100',
-    COUNT(*) FILTER (WHERE seats_taken > enrollments AND seats_taken < 9999 AND seats_taken - enrollments BETWEEN 6 AND 100) FROM comprehensive_data WHERE is_required_inferred = TRUE
+    COUNT(*) FILTER (WHERE seats_taken > enrollments AND seats_taken < 9999 AND seats_taken - enrollments BETWEEN 6 AND 100) FROM comprehensive_data WHERE is_required_inferred = TRUE AND is_recent
 UNION ALL SELECT 'catalog', 'enrollment_sanity', 'overage_large_over_100',
-    COUNT(*) FILTER (WHERE seats_taken > enrollments AND seats_taken < 9999 AND seats_taken - enrollments > 100) FROM comprehensive_data WHERE is_required_inferred = TRUE;
+    COUNT(*) FILTER (WHERE seats_taken > enrollments AND seats_taken < 9999 AND seats_taken - enrollments > 100) FROM comprehensive_data WHERE is_required_inferred = TRUE AND is_recent;
 
 -- Pricing dedupe stages — the headline DQ block from the import
 WITH src AS (
@@ -107,32 +106,79 @@ INSERT INTO __data_quality_metrics
 SELECT 'pricing', 'unknown_segments', 'rows_with_unknown_segment',     COUNT(*) FILTER (WHERE section_id LIKE '%UNKNOWN%') FROM pricing_historical
 UNION ALL SELECT 'pricing', 'unknown_segments', 'distinct_section_ids_affected', COUNT(DISTINCT section_id) FILTER (WHERE section_id LIKE '%UNKNOWN%') FROM pricing_historical;
 
--- OER/IA classification consistency
-WITH oer_ia_pairs AS (
-    SELECT section_id, ISBN13,
-        BOOL_OR(is_oer)  AS is_oer_or, BOOL_AND(is_oer) AS is_oer_and,
-        BOOL_OR(is_ia)   AS is_ia_or,  BOOL_AND(is_ia)  AS is_ia_and
-    FROM comprehensive_data GROUP BY 1, 2
-)
-INSERT INTO __data_quality_metrics
-SELECT 'oer_ia', 'classification_consistency', 'section_isbn_pairs',     COUNT(*) FROM oer_ia_pairs
-UNION ALL SELECT 'oer_ia', 'classification_consistency', 'oer_inconsistent_pairs', COUNT(*) FILTER (WHERE is_oer_or IS DISTINCT FROM is_oer_and) FROM oer_ia_pairs
-UNION ALL SELECT 'oer_ia', 'classification_consistency', 'ia_inconsistent_pairs',  COUNT(*) FILTER (WHERE is_ia_or  IS DISTINCT FROM is_ia_and ) FROM oer_ia_pairs;
+-- One non-mutating catalog lookup serves every cross-source DQ check below. Building
+-- it once avoids repeating the 103M-row pair aggregation for OER/IA and each exact
+-- pricing comparison. ISBN is normalized to the same VARCHAR representation used by
+-- master_material before joining to source pricing.
+CREATE OR REPLACE TEMP TABLE _dq_catalog_pairs AS
+SELECT
+    section_id,
+    CAST(ISBN13 AS VARCHAR) AS isbn13,
+    BOOL_OR(is_oer)  AS is_oer_or,
+    BOOL_AND(is_oer) AS is_oer_and,
+    BOOL_OR(is_ia)   AS is_ia_or,
+    BOOL_AND(is_ia)  AS is_ia_and
+FROM comprehensive_data
+GROUP BY 1, 2;
 
--- Cross-table: pricing → catalog section coverage by is_required_inferred
+-- OER/IA classification consistency
 INSERT INTO __data_quality_metrics
-SELECT 'cross_table', 'pricing_section_coverage_filter_true', 'pricing_sections',
-    COUNT(DISTINCT section_id) FROM pricing_historical WHERE is_required_inferred = TRUE
-UNION ALL SELECT 'cross_table', 'pricing_section_coverage_filter_true', 'unmatched',
-    COUNT(DISTINCT p.section_id) FROM pricing_historical p
-    LEFT JOIN (SELECT DISTINCT section_id FROM comprehensive_data) c USING (section_id)
-    WHERE p.is_required_inferred = TRUE AND c.section_id IS NULL
-UNION ALL SELECT 'cross_table', 'pricing_section_coverage_filter_false', 'pricing_sections',
-    COUNT(DISTINCT section_id) FROM pricing_historical WHERE is_required_inferred = FALSE
-UNION ALL SELECT 'cross_table', 'pricing_section_coverage_filter_false', 'unmatched',
-    COUNT(DISTINCT p.section_id) FROM pricing_historical p
-    LEFT JOIN (SELECT DISTINCT section_id FROM comprehensive_data) c USING (section_id)
-    WHERE p.is_required_inferred = FALSE AND c.section_id IS NULL;
+SELECT 'oer_ia', 'classification_consistency', 'section_isbn_pairs',     COUNT(*) FROM _dq_catalog_pairs
+UNION ALL SELECT 'oer_ia', 'classification_consistency', 'oer_inconsistent_pairs', COUNT(*) FILTER (WHERE is_oer_or IS DISTINCT FROM is_oer_and) FROM _dq_catalog_pairs
+UNION ALL SELECT 'oer_ia', 'classification_consistency', 'ia_inconsistent_pairs',  COUNT(*) FILTER (WHERE is_ia_or  IS DISTINCT FROM is_ia_and ) FROM _dq_catalog_pairs;
+
+-- Cross-table: pricing → catalog row match at the current exact section × ISBN grain.
+-- Build the by-period side table once, then derive global totals from that tiny result
+-- instead of repeating the 96M-pair catalog join.
+DROP TABLE IF EXISTS __data_quality_pricing_match_by_period;
+CREATE TABLE __data_quality_pricing_match_by_period AS
+SELECT
+    p.period_sortable,
+    COUNT(*) AS pricing_rows,
+    SUM(CASE WHEN c.section_id IS NOT NULL THEN 1 ELSE 0 END) AS rows_matched,
+    ROUND(100.0 * SUM(CASE WHEN c.section_id IS NOT NULL THEN 1 ELSE 0 END) / COUNT(*), 2) AS match_pct
+FROM pricing_historical p
+LEFT JOIN _dq_catalog_pairs c
+  ON p.section_id = c.section_id
+ AND p.isbn13 = c.isbn13
+GROUP BY p.period_sortable
+ORDER BY p.period_sortable;
+
+INSERT INTO __data_quality_metrics
+SELECT 'cross_table', 'pricing_catalog_row_match', 'pricing_rows', SUM(pricing_rows)::BIGINT FROM __data_quality_pricing_match_by_period
+UNION ALL SELECT 'cross_table', 'pricing_catalog_row_match', 'rows_matched', SUM(rows_matched)::BIGINT FROM __data_quality_pricing_match_by_period
+UNION ALL SELECT 'cross_table', 'pricing_catalog_row_match', 'rows_unmatched', SUM(pricing_rows - rows_matched)::BIGINT FROM __data_quality_pricing_match_by_period;
+
+-- Reuse a single pricing-section coverage relation for both scalar metrics and the
+-- top-cohort drill-down. Its is_required_raw flag is the literal source Book Status,
+-- not catalog-derived required inference.
+CREATE OR REPLACE TEMP TABLE _dq_catalog_sections AS
+SELECT DISTINCT section_id FROM _dq_catalog_pairs;
+
+CREATE OR REPLACE TEMP TABLE _dq_pricing_section_coverage AS
+WITH pricing_sections AS (
+    SELECT
+        unit_id,
+        period_sortable,
+        section_id,
+        COALESCE(BOOL_OR(required), FALSE) AS is_required_raw
+    FROM pricing_historical
+    GROUP BY unit_id, period_sortable, section_id
+)
+SELECT
+    p.*,
+    c.section_id IS NOT NULL AS matched
+FROM pricing_sections p
+LEFT JOIN _dq_catalog_sections c ON p.section_id = c.section_id;
+
+INSERT INTO __data_quality_metrics
+SELECT 'cross_table', 'pricing_section_coverage_all', 'pricing_sections', COUNT(*) FROM _dq_pricing_section_coverage
+UNION ALL SELECT 'cross_table', 'pricing_section_coverage_all', 'unmatched', COUNT(*) FILTER (WHERE NOT matched) FROM _dq_pricing_section_coverage
+UNION ALL SELECT 'cross_table', 'pricing_section_coverage_raw_required', 'pricing_sections', COUNT(*) FILTER (WHERE is_required_raw) FROM _dq_pricing_section_coverage
+UNION ALL SELECT 'cross_table', 'pricing_section_coverage_raw_required', 'unmatched', COUNT(*) FILTER (WHERE is_required_raw AND NOT matched) FROM _dq_pricing_section_coverage;
+
+DROP TABLE _dq_catalog_sections;
+DROP TABLE _dq_catalog_pairs;
 
 -- Wide table: tall vs wide DQ + price_avg sanity
 WITH tall AS (
@@ -158,7 +204,7 @@ DROP TABLE IF EXISTS __data_quality_top_unmatched_ipeds_schools;
 CREATE TABLE __data_quality_top_unmatched_ipeds_schools AS
 SELECT school, unit_id, COUNT(*) AS catalog_rows
 FROM comprehensive_data
-WHERE is_required_inferred = TRUE AND institution_name IS NULL
+WHERE is_required_inferred = TRUE AND is_recent AND institution_name IS NULL
 GROUP BY school, unit_id ORDER BY catalog_rows DESC LIMIT 10;
 
 -- NULL ISBN13 placeholder breakdown by school (is_required_inferred = TRUE).
@@ -178,7 +224,7 @@ SELECT
                        OR Title NOT IN ('*No Book Details*', '*No Books Required*', '*Bad Course*')) AS other,
     COUNT(*)                                              AS total_null_isbn
 FROM comprehensive_data
-WHERE is_required_inferred = TRUE AND ISBN13 IS NULL
+WHERE is_required_inferred = TRUE AND is_recent AND ISBN13 IS NULL
 GROUP BY school
 HAVING COUNT(*) > 0
 ORDER BY total_null_isbn DESC
@@ -195,36 +241,22 @@ SELECT
     ROUND(100.0 * COUNT(*) FILTER (WHERE ISBN13 IS NULL) / COUNT(*), 2) AS null_pct,
     COUNT(DISTINCT section_id) FILTER (WHERE ISBN13 IS NULL) AS distinct_sections
 FROM comprehensive_data
-WHERE is_required_inferred = TRUE
+WHERE is_required_inferred = TRUE AND is_recent
 GROUP BY school
 HAVING COUNT(*) FILTER (WHERE ISBN13 IS NULL) > 0
 ORDER BY null_isbn_rows DESC LIMIT 10;
 
--- Pricing → catalog match by period (full table, all periods)
-DROP TABLE IF EXISTS __data_quality_pricing_match_by_period;
-CREATE TABLE __data_quality_pricing_match_by_period AS
-SELECT
-    period_sortable,
-    COUNT(*) AS pricing_rows,
-    SUM(CASE WHEN is_oer IS NOT NULL THEN 1 ELSE 0 END) AS rows_matched,
-    ROUND(100.0 * SUM(CASE WHEN is_oer IS NOT NULL THEN 1 ELSE 0 END) / COUNT(*), 2) AS match_pct
-FROM pricing_historical
-GROUP BY period_sortable ORDER BY period_sortable;
-
--- Top (unit_id, period) by unmatched pricing sections (is_required_inferred=FALSE)
+-- Top (unit_id, period) by unmatched sections across all source pricing.
 DROP TABLE IF EXISTS __data_quality_top_unmatched_pricing_sections;
 CREATE TABLE __data_quality_top_unmatched_pricing_sections AS
-WITH pricing_secs AS (
-    SELECT DISTINCT unit_id, period_sortable, section_id FROM pricing_historical WHERE is_required_inferred = FALSE
-), catalog_secs AS (SELECT DISTINCT section_id FROM comprehensive_data)
 SELECT
-    p.unit_id, p.period_sortable,
+    unit_id, period_sortable,
     COUNT(*) AS pricing_sections,
-    SUM(CASE WHEN c.section_id IS NULL THEN 1 ELSE 0 END) AS unmatched,
-    ROUND(100.0 * SUM(CASE WHEN c.section_id IS NULL THEN 1 ELSE 0 END) / COUNT(*), 1) AS unmatched_pct
-FROM pricing_secs p LEFT JOIN catalog_secs c USING (section_id)
-GROUP BY p.unit_id, p.period_sortable
-HAVING SUM(CASE WHEN c.section_id IS NULL THEN 1 ELSE 0 END) > 100
+    COUNT(*) FILTER (WHERE NOT matched) AS unmatched,
+    ROUND(100.0 * COUNT(*) FILTER (WHERE NOT matched) / COUNT(*), 1) AS unmatched_pct
+FROM _dq_pricing_section_coverage
+GROUP BY unit_id, period_sortable
+HAVING COUNT(*) FILTER (WHERE NOT matched) > 0
 ORDER BY unmatched DESC LIMIT 10;
 
 -- pricing_wide format_count distribution
@@ -248,3 +280,5 @@ SELECT 'DQ surface ready' AS status,
     (SELECT COUNT(*) FROM __data_quality_top_unmatched_pricing_sections) AS top_unmatched_pricing_rows,
     (SELECT COUNT(*) FROM __data_quality_format_count_distribution) AS format_count_buckets,
     (SELECT COUNT(*) FROM __data_quality_null_isbn_breakdown) AS null_isbn_breakdown_rows;
+
+DROP TABLE _dq_pricing_section_coverage;

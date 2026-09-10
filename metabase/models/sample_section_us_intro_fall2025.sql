@@ -1,0 +1,3 @@
+-- name: Section Sample — US Intro/Intermediate, Fall 2025 (BMG scope)
+-- description: Fall-2025 required intro/intermediate sections; nonblank/non-Canada state proxy, not validated US. The BMG grant analysis surface (#38): master_section filtered to Fall 2025 (period_sortable=2025-4), state excluding Canada/blank/NULL, intro/intermediate undergraduate course levels, and sections with at least one required canonical-Use material (required_count>=1, #58). It retains the Master Section columns so Jeff can slice by control × level, sector, state, cost, or enrollment_assigned without rebuilding the scope. Backed by a cheap filter view over materialized master_section.
+SELECT * FROM sample_section_us_intro_fall2025

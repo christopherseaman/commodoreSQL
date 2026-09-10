@@ -18,40 +18,61 @@ OUT="$REPO_ROOT/output/fall2025_supply_isbns.parquet"
 mkdir -p "$REPO_ROOT/output"
 
 echo "[1/2] Classifying supply ISBNs (Fall 2025) -> output/fall2025_supply_isbns.parquet"
-$DUCKDB -readonly "$DB" <<SQL
+$DUCKDB -bail -readonly "$DB" <<SQL
 SET memory_limit='12GB'; SET threads=6;
 COPY (
   WITH
   inc AS (SELECT lower(pattern) AS p, category FROM read_csv('${LOOKUP}', delim='\t', header=true, columns={'kind':'VARCHAR','pattern':'VARCHAR','category':'VARCHAR','precision_est':'VARCHAR','notes':'VARCHAR'}) WHERE kind='include'),
   exc AS (SELECT lower(pattern) AS p FROM read_csv('${LOOKUP}', delim='\t', header=true, columns={'kind':'VARCHAR','pattern':'VARCHAR','category':'VARCHAR','precision_est':'VARCHAR','notes':'VARCHAR'}) WHERE kind='exclude'),
   isbn_title AS (
-    SELECT "ISBN13" AS isbn13, lower("Title") AS title_l, ANY_VALUE("Title") AS title, COUNT(*) AS n_rows
+    SELECT "ISBN13" AS isbn13, lower("Title") AS title_l, MIN("Title") AS title, COUNT(*) AS n_rows
     FROM comprehensive_data
     WHERE period_sortable='2025-4' AND "ISBN13" IS NOT NULL AND "Title" IS NOT NULL
     GROUP BY "ISBN13", lower("Title")
   ),
-  classified AS (
-    SELECT it.isbn13, it.title, it.n_rows,
-      (SELECT inc.p FROM inc WHERE it.title_l LIKE '%' || inc.p || '%' ORDER BY length(inc.p) DESC LIMIT 1) AS matched_inc,
-      EXISTS (SELECT 1 FROM exc WHERE it.title_l LIKE '%' || exc.p || '%') AS hit_exc
+  title_matches AS (
+    SELECT it.isbn13, it.title_l, it.title, it.n_rows,
+      inc.p AS matched_inc, inc.category,
+      ROW_NUMBER() OVER (
+        PARTITION BY it.isbn13, it.title_l
+        ORDER BY (inc.p IN ('>supply<', '>suppy<')) ASC,
+                 length(inc.p) DESC, inc.p ASC, inc.category ASC
+      ) AS match_rank
     FROM isbn_title it
+    JOIN inc ON it.title_l LIKE '%' || inc.p || '%'
+    WHERE NOT EXISTS (SELECT 1 FROM exc WHERE it.title_l LIKE '%' || exc.p || '%')
+  ),
+  classified AS (
+    SELECT isbn13, title_l, title, n_rows, matched_inc, category
+    FROM title_matches
+    WHERE match_rank = 1
+  ),
+  ranked AS (
+    SELECT isbn13, title,
+      SUM(n_rows) OVER (PARTITION BY isbn13) AS n_rows,
+      matched_inc, category,
+      ROW_NUMBER() OVER (
+        PARTITION BY isbn13
+        ORDER BY (matched_inc IN ('>supply<', '>suppy<')) ASC,
+                 length(matched_inc) DESC, matched_inc ASC,
+                 title_l ASC, title ASC, category ASC
+      ) AS attribution_rank
+    FROM classified
   )
   SELECT
-    c.isbn13,
-    ANY_VALUE(c.title)        AS title,
-    SUM(c.n_rows)             AS n_rows,
-    ANY_VALUE(c.matched_inc)  AS matched_pattern,
-    ANY_VALUE(i.category)     AS category
-  FROM classified c
-  LEFT JOIN inc i ON c.matched_inc = i.p
-  WHERE c.matched_inc IS NOT NULL AND NOT c.hit_exc
-  GROUP BY c.isbn13
+    isbn13,
+    title,
+    n_rows,
+    matched_inc AS matched_pattern,
+    category
+  FROM ranked
+  WHERE attribution_rank = 1
 ) TO '${OUT}' (FORMAT PARQUET);
 SQL
 
 echo ""
 echo "[2/2] Prevalence, category mix, precision sample, and cost impact"
-$DUCKDB -readonly "$DB" <<SQL
+$DUCKDB -bail -readonly "$DB" <<SQL
 SET memory_limit='12GB'; SET threads=6;
 .mode box
 -- Prevalence vs all Fall-2025 priced/scoped materials

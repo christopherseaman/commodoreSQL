@@ -1,8 +1,8 @@
 [
   {
     "__meta__": {
-      "name": "OER/IA + Status (Filtered, 2024+)",
-      "description": "Replicates OER/IA + Status using has_required filter logic and period >= 2024 only"
+      "name": "OER/IA + Status (Filtered, Recent)",
+      "description": "Canonical inferred-required items in recent terms; FormatType/OER/IA/status cross-tabs using the inferred-required rule."
     }
   },
   {

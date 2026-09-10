@@ -2,7 +2,7 @@
   {
     "__meta__": {
       "name": "BMG · Fall 2025 Overview",
-      "description": "The Fall 2025 grant-analysis landscape: section + enrollment counts and OER/IA + material coverage by institution class (control x 2yr/4yr) x A/B set, with the Set A (>=1 required) and Set B (no required) subsets. Scope: 4 undergrad course levels x 6 real teaching sectors; counts are course materials only (#36 supplies excluded). For interactive slicing by any dimension, use the 'Master Section' Model in the GUI notebook builder."
+      "description": "Fall-2025 BMG material-bearing sections; four course levels, six teaching sectors. The Fall 2025 grant-analysis landscape over material-bearing Master Section rows: section + enrollment counts and OER/IA + material coverage by institution class (control x 2yr/4yr) x A/B set. Set A has >=1 required canonical master_material item and Set B is optional-only. Scope: 4 undergrad course levels x 6 real teaching sectors. Enrollment assignments originate from the complete section_enrollment population."
     }
   },
   { "question": "39_fall2025_tally_counts_by_class",           "row": 0,  "col": 0,  "size_x": 24, "size_y": 7 },

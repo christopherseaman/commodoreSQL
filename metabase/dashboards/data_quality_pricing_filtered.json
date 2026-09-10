@@ -1,8 +1,8 @@
 [
   {
     "__meta__": {
-      "name": "Data Quality — Pricing (Filtered)",
-      "description": "Pricing DQ over the required / is_required_inferred subset. Duplicate of 'Data Quality — Pricing' with the format_count card sourced from pricing_wide_filtered (Q27) instead of the full pricing_wide base (Q11)."
+      "name": "Data Quality — Pricing Observations + Canonical Required Materials",
+      "description": "All deduplicated latest-snapshot pricing observations; matched canonical inferred-required items only for Q27. Pricing DQ covers the full pricing_historical population, plus a canonical required-material format_count comparison from matched inferred-required master_material items (Q27). Q27 is not a filtered pricing-observation population."
     }
   },
   { "question": "18_dq_critical_should_be_zero",                   "row":  0, "col":  0, "size_x": 24, "size_y": 4 },

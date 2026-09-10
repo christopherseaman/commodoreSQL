@@ -1,66 +1,110 @@
 # CommodoreSQL
 
-A DuckDB pipeline that integrates course-catalog data (~103M rows) with institutional
-characteristics (IPEDS), bookstore pricing, and opt-out/panel lists — to support targeted
-mailing lists and analysis of course-materials cost and OER/Inclusive-Access adoption.
+DuckDB pipeline for course materials, pricing, mailing, and Metabase reports.
 
-> **Where to look:** current work status, how to run things, and gotchas in
-> [`HANDOFF.md`](HANDOFF.md) · data model overview in [`SCHEMA.md`](SCHEMA.md) · full column
-> definitions in [`schema.dbml`](schema.dbml) (load in dbdiagram.io) · naming standards in
-> [`CLAUDE.md`](CLAUDE.md) · historical design decisions in
-> [`260529-DECISIONS.md`](260529-DECISIONS.md).
+## Documentation
 
-## Data sources
+- [Data flow](CMM-DATA-FLOW.md)
+- [Data dictionary](DATA-DICTIONARY.md) · [Schema TSV](docs/data-dictionary.tsv) · [DBML](schema.dbml)
+- [Reports](DASHBOARDS-REPORTS.md)
+- [Material populations](COURSE-MATERIAL-POPULATIONS.md) · [Mailing](MAILING-FLOW.md) · [Pricing mismatch](PRICING-CATALOG-MATCHING.md)
+- [Master Section business/NULL appendix](MASTER-SECTION-DICTIONARY.md)
+- [Status and next steps](HANDOFF.md)
 
-CSVs live under `data/<date>/`; paths are configured in `scripts/dot.env`.
+## Inputs and configuration
 
-| File | Target table | Rows |
-|------|--------------|------|
-| `DiscoveryExtract.*.csv` | `course_catalog_<date>` | ~103M |
-| `IPEDS_2024.csv` | `ipeds_data` | ~7K |
-| `OptOut_*.csv` | `opt_out` | variable |
-| `panel_*.csv` | `panel` | variable |
-| `format_type_lookup.tsv` | `format_type_classification` | 69 |
-| `BookPricing.Historical_*.csv` | `pricing_historical` | ~11K |
+Files: `data/<date>/`. Configuration: `scripts/dot.env`.
 
-## Running the pipeline
+| Owner | Input | Imported relation |
+|---|---|---|
+| BMG | `DiscoveryExtract.*.csv` | `course_catalog_<date>` |
+| BMG | `BookPricing.Historical_*.csv` | `pricing_historical` |
+| BVA | `OptOut_*.csv` | `opt_out` |
+| BVA | `panel_*.csv` | `panel_email` |
+| IPEDS | `IPEDS_2024.csv` | `ipeds_data` |
+| Internal | `format_type_lookup.tsv` | `format_type_classification` |
+
+## Run
 
 ```bash
 scripts/run_sql.sh
 ```
 
-The runner loads `scripts/dot.env`, templates each `scripts/sql/*.sql` file (env vars via
-`envsubst`, e.g. `${CONFIG}`), and executes it against the DuckDB database at `MAIN_DB`
-(`duckdb/commodore.duckdb`). It runs three stages, each skippable by setting a flag:
+Loads `scripts/dot.env`, templates SQL, and rebuilds managed relations in `MAIN_DB`.
+Skip stages with `NO_IMPORT=1`, `NO_EDA=1`, or `NO_EXPORT=1`.
 
-| Stage | Flag to skip | What it does |
-|-------|--------------|--------------|
-| IMPORT | `NO_IMPORT` | Load CSVs; derive composite keys; build `comprehensive_data`; classify OER/IA; pivot pricing |
-| EDA | `NO_EDA` | Build mailing lists and the `master_section` / `master_course` / `section_cost` records |
-| EXPORT | `NO_EXPORT` | Auto-discover `scripts/sql/exports/*.sql`, wrap each in a temp table, `COPY` to CSV in `output/` |
+`CUSTOM_SQL_FILES` replaces the file list. SQL uses `envsubst`; normal runs DROP/recreate
+managed relations. Stop Metabase before database writes and restart it afterward.
+
+| Stage | Execution order |
+|---|---|
+| Import | `0_cleanup`, `0_setup`, `0b_state_region`, `0c_recent_period`, `1_bookprices_import`, `1a_supply_classification`, `1b_section_enrollment`, `2_oer_classification`, `2b_course_material`, `2c_pricing_wide`, `2d_data_quality` |
+| EDA | `3_mailing_lists`, `3b_master_material`, `4_merged_records` |
+| Models | `master_institution`, `master_isbn`, `sample_material_10pct` (`scripts/sql/models/*.sql`, lexically) |
+| Export | 23 top-level `scripts/sql/exports/*.sql`, lexically, to `output/<basename>.csv` |
+
+`0_setup.sql` also writes `output/email_issues.tsv`. After import, mailing export requires
+`3_mailing_lists.sql`; wrapper-only runs can use previously refreshed mailing relations.
+`0_cleanup.sql` removes exact retired/report/geographic targets and fails if any remain.
+The runner fails if selected canonical producer stages leave missing or wrong-type outputs;
+intentional partial and export-only runs do not require unrelated relations.
+Exports `37`–`39` and `41` contain reconciliation results, which require checking after a run.
 
 ```bash
-NO_IMPORT=1 NO_EXPORT=1 scripts/run_sql.sh   # rebuild just the EDA records
+NO_IMPORT=1 NO_EXPORT=1 scripts/run_sql.sh  # run EDA + models from existing import state
 ```
 
-Update `CSV_DATE` in `scripts/dot.env` for a new data drop. The pipeline drops-before-creates
-and is re-runnable.
+## Release exports
 
-## Key outputs
+```bash
+scripts/export_cmm_masters.sh             # every material-bearing term
+scripts/export_cmm_masters.sh 2025-4      # one term
+scripts/export_course_material.sh 20260901
+scripts/export_course_material.sh 20260901 2025-4
+```
 
-- **`comprehensive_data`** — the master join (catalog × IPEDS × opt-out × panel × format-type ×
-  section status), with `is_required_inferred` (2024+ required-material scope) and OER/IA flags.
-- **`master_section`** (materialized TABLE) / **`master_course`** (view) — one row per
-  section-offering / course-offering (2024+): institution enrichment, material counts, OER/IA
-  indicators, coverage + enrollment fill-potential flags (`has_enrollment*`), and
-  required/non-required cost columns. Cost is computed in **`section_cost`**.
-- **`pricing_wide`** (all priced materials) / **`pricing_wide_filtered`** (required subset) —
-  18 price columns pivoted per `(section_id, isbn13)`.
-- **Mailing lists** — `master_mailing`, `current_mailing`, and state-specific views.
+Default destinations: `output/cmm/` and `output/course_material/`.
+Course Materials exports refuse overwrites.
+
+Other explicit runners: `export_fall2025_subsets.sh` writes Set A/B Parquets;
+`classify_supplies.sh` writes the separate `fall2025_supply_isbns.parquet` audit;
+`export_all.sh` runs the 23 CSV wrappers; `export_all_parquet.sh` runs the same wrappers
+as Parquet, removing numeric filename prefixes.
 
 ## Metabase
 
-Dashboards and questions are config-as-code: SQL questions (with frontmatter) in
-`metabase/questions/`, dashboard layouts in `metabase/dashboards/`, IDs in `metabase/ids.json`,
-synced via `metabase/sync.py`. The local image is built/launched by `metabase.sh` (custom
-glibc-based image so the DuckDB driver works). It connects read-only to `duckdb/commodore.duckdb`.
+Config: `metabase/`. Preview: `python3 metabase/sync.py --dry-run`.
+`./metabase.sh` recreates the read-only service.
+
+## Notion documentation
+
+Edit schema/field metadata at its source; regenerate before publishing.
+The dictionary covers the implemented flow, excluding DQ and off-flow relations.
+Each field separates upstream table, derivation, and illustrative sample values.
+
+```bash
+python3 scripts/generate_data_dictionary.py
+python3 scripts/generate_data_dictionary.py --check
+NOTION_KEYRING=0 python3 scripts/sync_notion_dictionary.py
+NOTION_KEYRING=0 python3 scripts/sync_notion_dictionary_downloads.py
+NOTION_KEYRING=0 python3 scripts/sync_notion_docs.py --manifest scripts/notion_sync_docs.txt
+```
+
+Each sync command previews by default; add `--apply` to publish after a clean preview.
+Run publishers sequentially. Targets: `scripts/notion_dictionary.json`.
+Preserve ignored `.notion/` state for remote-edit detection. Conflicts stop publication;
+reconcile edits locally before retrying. New columns sync automatically; a changed table
+set requires an explicit attachment migration and adding/removing its filtered Notion views.
+Record view IDs in the target configuration.
+
+For the legacy combined lineage/example properties, preview once with
+`sync_notion_dictionary.py --migrate-field-schema`, then repeat with `--apply`.
+This preserves property/row IDs and saved baselines; expose `Derivation` in the existing
+views before publishing the new TSVs. Ordinary sync does not migrate property schemas.
+
+Prose baselines live in `.notion/prose-state.json`. Publication removes source-width prose
+wrapping and promotes section headings one level without changing local Markdown's title
+or hierarchy. For a new page already matching the publication
+content, initialize with `sync_notion_docs.py --initialize-state --manifest scripts/notion_sync_docs.txt`.
+If Notion reformatted the content, compare the complete page before establishing its baseline;
+do not treat an unrecognized difference as safe to overwrite.

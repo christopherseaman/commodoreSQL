@@ -1,0 +1,151 @@
+-- Pricing enrichment of canonical Course Materials Use items.
+--
+-- course_material owns item identity, catalog metadata, population flags,
+-- duplicate/conflict evidence, and enrollment assignment. pricing_wide remains
+-- source-owned and contributes only bookstore/pricing fields through a LEFT join.
+
+${CONFIG}
+
+DROP TABLE IF EXISTS material_costs;
+DROP TABLE IF EXISTS master_material;
+CREATE TABLE master_material AS
+SELECT
+    -- Preserve the established Material Costs prefix through has_pricing_match.
+    -- The renamed direct-status fields occupy the two former literal-status slots;
+    -- new section context and existing audits follow the legacy prefix.
+    cm.* EXCLUDE (
+        is_section_required_direct,
+        use_source_row_count,
+        no_use_source_row_count,
+        has_use_source_row,
+        has_no_use_source_row,
+        population_classification_conflict,
+        instructor_variant_count,
+        email_variant_count,
+        contact_metadata_conflict,
+        is_supply_conflict,
+        no_details_conflict,
+        no_materials_conflict,
+        is_canada_conflict,
+        is_null_isbn_audit,
+        has_nonnull_isbn_in_section,
+        is_no_adoption_section,
+        section_course_material_no_use_count,
+        section_no_details_count,
+        section_no_materials_count,
+        is_section_canada,
+        is_section_supply,
+        section_supply_count
+    ),
+    pw.bookstore_url,
+    pw.price_buy_new_physical,
+    pw.price_buy_new_digital,
+    pw.price_buy_new_na,
+    pw.price_buy_used_physical,
+    pw.price_buy_used_digital,
+    pw.price_buy_used_na,
+    pw.price_buy_na_physical,
+    pw.price_buy_na_digital,
+    pw.price_buy_na_na,
+    pw.price_rental_new_physical,
+    pw.price_rental_new_digital,
+    pw.price_rental_new_na,
+    pw.price_rental_used_physical,
+    pw.price_rental_used_digital,
+    pw.price_rental_used_na,
+    pw.price_rental_na_physical,
+    pw.price_rental_na_digital,
+    pw.price_rental_na_na,
+    pw.format_count,
+    pw.has_buy,
+    pw.has_rent,
+    pw.price_min,
+    pw.price_max,
+    pw.price_avg,
+    pw.rental_days_min,
+    pw.rental_days_max,
+    pw.price_buy_min,
+    pw.price_buy_max,
+    (pw.section_id IS NOT NULL) AS has_pricing_match,
+    cm.is_section_required_direct,
+    cm.use_source_row_count,
+    cm.no_use_source_row_count,
+    cm.has_use_source_row,
+    cm.has_no_use_source_row,
+    cm.population_classification_conflict,
+    cm.instructor_variant_count,
+    cm.email_variant_count,
+    cm.contact_metadata_conflict,
+    cm.is_supply_conflict,
+    cm.no_details_conflict,
+    cm.no_materials_conflict,
+    cm.is_canada_conflict,
+    cm.is_null_isbn_audit,
+    cm.has_nonnull_isbn_in_section,
+    cm.is_no_adoption_section,
+    cm.section_course_material_no_use_count,
+    cm.section_no_details_count,
+    cm.section_no_materials_count,
+    cm.is_section_canada,
+    cm.is_section_supply,
+    cm.section_supply_count
+FROM course_material_use cm
+LEFT JOIN pricing_wide pw
+  ON cm.section_id = pw.section_id
+ AND CAST(cm.isbn13 AS VARCHAR) = pw.isbn13;
+
+SELECT
+    'master_material grain/key/price DQ' AS metric,
+    COUNT(*) AS rows,
+    COUNT(*) - COUNT(DISTINCT (period_sortable, section_id, isbn13)) AS duplicate_rows,
+    COUNT(*) FILTER (
+        WHERE period_sortable IS NULL OR section_id IS NULL OR isbn13 IS NULL
+    ) AS key_null_rows,
+    COUNT(*) FILTER (WHERE has_pricing_match) AS pricing_match_rows,
+    COUNT(*) FILTER (WHERE has_pricing_match AND price_min IS NOT NULL) AS priced_rows,
+    COUNT(*) FILTER (WHERE NOT has_pricing_match) AS no_pricing_match_rows
+FROM master_material;
+
+WITH course_material_keys AS (
+    SELECT period_sortable, section_id, isbn13
+    FROM course_material_use
+), material_keys AS (
+    SELECT period_sortable, section_id, isbn13
+    FROM master_material
+), key_presence AS (
+    SELECT
+        course_material.period_sortable AS course_material_period,
+        material.period_sortable AS material_period
+    FROM course_material_keys course_material
+    FULL OUTER JOIN material_keys material
+      ON course_material.period_sortable = material.period_sortable
+     AND course_material.section_id = material.section_id
+     AND course_material.isbn13 = material.isbn13
+)
+SELECT
+    'Course Materials Use to master_material key conservation' AS metric,
+    (SELECT COUNT(*) FROM course_material_keys) AS course_material_use_rows,
+    (SELECT COUNT(*) FROM material_keys) AS master_material_rows,
+    COUNT(*) FILTER (WHERE course_material_period IS NOT NULL AND material_period IS NULL)
+        AS missing_from_master_material,
+    COUNT(*) FILTER (WHERE course_material_period IS NULL AND material_period IS NOT NULL)
+        AS extra_in_master_material
+FROM key_presence;
+
+SELECT
+    'master_material duplicate/conflict DQ' AS metric,
+    COUNT(*) FILTER (WHERE source_row_count > 1) AS duplicate_source_keys,
+    COUNT(*) FILTER (WHERE catalog_metadata_conflict) AS metadata_conflict_keys,
+    COUNT(*) FILTER (WHERE contact_metadata_conflict) AS contact_conflict_keys,
+    COUNT(*) FILTER (WHERE population_classification_conflict)
+        AS population_conflict_keys,
+    COUNT(*) FILTER (WHERE is_required_inferred_conflict) AS required_conflict_keys,
+    COUNT(*) FILTER (WHERE is_oer_conflict) AS oer_conflict_keys,
+    COUNT(*) FILTER (WHERE is_ia_conflict) AS ia_conflict_keys,
+    COUNT(*) FILTER (WHERE is_supply_conflict) AS supply_conflict_keys,
+    COUNT(*) FILTER (WHERE no_details_conflict) AS no_details_conflict_keys,
+    COUNT(*) FILTER (WHERE no_materials_conflict) AS no_materials_conflict_keys,
+    COUNT(*) FILTER (WHERE is_canada_conflict) AS canada_conflict_keys
+FROM master_material;
+
+ANALYZE master_material;

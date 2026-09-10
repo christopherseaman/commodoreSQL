@@ -1,0 +1,3 @@
+-- name: Master ISBN by Term
+-- description: Canonical Use population, one row per recent term/ISBN. One row per period_sortable × ISBN13 from the canonical #58 Course Materials Use population (#55): recent, non-Canada, ISBN-bearing, non-supply, and not a no-details/no-materials placeholder. Includes deterministic metadata and conflict indicators, OER/IA, distinct institution/section/course counts, assigned-enrollment coverage and totals, all 18 wide-price-cell coverage counts, and institution-type section counts. A distinct section × ISBN spine prevents repeated catalog listings and rental terms from multiplying counts.
+SELECT * FROM master_isbn

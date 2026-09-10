@@ -22,14 +22,14 @@ DB="${MAIN_DB:-$REPO_ROOT/duckdb/commodore.duckdb}"
 
 OUT_DIR="$REPO_ROOT/output"
 Q_DIR="$REPO_ROOT/metabase/questions"
-# DUCKDB may carry flags (dot.env sets "duckdb -bail"); keep it unquoted for word-splitting.
+# DUCKDB may carry trusted flags; keep it unquoted for word-splitting.
 DUCKDB="${DUCKDB:-duckdb}"
 mkdir -p "$OUT_DIR"
 
 export_one() {
     local question="$1" out_file="$2"
     echo "[EXPORT] ${question} -> output/${out_file}"
-    $DUCKDB -readonly "$DB" <<SQL
+    $DUCKDB -bail -readonly "$DB" <<SQL
 SET memory_limit='8GB'; SET threads=4;
 COPY (
 $(cat "$Q_DIR/$question")
@@ -42,7 +42,7 @@ export_one "38_fall2025_setB_no_required.sql"  "fall2025_setB_no_required.parque
 
 echo ""
 echo "=== Export verification ==="
-$DUCKDB -readonly "$DB" <<SQL
+$DUCKDB -bail -readonly "$DB" <<SQL
 .mode box
 SELECT 'setA_required'    AS file, COUNT(*) AS rows, COUNT(DISTINCT section_id) AS sections
 FROM read_parquet('${OUT_DIR}/fall2025_setA_required.parquet')

@@ -1,0 +1,7 @@
+# Explicit Notion sync inputs. Do not add globs or recursive paths.
+CMM-DATA-FLOW.md
+DASHBOARDS-REPORTS.md
+COURSE-MATERIAL-POPULATIONS.md
+MAILING-FLOW.md
+PRICING-CATALOG-MATCHING.md
+TOP125-REPORT.md

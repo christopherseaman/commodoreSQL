@@ -13,6 +13,8 @@ BEGIN TRANSACTION;
 
 -- Clear existing pricing tables
 DROP TABLE IF EXISTS pricing_historical;
+-- Legacy pre-period section-status artifact; no current pipeline stage consumes it.
+DROP TABLE IF EXISTS pricing_section_status;
 DROP TABLE IF EXISTS pricing_raw;
 DROP TABLE IF EXISTS pricing_dedup_full;
 DROP TABLE IF EXISTS bookprices_institutional;
@@ -126,11 +128,15 @@ FROM (
 )
 WHERE _snapshot_rank = 1;
 
--- Indexes are NOT created here (#49): pricing_historical is UPDATE'd later by
--- 1b_section_filter.sql and 2b_pricing_oer_ia.sql, and a DuckDB ART index created
--- before those UPDATEs gets corrupted for '=' point lookups (e.g. WHERE
--- period_sortable = 'x' returns 0 rows). They are built at the END of
--- 2b_pricing_oer_ia.sql, after the last write to the table.
+-- pricing_historical is source-owned and receives no downstream catalog updates.
+-- Build its indexes after the final table write so DuckDB ART '=' lookups remain
+-- correct (#49). DROP+CREATE keeps this stage independently re-runnable.
+DROP INDEX IF EXISTS idx_pricing_section;
+DROP INDEX IF EXISTS idx_pricing_isbn;
+DROP INDEX IF EXISTS idx_pricing_period;
+CREATE INDEX idx_pricing_section ON pricing_historical (section_id);
+CREATE INDEX idx_pricing_isbn    ON pricing_historical (isbn13);
+CREATE INDEX idx_pricing_period  ON pricing_historical (period_sortable);
 
 COMMIT;
 
@@ -155,7 +161,7 @@ SELECT 'Unique section_ids', COUNT(DISTINCT section_id)::VARCHAR FROM pricing_hi
 UNION ALL
 SELECT 'Unique ISBNs', COUNT(DISTINCT isbn13)::VARCHAR FROM pricing_historical WHERE isbn13 IS NOT NULL
 UNION ALL
-SELECT 'Period range', MIN(period) || ' - ' || MAX(period) FROM pricing_historical;
+SELECT 'Period range', MIN(period_sortable) || ' - ' || MAX(period_sortable) FROM pricing_historical;
 
 -- Granularity check (post-dedupe): expect 0 unexplained_residual.
 -- Anything > 0 here would indicate a bug in the dedupe stages or new source noise pattern.

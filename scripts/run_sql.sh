@@ -11,9 +11,20 @@ REPO_ROOT="$(cd "$SCRIPT_DIR/.." && pwd)"
 cd "$SCRIPT_DIR"
 
 # Load environment configuration
+# Explicit process-environment values override dot.env. This lets memory-heavy
+# stages be run with a safe one-off bound without editing the ignored local file.
+RUN_SQL_MEM_LIMIT_OVERRIDE="${MEM_LIMIT-}"
+RUN_SQL_NUM_THREADS_OVERRIDE="${NUM_THREADS-}"
 set -o allexport
 source dot.env
 set +o allexport
+if [ -n "$RUN_SQL_MEM_LIMIT_OVERRIDE" ]; then
+    export MEM_LIMIT="$RUN_SQL_MEM_LIMIT_OVERRIDE"
+fi
+if [ -n "$RUN_SQL_NUM_THREADS_OVERRIDE" ]; then
+    export NUM_THREADS="$RUN_SQL_NUM_THREADS_OVERRIDE"
+fi
+unset RUN_SQL_MEM_LIMIT_OVERRIDE RUN_SQL_NUM_THREADS_OVERRIDE
 
 # Override output directories to use repo root
 export OUTPUT_DIR="${REPO_ROOT}/output"
@@ -24,21 +35,34 @@ export CONFIG=$(envsubst < sql/config.sql)
 
 # Define SQL processing stages
 IMPORT_SQL=(
+    "0_cleanup.sql"
     "0_setup.sql"
     "0b_state_region.sql"
+    "0c_recent_period.sql"
     "1_bookprices_import.sql"
     "1a_supply_classification.sql"
-    "1b_section_filter.sql"
+    "1b_section_enrollment.sql"
     "2_oer_classification.sql"
-    "2b_pricing_oer_ia.sql"
+    "2b_course_material.sql"
     "2c_pricing_wide.sql"
     "2d_data_quality.sql"
 )
 
 EDA_SQL=(
     "3_mailing_lists.sql"
+    "3b_master_material.sql"
     "4_merged_records.sql"
 )
+
+# Canonical analysis-model queries are bare SELECTs. Materialize them after EDA
+# so exports and Metabase reuse the same definition without recomputing heavy
+# rollups for every read.
+MODEL_SQL=()
+if [ -d "sql/models" ]; then
+    while IFS= read -r model_file; do
+        MODEL_SQL+=("models/$(basename "$model_file")")
+    done < <(find sql/models -maxdepth 1 -name "*.sql" -type f | sort)
+fi
 
 # Populate EXPORT_SQL from exports directory
 EXPORT_SQL=()
@@ -48,8 +72,35 @@ if [ -d "sql/exports" ]; then
     done < <(find sql/exports -maxdepth 1 -name "*.sql" -type f | sort)
 fi
 
+# Mailing exports consume the persisted master selection refreshed by 3_mailing_lists.sql.
+# Keep the explicit dependency list small and auditable so a same-invocation
+# import cannot silently feed stale opt-out or catalog state to these wrappers.
+MAILING_EXPORT_SQL=(
+    "exports/10_master_mailing.sql"
+    "exports/11_current_mailing.sql"
+    "exports/11_recent_mailing.sql"
+    "exports/20_california_mailing.sql"
+    "exports/21_texas_mailing.sql"
+    "exports/22_florida_mailing.sql"
+    "exports/23_newyork_mailing.sql"
+    "exports/24_texas_fall_series.sql"
+    "exports/25_pennsylvania_mailing.sql"
+    "exports/26_canada_mailing.sql"
+    "exports/27_other_mailing.sql"
+)
+
 # Build SQL_FILES array based on stage flags
 SQL_FILES=()
+
+# Relations whose producers ran in this invocation. Keep this tied to canonical
+# producer files so custom and intentionally partial runs validate only their scope.
+EXPECTED_RELATION_NAMES=()
+EXPECTED_RELATION_TYPES=()
+
+add_expected_relation() {
+    EXPECTED_RELATION_NAMES+=("$1")
+    EXPECTED_RELATION_TYPES+=("$2")
+}
 
 # Add IMPORT stage unless NO_IMPORT is set
 if [ -z "${NO_IMPORT+x}" ]; then
@@ -61,6 +112,7 @@ fi
 # Add EDA stage unless NO_EDA is set
 if [ -z "${NO_EDA+x}" ]; then
     SQL_FILES+=("${EDA_SQL[@]}")
+    SQL_FILES+=("${MODEL_SQL[@]}")
 else
     echo "Skipping EDA stage (NO_EDA set)"
 fi
@@ -77,6 +129,60 @@ if [ ! -z "${CUSTOM_SQL_FILES+x}" ]; then
     SQL_FILES=("${CUSTOM_SQL_FILES[@]}")
     echo "Using custom SQL files: ${SQL_FILES[@]}"
 fi
+
+for sql_file in "${SQL_FILES[@]}"; do
+    case "$sql_file" in
+        2_oer_classification.sql)
+            add_expected_relation "comprehensive_data" "BASE TABLE"
+            ;;
+        2b_course_material.sql)
+            add_expected_relation "course_material" "BASE TABLE"
+            add_expected_relation "course_material_recent" "VIEW"
+            add_expected_relation "course_material_use" "VIEW"
+            add_expected_relation "course_material_no_use" "VIEW"
+            ;;
+        2c_pricing_wide.sql)
+            add_expected_relation "pricing_wide" "BASE TABLE"
+            ;;
+        3_mailing_lists.sql)
+            add_expected_relation "master_mailing" "BASE TABLE"
+            add_expected_relation "current_mailing" "VIEW"
+            ;;
+        3b_master_material.sql)
+            add_expected_relation "master_material" "BASE TABLE"
+            ;;
+        4_merged_records.sql)
+            add_expected_relation "master_section" "BASE TABLE"
+            add_expected_relation "master_course" "VIEW"
+            add_expected_relation "sample_section_us_intro_fall2025" "VIEW"
+            ;;
+        models/*.sql)
+            add_expected_relation "$(basename "$sql_file" .sql)" "BASE TABLE"
+            ;;
+    esac
+done
+
+# Reject only the unsafe same-invocation dependency gap. Wrapper-only runs with
+# NO_IMPORT reuse the last validated mailing selection; normal full runs include the
+# mailing refresh before exports.
+last_import_index=-1
+last_mailing_refresh_index=-1
+for sql_index in "${!SQL_FILES[@]}"; do
+    sql_file="${SQL_FILES[$sql_index]}"
+    if [[ " ${IMPORT_SQL[*]} " == *" ${sql_file} "* ]]; then
+        last_import_index=$sql_index
+    fi
+    if [ "$sql_file" = "3_mailing_lists.sql" ]; then
+        last_mailing_refresh_index=$sql_index
+    fi
+    if [[ " ${MAILING_EXPORT_SQL[*]} " == *" ${sql_file} "* ]] &&
+       (( last_import_index >= 0 && last_mailing_refresh_index <= last_import_index )); then
+        echo "Error: ${sql_file} follows IMPORT without a later 3_mailing_lists.sql refresh." >&2
+        echo "Refresh mailing after the last selected IMPORT file and before each mailing export," >&2
+        echo "or set NO_IMPORT=1 when exporting an already-refreshed database." >&2
+        exit 1
+    fi
+done
 
 # Exit early if no SQL files to process
 if [ ${#SQL_FILES[@]} -eq 0 ]; then
@@ -114,6 +220,7 @@ echo "=== Pipeline Configuration ==="
 echo "Database: ${MAIN_DB}"
 echo "IMPORT stage: $([ -z "${NO_IMPORT+x}" ] && echo "ENABLED" || echo "SKIPPED")"
 echo "EDA stage: $([ -z "${NO_EDA+x}" ] && echo "ENABLED" || echo "SKIPPED")"
+echo "Analysis models: ${#MODEL_SQL[@]} discovered"
 echo "EXPORT stage: $([ -z "${NO_EXPORT+x}" ] && echo "ENABLED" || echo "SKIPPED")"
 echo "SQL files to process: ${#SQL_FILES[@]}"
 if [ ${#SQL_FILES[@]} -gt 0 ]; then
@@ -156,7 +263,30 @@ DROP TABLE IF EXISTS export_table;
 EOF
 
     # Execute with lower priority
-    time nice -n 19 ${DUCKDB} "${MAIN_DB}" < "${TMP_DIR}/${export_name}.sql"
+    time nice -n 19 ${DUCKDB} -bail "${MAIN_DB}" < "${TMP_DIR}/${export_name}.sql"
+}
+
+process_model() {
+    local sql_file=$1
+    local model_name
+    model_name=$(basename "$sql_file" .sql)
+
+    if [[ ! "$model_name" =~ ^[a-z][a-z0-9_]*$ ]]; then
+        echo "Error: invalid model filename: ${sql_file}"
+        exit 1
+    fi
+
+    echo "[MODEL] Materializing ${model_name} from ${sql_file}..."
+    {
+        printf '%s\n' "${CONFIG}"
+        if [ "$model_name" = "sample_material_10pct" ]; then
+            printf 'DROP TABLE IF EXISTS sample10pct_materials;\n'
+        fi
+        printf 'CREATE OR REPLACE TABLE %s AS\n' "$model_name"
+        envsubst < "sql/${sql_file}"
+    } > "${TMP_DIR}/${model_name}.sql"
+
+    time nice -n 19 ${DUCKDB} -bail "${MAIN_DB}" < "${TMP_DIR}/${model_name}.sql"
 }
 
 # Process and run SQL files
@@ -167,6 +297,9 @@ for sql_file in "${SQL_FILES[@]}"; do
         stage="IMPORT"
     elif [[ " ${EDA_SQL[@]} " =~ " ${sql_file} " ]]; then
         stage="EDA"
+    elif [[ " ${MODEL_SQL[@]} " =~ " ${sql_file} " ]]; then
+        process_model "$sql_file"
+        continue
     elif [[ " ${EXPORT_SQL[@]} " =~ " ${sql_file} " ]]; then
         # Handle export files specially
         process_export "$sql_file"
@@ -174,25 +307,69 @@ for sql_file in "${SQL_FILES[@]}"; do
     fi
 
     echo "[$stage] Processing ${sql_file}..."
+
+    # Compatibility migration: #66 changed master_mailing from a VIEW to a TABLE.
+    # DuckDB will not let DROP TABLE remove the old view, so remove that legacy
+    # object once before the new idempotent table refresh executes.
+    if [ "$sql_file" = "3_mailing_lists.sql" ]; then
+        master_mailing_type=$(
+            ${DUCKDB} -bail -csv -noheader "${MAIN_DB}" -c "
+                SELECT table_type
+                FROM information_schema.tables
+                WHERE table_schema = 'main' AND table_name = 'master_mailing';
+            "
+        )
+        if [ "$master_mailing_type" = "VIEW" ]; then
+            echo "[MIGRATION] Dropping legacy master_mailing view..."
+            ${DUCKDB} -bail "${MAIN_DB}" -c "DROP VIEW master_mailing;"
+        fi
+    fi
+
     envsubst < "sql/${sql_file}" > "${TMP_DIR}/${sql_file}"
 
     # Execute with error handling
-    time ${DUCKDB} "${MAIN_DB}" < "${TMP_DIR}/${sql_file}"
+    time ${DUCKDB} -bail "${MAIN_DB}" < "${TMP_DIR}/${sql_file}"
 
     # Debug: Check views after setup.sql
     if [ "$sql_file" = "0_setup.sql" ]; then
         echo "Checking tables after setup..."
-        ${DUCKDB} "${MAIN_DB}" -c "SELECT name FROM sqlite_master WHERE type='table';"
+        ${DUCKDB} -bail "${MAIN_DB}" -c "SELECT name FROM sqlite_master WHERE type='table';"
     fi
 done
 
-# Verify critical tables exist before proceeding
-echo "Verifying critical tables exist..."
-${DUCKDB} "${MAIN_DB}" -c "
-    SELECT name FROM sqlite_master 
-    WHERE type='table' 
-    AND name IN ('comprehensive_data', 'master_mailing', 'master_section', 'master_course');
-"
+# Verify the canonical outputs produced by the selected stages exist with their
+# expected relation types. Export-only and other custom partial runs have no
+# producer contract to check here.
+if [ ${#EXPECTED_RELATION_NAMES[@]} -gt 0 ]; then
+    echo "Verifying selected stage outputs..."
+    expected_values=""
+    for relation_index in "${!EXPECTED_RELATION_NAMES[@]}"; do
+        if [ -n "$expected_values" ]; then
+            expected_values+=", "
+        fi
+        expected_values+="('${EXPECTED_RELATION_NAMES[$relation_index]}', '${EXPECTED_RELATION_TYPES[$relation_index]}')"
+    done
+
+    validation_failures=$(
+        ${DUCKDB} -bail -csv -noheader "${MAIN_DB}" -c "
+            WITH expected(table_name, table_type) AS (VALUES ${expected_values})
+            SELECT expected.table_name || ': expected ' || expected.table_type ||
+                   ', found ' || COALESCE(actual.table_type, 'MISSING')
+            FROM expected
+            LEFT JOIN information_schema.tables actual
+              ON actual.table_catalog = current_database()
+             AND actual.table_schema = 'main'
+             AND actual.table_name = expected.table_name
+            WHERE actual.table_type IS DISTINCT FROM expected.table_type
+            ORDER BY expected.table_name;
+        "
+    )
+    if [ -n "$validation_failures" ]; then
+        echo "Error: selected stage output validation failed:" >&2
+        printf '%s\n' "$validation_failures" >&2
+        exit 1
+    fi
+fi
 
 # Clean up temporary files
 echo "Cleaning up temporary files..."

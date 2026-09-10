@@ -1,0 +1,6 @@
+relation	kind	ordinal	column	type	upstream table	derivation	sample values	description	null meaning
+format_type_classification	table	1	FormatType	varchar	format_type_lookup.tsv	Lookup TSV field `format_type`; direct tab-delimited import.	Book	Catalog classification label for the material format.	Lookup cell missing.
+format_type_classification	table	2	is_oer	boolean	format_type_lookup.tsv	Lookup TSV field `is_oer`; direct tab-delimited import cast to BOOLEAN.	TRUE	Whether the material is an open educational resource.	Lookup cell missing.
+format_type_classification	table	3	oer_category	varchar	format_type_lookup.tsv	Lookup TSV field `oer_category`; direct tab-delimited import.	unknown	Open-resource category assigned to the material format.	Lookup cell missing.
+format_type_classification	table	4	is_ia	boolean	format_type_lookup.tsv	Lookup TSV field `is_ia`; direct tab-delimited import cast to BOOLEAN.	TRUE	Whether the material uses inclusive access.	Lookup cell missing.
+format_type_classification	table	5	ia_category	varchar	format_type_lookup.tsv	Lookup TSV field `ia_category`; direct tab-delimited import.	unknown	Inclusive-access category assigned to the material format.	Lookup cell missing.

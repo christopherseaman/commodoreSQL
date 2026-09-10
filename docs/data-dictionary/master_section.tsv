@@ -1,0 +1,68 @@
+relation	kind	ordinal	column	type	upstream table	derivation	sample values	description	null meaning
+master_section	table	1	section_id	varchar	master_material	Group key from `master_material.section_id`; includes term	1001::BIO::101::001::2025-4	Period-specific identifier for the distinct section offering.	Never NULL
+master_section	table	2	course_id	varchar	master_material	`ANY_VALUE(master_material.course_id)`	1001::BIO::101	Stable identifier for the institution-level course offering.	Missing segments are `UNKNOWN`
+master_section	table	3	period	varchar	master_material	`ANY_VALUE(master_material.period)`	Fall 2025	Human-readable academic term label from the source.	Valid sortable period required
+master_section	table	4	period_sortable	varchar	master_material	`master_material` group key (`YYYY-N`)	2025-4	Sortable academic term code used for chronological ordering.	Never NULL
+master_section	table	5	period_date	date	master_material	`ANY_VALUE(period_date)`	2025-10-01	Canonical starting date assigned to the academic term.	Not NULL in retained scope
+master_section	table	6	unit_id	bigint	master_material	`ANY_VALUE(master_material.unit_id)`	1001	IPEDS institution identifier used throughout the pipeline.	Missing institution ID
+master_section	table	7	state	varchar	master_material	`ANY_VALUE(master_material.state)`	CA	State or province code for the institution.	Missing geography
+master_section	table	8	control	varchar	master_material	`ANY_VALUE(master_material.control)`	unknown	Institution ownership and governance classification used for reporting.	No matching IPEDS institution
+master_section	table	9	level	varchar	master_material	`ANY_VALUE(master_material.level)`	unknown	IPEDS award-level classification for the institution.	No matching IPEDS institution
+master_section	table	10	size	varchar	master_material	`ANY_VALUE(master_material.size)`	unknown	IPEDS institutional enrollment-size classification used for reporting.	No matching IPEDS institution
+master_section	table	11	sector	varchar	master_material	`ANY_VALUE(master_material.sector)`	unknown	IPEDS sector classification for the institution.	No matching IPEDS institution
+master_section	table	12	institution_name	varchar	master_material	`ANY_VALUE(master_material.institution_name)`	Example University	Canonical institution name supplied by IPEDS.	No matching IPEDS institution
+master_section	table	13	institution_type	varchar	master_material	`ANY_VALUE(master_material.institution_type)`	unknown	Derived institution type used for reporting groups.	No matching institution/type
+master_section	table	14	enrollment_2024	integer	master_material	`ANY_VALUE(master_material.enrollment_2024)`	42	Total institutional enrollment reported to IPEDS for 2024.	No matching IPEDS value
+master_section	table	15	distance_enrollment_2024	integer	master_material	`ANY_VALUE(master_material.distance_enrollment_2024)`	42	IPEDS 2024 students enrolled in distance education.	No matching IPEDS value
+master_section	table	16	school	varchar	master_material	`mode()` of non-NULL `master_material` value	Example University	Institution or school name attached to the course.	No source value
+master_section	table	17	department	varchar	master_material	`mode()` of non-NULL `master_material` value	Biology	Academic department responsible for the course.	No source value
+master_section	table	18	course_number	varchar	master_material	`mode()` of non-NULL `master_material` value	101	Catalog number identifying the course within its department.	No source value
+master_section	table	19	section	varchar	master_material	`mode()` of non-NULL `master_material` value	001	Source code distinguishing sections of the same course.	No source value
+master_section	table	20	course_title	varchar	master_material	`mode()` of non-NULL `master_material` value	Introduction to Biology	Official title assigned to the course.	No source value
+master_section	table	21	course_level	varchar	master_material	Section-canonical value inherited through `master_material`	Introductory or general undergraduate	Instructional level assigned to the course.	No source value
+master_section	table	22	course_subject	varchar	master_material	`mode()` of non-NULL `master_material` value	BIO	Subject area assigned to the course.	No source value
+master_section	table	23	material_count	bigint	master_material	`COUNT(*)` over deduplicated `master_material`	42	Canonical course-material items within the section.	Never NULL/zero
+master_section	table	24	required_count	bigint	master_material	Count where `is_required_inferred`	42	Required materials within the canonical section.	Zero means none
+master_section	table	25	optional_count	bigint	master_material	Count where not `is_required_inferred`	42	Optional or recommended materials within the section.	Zero means none
+master_section	table	26	has_course_material_use	boolean	master_material	Constant true for retained sections	TRUE	Whether the section contains retained canonical materials.	Never false
+master_section	table	27	course_material_use_count	bigint	master_material	Canonical item count (= `material_count`)	42	Canonical included materials within the retained section.	Never zero
+master_section	table	28	course_material_no_use_count	bigint	master_material	`ANY_VALUE(master_material.section_course_material_no_use_count)`	42	Excluded canonical items audited within retained sections.	Zero means none
+master_section	table	29	no_details_count	bigint	master_material	`ANY_VALUE(master_material.section_no_details_count)`	42	No-details canonical items audited within retained sections.	Zero means marker absent
+master_section	table	30	no_materials_count	bigint	master_material	`ANY_VALUE(master_material.section_no_materials_count)`	42	No-materials canonical items audited within retained sections.	Zero means marker absent
+master_section	table	31	is_canada	boolean	master_material	`ANY_VALUE(master_material.is_section_canada)`	TRUE	Whether retained sections contain Canadian canonical items.	False means no Canadian item
+master_section	table	32	is_supply	boolean	master_material	`ANY_VALUE(master_material.is_section_supply)`	TRUE	Whether retained sections contain classified supply canonical items.	False means no supply item
+master_section	table	33	supply_count	bigint	master_material	`ANY_VALUE(master_material.section_supply_count)`	42	Supply canonical items audited within retained sections.	Zero means none
+master_section	table	34	is_oer	boolean	master_material	`BOOL_OR(is_oer)` over `master_material`, coalesced false	TRUE	Whether the material is an open educational resource.	False means no classified OER
+master_section	table	35	is_ia	boolean	master_material	`BOOL_OR(is_ia)` over `master_material`, coalesced false	TRUE	Whether the material uses inclusive access.	False means no classified IA
+master_section	table	36	oer_count	bigint	master_material	Count of Items with `is_oer=true`	42	Open-resource materials within the aggregation group.	Zero means none
+master_section	table	37	ia_count	bigint	master_material	Count of Items with `is_ia=true`	42	Inclusive-access materials within the aggregation group.	Zero means none
+master_section	table	38	publishers	varchar[]	master_material	`LIST(DISTINCT publisher)` for non-NULL publishers	['alpha', 'beta']	Distinct publishers represented by the section materials.	No item publisher
+master_section	table	39	required_publishers	varchar[]	master_material	Distinct publisher list where required	['alpha', 'beta']	Distinct publishers of required materials within the section.	No required publisher
+master_section	table	40	required_publisher_count	bigint	master_material	Distinct publisher count where required	42	Distinct publishers of required materials within the section.	Zero means none
+master_section	table	41	optional_publisher_count	bigint	master_material	Distinct publisher count where optional	42	Distinct publishers of optional materials within the section.	Zero means none
+master_section	table	42	enrollments	integer	master_material	Section-canonical value inherited through `master_material`	42	Enrollment reported directly for the course section.	Unavailable
+master_section	table	43	seats_taken	integer	master_material	Section-canonical value inherited through `master_material`; raw 9999 retained	42	Occupied seats reported for the course section.	Unavailable
+master_section	table	44	has_isbn	boolean	master_material	`BOOL_OR(has_isbn)` over Items	TRUE	Whether the material has a non-NULL ISBN.	True under current Use contract
+master_section	table	45	has_formattype	boolean	master_material	`BOOL_OR(has_formattype)` over Items	TRUE	Whether the material has a nonblank FormatType classification.	False means no nonblank FormatType
+master_section	table	46	isbn_count	bigint	master_material	Count of Items with ISBN (= `material_count` currently)	42	ISBN-bearing materials within the aggregation group.	Never zero
+master_section	table	47	classified_count	bigint	master_material	Count of Items with nonblank FormatType	42	Materials having a nonblank FormatType classification.	Zero means none
+master_section	table	48	has_enrollment	boolean	master_material	Section-canonical flag inherited through `master_material`	TRUE	Whether usable enrollment information is available.	Never NULL
+master_section	table	49	has_enrollment_sibling	boolean	master_material	Full-population section flag inherited through `master_material`	TRUE	Whether a sibling section reports enrollment.	Never NULL
+master_section	table	50	has_enrollment_own_seats	boolean	master_material	Section-canonical flag inherited through `master_material`	TRUE	Whether the section reports usable occupied seats.	Never NULL
+master_section	table	51	has_enrollment_sibling_seats	boolean	master_material	Full-population section flag inherited through `master_material`	TRUE	Whether a sibling section reports usable occupied seats.	Never NULL
+master_section	table	52	enrollment_assigned	integer	master_material	First available own enrollment, own seats, sibling medians, control×level median, level median	42	Best available section enrollment from the assignment ladder.	No rung; source is `none`
+master_section	table	53	enrollment_source	varchar	master_material	Section-canonical label inherited through `master_material`	own	Assignment-ladder rung that supplied the section enrollment.	Never NULL; values `own`, `own_seats`, `sibling_enroll`, `sibling_seats`, `class_median`, `level_median`, `none`
+master_section	table	54	is_required_direct	boolean	master_material	`BOOL_OR(is_section_required_direct)` over retained items	TRUE	Whether direct required evidence is present at the relation grain.	False means no nonsupply literal-required item in the section
+master_section	table	55	required_price_min	decimal(38,2)	master_material	`SUM(master_material.price_min) FILTER (WHERE is_required_inferred)`	12.34	Lower all-offer price bound for required materials.	No required item, or every required item price is NULL
+master_section	table	56	required_price_avg	double	master_material	`(required_price_min + required_price_max) / 2.0`	12.34	Legacy-named midrange of required price bounds.	Either bound is NULL
+master_section	table	57	required_price_max	decimal(38,2)	master_material	`SUM(master_material.price_max) FILTER (WHERE is_required_inferred)`	12.34	Upper all-offer price bound for required materials.	No required item, or every required item price is NULL
+master_section	table	58	required_price_buy_min	decimal(38,2)	master_material	`SUM(master_material.price_buy_min) FILTER (WHERE is_required_inferred)`	12.34	Lower buy-only price bound for required materials.	No required item, or every required buy price is NULL
+master_section	table	59	required_price_buy_max	decimal(38,2)	master_material	`SUM(master_material.price_buy_max) FILTER (WHERE is_required_inferred)`	12.34	Upper buy-only price bound for required materials.	No required item, or every required buy price is NULL
+master_section	table	60	all_price_min	decimal(38,2)	master_material	`SUM(master_material.price_min)`	12.34	Lower all-offer price bound for all-item materials.	Every item price is NULL
+master_section	table	61	all_price_avg	double	master_material	`(all_price_min + all_price_max) / 2.0`	12.34	Legacy-named midrange of all-item price bounds.	Either bound is NULL
+master_section	table	62	all_price_max	decimal(38,2)	master_material	`SUM(master_material.price_max)`	12.34	Upper all-offer price bound for all-item materials.	Every item price is NULL
+master_section	table	63	all_price_buy_min	decimal(38,2)	master_material	`SUM(master_material.price_buy_min)`	12.34	Lower buy-only price bound for all-item materials.	Every item buy price is NULL
+master_section	table	64	all_price_buy_max	decimal(38,2)	master_material	`SUM(master_material.price_buy_max)`	12.34	Upper buy-only price bound for all-item materials.	Every item buy price is NULL
+master_section	table	65	required_priced_count	bigint	master_material	Required Items with non-NULL `price_min`	42	Required materials having at least one valid price.	Zero means none
+master_section	table	66	optional_priced_count	bigint	master_material	Optional Items with non-NULL `price_min`	42	Optional materials having at least one valid price.	Zero means none
+master_section	table	67	bookstore_url	varchar	master_material	Deterministic modal nonblank `master_material.bookstore_url`: count DESC, URL ASC	https://bookstore.example.edu/item/123	Bookstore URL selected across canonical section items.	No nonblank item URL

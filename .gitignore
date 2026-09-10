@@ -6,6 +6,8 @@
 /error.log
 /description.csv
 .venv/
+__pycache__/
+*.py[cod]
 *.db
 good/
 output/
@@ -21,6 +23,7 @@ docker/pgadmin/
 *.duckdb
 *.zip
 .cache/
+.notion/
 
 # Data and database files
 data/

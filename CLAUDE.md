@@ -1,14 +1,64 @@
 # CommodoreSQL — Project Conventions
 
+## Documentation style
+
+- Use exact table/view names in diagrams; put logic below them.
+- State shared rules once. Cut repeated introductions, aliases, and qualifications.
+- Preserve fields, filters, grains, and export/report inventories when shortening.
+- Edit generated wording at its source; regenerate and verify Notion tables.
+- Do not publish source-width line wrapping to Notion; join prose continuations while preserving Markdown structure.
+- Promote section headings one level on Notion upload; keep the local document title and group table logic by diagram area.
+- Table logic bullets name upstream columns, join keys/types, row filters, and output derivations; distinguish labeling rows from excluding them.
+
 ## Documentation hierarchy
 
-- `SCHEMA.md` — current data model overview (tables, pipeline stages, lineage diagram)
-- `schema.dbml` — full column definitions, types, and relationships (load in dbdiagram.io)
+- `CMM-DATA-FLOW.md` — source-to-report flow, processing logic, filters, and export inventory
+- `DATA-DICTIONARY.md` — schema home, generated relation index, and downloadable TSV
+- `docs/data-dictionary.tsv` — generated golden-path schema, one row per relation/column
+- `docs/data-dictionary/<relation>.tsv` — downloadable slices of the global TSV
+- `docs/data-dictionary/<relation>.md` — generated repo-only reference pages, including DQ
+- `schema.dbml` — canonical machine-readable column definitions, types, and relationships (load in dbdiagram.io)
+- `SCHEMA.md`, `CMM-ETL.md` — repo-only pointers retained for older references
+- `MASTER-SECTION-DICTIONARY.md` — repo-only Master Section business/NULL/denominator appendix
+- `DASHBOARDS-REPORTS.md` — dashboard, report, and Metabase question inventory
 - `CLAUDE.md` (this file) — naming standards and conventions
 - `HANDOFF.md` — current work status, how to run things, gotchas (read first when picking up)
-- `README.md` — high-level project + pipeline overview
+- `README.md` — project overview, execution order, runner configuration, and export commands
+
+Notion prose sync uses `scripts/notion_sync_docs.txt`: flow, reports, two issue-detail
+pages beneath Data Flow, the Overview pricing-matching page, and the Top-125 report page. It strips ordinary repository-relative links and preserves
+native child pages. No recursive repository sweep.
+
+Data Dictionary uses dedicated field and download publishers, configured by
+`scripts/notion_dictionary.json`. One inline database holds the implemented flow's columns;
+table-filtered views and a collapsed Downloads section expose global/per-table TSVs.
+DQ and off-flow relations are excluded. Generated TSVs flow one-way into Notion;
+publishers detect remote edits and retain stable row/file-block IDs.
+Local sync state lives in ignored `.notion/`; preserve it between runs.
+
+Dictionary columns separate immediate upstream table(s), derivation, and sample values.
+Imports name their input file instead of an upstream table. Derivations use current or
+upstream column names; samples are illustrative literals, not formulas or format prose.
+
+Use `NOTION_KEYRING=0`; preview before `--apply` (commands in README.md).
+Repo-only guidance, historical notes, and `comms/` captures are not synced.
 
 ## Naming standards
+
+- Derived relations use singular nouns: `course_material`, `master_material`,
+  `master_section`, `recent_period`.
+- Samples use `sample_<grain>_<selection>`: `sample_material_10pct`,
+  `sample_section_us_intro_fall2025`, and pending `sample_material_100id` /
+  `sample_section_100id` from the imported `sample_unit_100id` list.
+- Source-owned field names and plural count/list measures retain their meanings.
+
+### Stakeholder source ownership
+
+- BMG owns course-materials and raw pricing/cost observations.
+- BVA owns opt-out and mailing-history inputs.
+- IPEDS owns institution metadata.
+- Existing executable source-table names are compatibility names; do not claim they use source
+  prefixes. Derived/joined outputs omit stakeholder acronyms.
 
 ### Fact aggregation columns
 
@@ -34,6 +84,15 @@ When deriving a boolean from grouped data via `BOOL_OR` and `BOOL_AND`:
 - The `BOOL_OR` value is the **definitive** column — name it without a suffix (`is_oer`, `is_ia`).
 - Compare against `BOOL_AND` only as a data-quality check, **logged to console**, not stored.
 - TODO: better DQ logging — currently console-only.
+
+### Requiredness booleans
+
+- Name derived requiredness booleans `is_required_<method>`.
+- Use `is_required_direct` for explicit source evidence and
+  `is_required_inferred` for fallback classification.
+- State the grain: at section grain, direct means any qualifying material; at item grain,
+  it applies only to that item.
+- Preserve source-owned fields such as `book_status` and `pricing_historical.required`.
 
 ## Pipeline conventions
 
@@ -74,6 +133,12 @@ Pricing is at `(section_id, isbn13, book_option, book_condition, book_format, re
 ### `price_avg` is NOT the arithmetic mean
 
 `price_avg` = `(price_min + price_max) / 2.0` — **legacy** definition kept for backward compatibility. Wherever surfaced in Metabase or exports, label clearly so consumers don't assume `AVG()`.
+
+The rule also applies to summary names: `required_price_avg` and `all_price_avg` are
+MIDRANGES of their relation's own min/max bounds. Section bounds sum item bounds; course
+bounds take section extrema before deriving the course midrange. Never use `AVG()` of section
+midranges. Buy-only summaries use the `_price_buy_min` / `_price_buy_max` suffixes and do not
+publish an average. Missing prices remain NULL, while genuine zero prices remain zero.
 
 ## When in doubt
 
